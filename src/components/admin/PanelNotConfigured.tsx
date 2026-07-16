@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { PlugZap } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/Card";
+import { ButtonLink } from "@/components/ui/Button";
 
 export function PanelNotConfigured({ title }: { title: string }) {
   return (
@@ -14,13 +16,17 @@ export function PanelNotConfigured({ title }: { title: string }) {
             Panel connection not configured
           </p>
           <p className="mx-auto mt-2 max-w-md text-sm text-steel-dim">
-            Set <code className="rounded bg-night-200 px-1.5 py-0.5 font-mono text-xs">PTERODACTYL_URL</code>,{" "}
-            <code className="rounded bg-night-200 px-1.5 py-0.5 font-mono text-xs">PTERODACTYL_APP_API_KEY</code>{" "}
-            and{" "}
-            <code className="rounded bg-night-200 px-1.5 py-0.5 font-mono text-xs">PTERODACTYL_CLIENT_API_KEY</code>{" "}
-            in your <code className="rounded bg-night-200 px-1.5 py-0.5 font-mono text-xs">.env</code> (and on
-            Railway), then restart the app.
+            Add your Pterodactyl panel URL and API keys in{" "}
+            <Link href="/admin/settings" className="text-hyper-300 underline underline-offset-2">
+              Admin → Settings
+            </Link>
+            . Changes take effect immediately — no restart needed.
           </p>
+          <div className="mt-6">
+            <ButtonLink href="/admin/settings" size="sm">
+              Open Settings
+            </ButtonLink>
+          </div>
         </CardBody>
       </Card>
     </div>

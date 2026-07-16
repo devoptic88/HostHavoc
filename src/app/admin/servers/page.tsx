@@ -16,7 +16,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function AdminServersPage() {
-  if (!pteroConfigured()) return <PanelNotConfigured title="Servers" />;
+  if (!(await pteroConfigured())) return <PanelNotConfigured title="Servers" />;
 
   let servers: AppServer[] = [];
   let error = "";

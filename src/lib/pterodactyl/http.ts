@@ -1,28 +1,33 @@
+import { getSetting } from "@/lib/settings";
 import { PterodactylError } from "./types";
 
 type ApiKind = "application" | "client";
 
-function config() {
-  const url = process.env.PTERODACTYL_URL?.replace(/\/$/, "");
-  if (!url) throw new PterodactylError(0, "PTERODACTYL_URL is not configured");
+async function config(): Promise<string> {
+  const url = (await getSetting("PTERODACTYL_URL")).replace(/\/$/, "");
+  if (!url)
+    throw new PterodactylError(0, "Pterodactyl panel URL is not configured (Admin → Settings)");
   return url;
 }
 
-function keyFor(kind: ApiKind): string {
-  const key =
-    kind === "application"
-      ? process.env.PTERODACTYL_APP_API_KEY
-      : process.env.PTERODACTYL_CLIENT_API_KEY;
+async function keyFor(kind: ApiKind): Promise<string> {
+  const key = await getSetting(
+    kind === "application" ? "PTERODACTYL_APP_API_KEY" : "PTERODACTYL_CLIENT_API_KEY",
+  );
   if (!key)
     throw new PterodactylError(
       0,
-      `${kind === "application" ? "PTERODACTYL_APP_API_KEY" : "PTERODACTYL_CLIENT_API_KEY"} is not configured`,
+      `Pterodactyl ${kind} API key is not configured (Admin → Settings)`,
     );
   return key;
 }
 
-export function pteroConfigured(): boolean {
-  return Boolean(process.env.PTERODACTYL_URL && process.env.PTERODACTYL_APP_API_KEY);
+export async function pteroConfigured(): Promise<boolean> {
+  const [url, appKey] = await Promise.all([
+    getSetting("PTERODACTYL_URL"),
+    getSetting("PTERODACTYL_APP_API_KEY"),
+  ]);
+  return Boolean(url && appKey);
 }
 
 export async function pteroFetch<T>(
@@ -35,7 +40,7 @@ export async function pteroFetch<T>(
     raw?: boolean;
   } = {},
 ): Promise<T> {
-  const base = config();
+  const base = await config();
   const prefix = kind === "application" ? "/api/application" : "/api/client";
   const url = new URL(`${base}${prefix}${path}`);
   if (init.searchParams) {
@@ -47,7 +52,7 @@ export async function pteroFetch<T>(
   const res = await fetch(url, {
     method: init.method ?? "GET",
     headers: {
-      Authorization: `Bearer ${keyFor(kind)}`,
+      Authorization: `Bearer ${await keyFor(kind)}`,
       Accept: "application/json",
       ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
     },

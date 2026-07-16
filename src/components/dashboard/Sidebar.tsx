@@ -15,6 +15,7 @@ import {
   Newspaper,
   Package,
   Server,
+  Settings,
   ShoppingCart,
   UserCircle,
   Users,
@@ -39,6 +40,7 @@ const ICONS: Record<string, LucideIcon> = {
   eggs: Egg,
   blog: Newspaper,
   wiki: BookOpen,
+  settings: Settings,
 };
 
 export interface NavItem {

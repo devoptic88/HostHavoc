@@ -26,7 +26,7 @@ export default async function AdminOverviewPage() {
 
   let nodeCount: number | null = null;
   let nodesHealthy = true;
-  if (pteroConfigured()) {
+  if (await pteroConfigured()) {
     try {
       const nodes = await pteroApp.listNodes();
       nodeCount = nodes.data.length;

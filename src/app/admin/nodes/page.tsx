@@ -8,7 +8,7 @@ import { PanelNotConfigured } from "@/components/admin/PanelNotConfigured";
 export const dynamic = "force-dynamic";
 
 export default async function AdminNodesPage() {
-  if (!pteroConfigured()) return <PanelNotConfigured title="Nodes" />;
+  if (!(await pteroConfigured())) return <PanelNotConfigured title="Nodes" />;
 
   let nodes: AppNode[] = [];
   let error = "";

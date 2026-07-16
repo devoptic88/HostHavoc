@@ -53,12 +53,12 @@ export async function POST(req: Request) {
 
   // Dev fallback: without Stripe keys, provision immediately so the full
   // pipeline can be exercised locally. Replace by configuring STRIPE_*.
-  if (!stripeConfigured()) {
+  if (!(await stripeConfigured())) {
     provisionOrder(order.id).catch(() => {});
     return NextResponse.json({ redirect: `/checkout/success?order=${order.id}` });
   }
 
-  const s = stripe();
+  const s = await stripe();
 
   // Reuse or create the Stripe customer.
   const user = await db.user.findUniqueOrThrow({ where: { id: session.user.id } });

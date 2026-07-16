@@ -15,7 +15,7 @@ export default async function AdminNodeDetailPage({
 }: {
   params: { id: string };
 }) {
-  if (!pteroConfigured()) return <PanelNotConfigured title="Node" />;
+  if (!(await pteroConfigured())) return <PanelNotConfigured title="Node" />;
   const nodeId = Number(params.id);
   if (!Number.isFinite(nodeId)) notFound();
 

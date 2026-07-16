@@ -9,10 +9,11 @@ export default function MarketingLayout({
 }) {
   return (
     <div className="flex min-h-screen flex-col">
-      <div className="bg-hyper-gradient px-4 py-1.5 text-center text-xs font-semibold text-white">
+      <div className="relative overflow-hidden bg-hyper-gradient px-4 py-1.5 text-center text-xs font-semibold text-white">
+        <div className="pointer-events-none absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent motion-reduce:hidden" />
         ⚡ Launch offer — save 15% for life on new services with code{" "}
         <span className="rounded bg-white/20 px-1.5 py-0.5 font-mono">HYPER15</span>{" "}
-        <Link href="/games" className="underline underline-offset-2">
+        <Link href="/games" className="relative underline underline-offset-2">
           Deploy now →
         </Link>
       </div>

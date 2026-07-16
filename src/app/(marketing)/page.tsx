@@ -15,6 +15,10 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { GameCard } from "@/components/marketing/GameCard";
+import { GameMarquee } from "@/components/marketing/GameMarquee";
+import { Reveal } from "@/components/motion/Reveal";
+import { CountUp } from "@/components/motion/CountUp";
+import { Stagger, StaggerItem } from "@/components/motion/Stagger";
 import { GAMES } from "@/content/games";
 import { getDisplayLocations } from "@/lib/locations";
 
@@ -83,57 +87,78 @@ export default async function HomePage() {
         <div className="absolute inset-0 bg-grid-faint bg-[size:32px_32px]" />
         <div className="absolute inset-0 bg-radial-glow" />
         <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-20 sm:px-6 lg:pt-28">
-          <div className="mx-auto max-w-3xl text-center">
-            <Badge tone="blue" className="mb-6">
-              <Zap className="h-3 w-3" /> Instant setup · NVMe hardware · DDoS protected
-            </Badge>
-            <h1 className="font-display text-4xl font-extrabold italic tracking-tight text-white sm:text-6xl">
-              Game servers that{" "}
-              <span className="text-gradient-hyper">never blink</span>
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-steel-dim">
-              Deploy high-performance game servers in minutes on owned Ryzen
-              hardware. One dashboard for console, files, mods, and backups —
-              with humans on support around the clock.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-              <ButtonLink href="/games" size="lg">
-                <Gamepad2 className="h-5 w-5" /> Browse Games
-              </ButtonLink>
-              <ButtonLink href="/vps" variant="secondary" size="lg">
-                VPS & Dedicated
-              </ButtonLink>
-            </div>
-            <p className="mt-6 text-xs text-steel-faint">
-              72-hour money-back guarantee · No contracts · Cancel anytime
-            </p>
-          </div>
+          <Stagger className="mx-auto max-w-3xl text-center">
+            <StaggerItem>
+              <Badge tone="blue" className="mb-6">
+                <Zap className="h-3 w-3" /> Instant setup · NVMe hardware · DDoS protected
+              </Badge>
+            </StaggerItem>
+            <StaggerItem>
+              <h1 className="font-display text-4xl font-extrabold italic tracking-tight text-white sm:text-6xl">
+                Game servers that{" "}
+                <span className="text-gradient-hyper">never blink</span>
+              </h1>
+            </StaggerItem>
+            <StaggerItem>
+              <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-steel-dim">
+                Deploy high-performance game servers in minutes on owned Ryzen
+                hardware. One dashboard for console, files, mods, and backups —
+                with humans on support around the clock.
+              </p>
+            </StaggerItem>
+            <StaggerItem>
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+                <ButtonLink href="/games" size="lg">
+                  <Gamepad2 className="h-5 w-5" /> Browse Games
+                </ButtonLink>
+                <ButtonLink href="/vps" variant="secondary" size="lg">
+                  VPS & Dedicated
+                </ButtonLink>
+              </div>
+              <p className="mt-6 text-xs text-steel-faint">
+                72-hour money-back guarantee · No contracts · Cancel anytime
+              </p>
+            </StaggerItem>
+          </Stagger>
 
           {/* Featured games */}
           <div className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {featured.map((g, i) => (
-              <div key={g.slug} className="animate-fade-up" style={{ animationDelay: `${i * 100}ms` }}>
+              <Reveal key={g.slug} delay={0.4 + i * 0.1} className="h-full">
                 <GameCard game={g} />
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
+      {/* ─── Game art marquee ─────────────────────────────────── */}
+      <section className="border-y border-white/[0.06] bg-night-50 py-12">
+        <Reveal>
+          <p className="mb-8 text-center text-xs font-semibold uppercase tracking-[0.2em] text-steel-faint">
+            16 games and counting — deployed in minutes
+          </p>
+          <GameMarquee />
+        </Reveal>
+      </section>
+
       {/* ─── Services ─────────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
-        <div className="mb-12 text-center">
-          <h2 className="font-display text-3xl font-bold italic text-white sm:text-4xl">
-            Everything you need to <span className="text-gradient-hyper">host anything</span>
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-steel-dim">
-            From a four-friend Palworld world to a hundred-node network — same
-            hardware, same support, same panel.
-          </p>
-        </div>
+        <Reveal>
+          <div className="mb-12 text-center">
+            <h2 className="font-display text-3xl font-bold italic text-white sm:text-4xl">
+              Everything you need to <span className="text-gradient-hyper">host anything</span>
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-steel-dim">
+              From a four-friend Palworld world to a hundred-node network — same
+              hardware, same support, same panel.
+            </p>
+          </div>
+        </Reveal>
         <div className="grid gap-6 md:grid-cols-3">
-          {services.map((s) => (
-            <Card key={s.title} glow className="group">
+          {services.map((s, i) => (
+            <Reveal key={s.title} delay={i * 0.1} className="h-full">
+            <Card glow className="group h-full">
               <CardBody className="flex h-full flex-col">
                 <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-hyper-500/10 text-hyper-400 transition-colors group-hover:bg-hyper-500/20">
                   <s.icon className="h-6 w-6" />
@@ -153,6 +178,7 @@ export default async function HomePage() {
                 </ButtonLink>
               </CardBody>
             </Card>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -160,6 +186,7 @@ export default async function HomePage() {
       {/* ─── Network ──────────────────────────────────────────── */}
       <section className="border-y border-white/[0.06] bg-night-50 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <Reveal>
           <div className="mb-12 text-center">
             <Badge tone="blue" className="mb-4">
               <Globe2 className="h-3 w-3" /> Global network
@@ -172,11 +199,13 @@ export default async function HomePage() {
               is what you can deploy to right now.
             </p>
           </div>
+          </Reveal>
           <div className="grid gap-6 md:grid-cols-3">
-            {regions.map((region) => {
+            {regions.map((region, ri) => {
               const locs = locations.filter((l) => l.region === region);
               return (
-                <Card key={region}>
+                <Reveal key={region} delay={ri * 0.1} className="h-full">
+                <Card className="h-full">
                   <CardBody>
                     <h3 className="mb-4 font-display text-sm font-bold uppercase tracking-widest text-steel-dim">
                       {region}
@@ -195,6 +224,7 @@ export default async function HomePage() {
                     )}
                   </CardBody>
                 </Card>
+                </Reveal>
               );
             })}
           </div>
@@ -220,16 +250,28 @@ export default async function HomePage() {
               </p>
             </div>
             <div className="grid grid-cols-3 gap-6 text-center">
-              {[
-                { stat: "50+", label: "Attack types filtered" },
-                { stat: "100k+", label: "Attacks mitigated" },
-                { stat: "<1s", label: "Time to mitigation" },
-              ].map((s) => (
-                <div key={s.label}>
-                  <p className="font-display text-4xl font-extrabold text-gradient-hyper">{s.stat}</p>
-                  <p className="mt-2 text-xs uppercase tracking-wider text-steel-faint">{s.label}</p>
-                </div>
-              ))}
+              <div>
+                <p className="font-display text-4xl font-extrabold text-gradient-hyper">
+                  <CountUp value={50} suffix="+" />
+                </p>
+                <p className="mt-2 text-xs uppercase tracking-wider text-steel-faint">
+                  Attack types filtered
+                </p>
+              </div>
+              <div>
+                <p className="font-display text-4xl font-extrabold text-gradient-hyper">
+                  <CountUp value={100} suffix="k+" />
+                </p>
+                <p className="mt-2 text-xs uppercase tracking-wider text-steel-faint">
+                  Attacks mitigated
+                </p>
+              </div>
+              <div>
+                <p className="font-display text-4xl font-extrabold text-gradient-hyper">&lt;1s</p>
+                <p className="mt-2 text-xs uppercase tracking-wider text-steel-faint">
+                  Time to mitigation
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -237,20 +279,24 @@ export default async function HomePage() {
 
       {/* ─── Feature grid ─────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6">
-        <div className="mb-12 text-center">
-          <h2 className="font-display text-3xl font-bold italic text-white sm:text-4xl">
-            Why communities <span className="text-gradient-hyper">stay</span>
-          </h2>
-        </div>
+        <Reveal>
+          <div className="mb-12 text-center">
+            <h2 className="font-display text-3xl font-bold italic text-white sm:text-4xl">
+              Why communities <span className="text-gradient-hyper">stay</span>
+            </h2>
+          </div>
+        </Reveal>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((f) => (
-            <Card key={f.title} glow>
+          {features.map((f, i) => (
+            <Reveal key={f.title} delay={(i % 3) * 0.08} className="h-full">
+            <Card glow className="h-full">
               <CardBody>
                 <f.icon className="mb-3 h-6 w-6 text-hyper-400" />
                 <h3 className="font-display text-base font-bold text-white">{f.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-steel-dim">{f.body}</p>
               </CardBody>
             </Card>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -269,8 +315,9 @@ export default async function HomePage() {
             </h2>
           </div>
           <div className="grid gap-6 md:grid-cols-3">
-            {testimonials.map((t) => (
-              <Card key={t.name}>
+            {testimonials.map((t, i) => (
+              <Reveal key={t.name} delay={i * 0.1} className="h-full">
+              <Card className="h-full">
                 <CardBody>
                   <p className="text-sm leading-relaxed text-steel">&ldquo;{t.body}&rdquo;</p>
                   <div className="mt-5 border-t border-white/[0.06] pt-4">
@@ -279,6 +326,7 @@ export default async function HomePage() {
                   </div>
                 </CardBody>
               </Card>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -286,6 +334,7 @@ export default async function HomePage() {
 
       {/* ─── Final CTA ────────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 py-24 text-center sm:px-6">
+        <Reveal>
         <h2 className="font-display text-4xl font-extrabold italic text-white sm:text-5xl">
           Ready to <span className="text-gradient-hyper">deploy</span>?
         </h2>
@@ -303,6 +352,7 @@ export default async function HomePage() {
           <span>✓ Instant service provisioning</span>
           <span>✓ Real 24/7 technical support</span>
         </div>
+        </Reveal>
       </section>
     </>
   );

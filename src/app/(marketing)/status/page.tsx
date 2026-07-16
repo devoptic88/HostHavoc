@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 async function getNodes(): Promise<{ nodes: AppNode[]; live: boolean }> {
-  if (!pteroConfigured()) return { nodes: [], live: false };
+  if (!(await pteroConfigured())) return { nodes: [], live: false };
   try {
     const res = await pteroApp.listNodes();
     return { nodes: res.data.map((n) => n.attributes), live: true };

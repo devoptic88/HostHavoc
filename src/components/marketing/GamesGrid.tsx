@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { GAMES, GAME_CATEGORIES, type GameCategory } from "@/content/games";
 import { GameCard } from "./GameCard";
 import { cn } from "@/lib/utils";
 
 export function GamesGrid() {
+  const reduce = useReducedMotion();
   const [category, setCategory] = useState<GameCategory | "all">("all");
   const [query, setQuery] = useState("");
 
@@ -24,9 +26,10 @@ export function GamesGrid() {
       <div className="mb-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
         <div className="flex flex-wrap justify-center gap-2">
           {GAME_CATEGORIES.map((c) => (
-            <button
+            <motion.button
               key={c.id}
               onClick={() => setCategory(c.id)}
+              whileTap={reduce ? undefined : { scale: 0.94 }}
               className={cn(
                 "ring-focus rounded-full px-4 py-1.5 text-sm font-semibold transition-all",
                 category === c.id
@@ -35,7 +38,7 @@ export function GamesGrid() {
               )}
             >
               {c.label}
-            </button>
+            </motion.button>
           ))}
         </div>
         <div className="relative w-full sm:w-64">
@@ -50,11 +53,27 @@ export function GamesGrid() {
       </div>
 
       {filtered.length ? (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((g) => (
-            <GameCard key={g.slug} game={g} />
-          ))}
-        </div>
+        <motion.div layout className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <AnimatePresence mode="popLayout">
+            {filtered.map((g, i) => (
+              <motion.div
+                key={g.slug}
+                layout
+                initial={reduce ? false : { opacity: 0, scale: 0.94, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={reduce ? undefined : { opacity: 0, scale: 0.94 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 26,
+                  delay: i * 0.03,
+                }}
+              >
+                <GameCard game={g} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
       ) : (
         <p className="py-20 text-center text-steel-faint">
           No games match “{query}”. Want us to add it? Open a ticket — we add

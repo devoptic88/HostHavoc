@@ -3,6 +3,8 @@ import { Check, Cpu, Gauge, Headset, Server, Shield, Zap } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
+import { Reveal } from "@/components/motion/Reveal";
+import { Stagger, StaggerItem } from "@/components/motion/Stagger";
 
 export const metadata: Metadata = {
   title: "Ryzen VPS Hosting",
@@ -27,27 +29,33 @@ export default function VpsPage() {
       <section className="relative overflow-hidden border-b border-white/[0.06]">
         <div className="absolute inset-0 bg-radial-glow" />
         <div className="absolute inset-0 bg-grid-faint bg-[size:32px_32px]" />
-        <div className="relative mx-auto max-w-7xl px-4 py-20 text-center sm:px-6">
-          <Badge tone="blue" className="mb-4">
-            <Server className="h-3 w-3" /> AMD Ryzen · NVMe · Unmetered bandwidth
-          </Badge>
-          <h1 className="font-display text-4xl font-extrabold italic text-white sm:text-5xl">
-            Ryzen VPS hosting with <span className="text-gradient-hyper">real cores</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-steel-dim">
-            High-frequency AMD Ryzen hypervisors with NVMe storage and a 99.9%
-            uptime guarantee. Deploy in minutes, upgrade in place.
-          </p>
-        </div>
+        <Stagger className="relative mx-auto max-w-7xl px-4 py-20 text-center sm:px-6">
+          <StaggerItem>
+            <Badge tone="blue" className="mb-4">
+              <Server className="h-3 w-3" /> AMD Ryzen · NVMe · Unmetered bandwidth
+            </Badge>
+          </StaggerItem>
+          <StaggerItem>
+            <h1 className="font-display text-4xl font-extrabold italic text-white sm:text-5xl">
+              Ryzen VPS hosting with <span className="text-gradient-hyper">real cores</span>
+            </h1>
+          </StaggerItem>
+          <StaggerItem>
+            <p className="mx-auto mt-4 max-w-xl text-steel-dim">
+              High-frequency AMD Ryzen hypervisors with NVMe storage and a 99.9%
+              uptime guarantee. Deploy in minutes, upgrade in place.
+            </p>
+          </StaggerItem>
+        </Stagger>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-          {VPS_PLANS.map((p) => (
+          {VPS_PLANS.map((p, i) => (
+            <Reveal key={p.id} delay={(i % 7) * 0.06} className="h-full">
             <Card
-              key={p.id}
               glow
-              className={p.popular ? "relative border-hyper-500/50 shadow-glow-sm" : ""}
+              className={p.popular ? "relative h-full border-hyper-500/50 shadow-glow-sm" : "h-full"}
             >
               {p.popular && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -76,25 +84,29 @@ export default function VpsPage() {
                 </ButtonLink>
               </CardBody>
             </Card>
+            </Reveal>
           ))}
         </div>
       </section>
 
       <section className="border-y border-white/[0.06] bg-night-50 py-16">
         <div className="mx-auto grid max-w-7xl gap-6 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
-          {pillars.map((p) => (
-            <div key={p.title} className="text-center">
+          {pillars.map((p, i) => (
+            <Reveal key={p.title} delay={i * 0.08}>
+            <div className="text-center">
               <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-hyper-500/10 text-hyper-400">
                 <p.icon className="h-6 w-6" />
               </div>
               <h3 className="font-display text-base font-bold text-white">{p.title}</h3>
               <p className="mt-2 text-sm text-steel-dim">{p.body}</p>
             </div>
+            </Reveal>
           ))}
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6">
+        <Reveal>
         <h2 className="font-display text-2xl font-bold italic text-white">
           Your OS, <span className="text-gradient-hyper">your call</span>
         </h2>
@@ -111,6 +123,7 @@ export default function VpsPage() {
             <Zap className="h-5 w-5" /> Deploy your VPS
           </ButtonLink>
         </div>
+        </Reveal>
       </section>
     </div>
   );

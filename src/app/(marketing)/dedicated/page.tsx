@@ -3,6 +3,8 @@ import { Check, Cpu, FileCheck, HardDrive, Handshake, Timer } from "lucide-react
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
+import { Reveal } from "@/components/motion/Reveal";
+import { Stagger, StaggerItem } from "@/components/motion/Stagger";
 import { DEDICATED_PLANS } from "@/content/plans";
 
 export const metadata: Metadata = {
@@ -24,23 +26,30 @@ export default function DedicatedPage() {
       <section className="relative overflow-hidden border-b border-white/[0.06]">
         <div className="absolute inset-0 bg-radial-glow" />
         <div className="absolute inset-0 bg-grid-faint bg-[size:32px_32px]" />
-        <div className="relative mx-auto max-w-7xl px-4 py-20 text-center sm:px-6">
-          <Badge tone="blue" className="mb-4">
-            <HardDrive className="h-3 w-3" /> Bare metal · 10 Gbps · NVMe
-          </Badge>
-          <h1 className="font-display text-4xl font-extrabold italic text-white sm:text-5xl">
-            Dedicated servers, <span className="text-gradient-hyper">zero neighbors</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-steel-dim">
-            High-frequency Ryzen bare metal for game networks, hypervisors, and
-            anything that can&apos;t share. Every spec upgradeable.
-          </p>
-        </div>
+        <Stagger className="relative mx-auto max-w-7xl px-4 py-20 text-center sm:px-6">
+          <StaggerItem>
+            <Badge tone="blue" className="mb-4">
+              <HardDrive className="h-3 w-3" /> Bare metal · 10 Gbps · NVMe
+            </Badge>
+          </StaggerItem>
+          <StaggerItem>
+            <h1 className="font-display text-4xl font-extrabold italic text-white sm:text-5xl">
+              Dedicated servers, <span className="text-gradient-hyper">zero neighbors</span>
+            </h1>
+          </StaggerItem>
+          <StaggerItem>
+            <p className="mx-auto mt-4 max-w-xl text-steel-dim">
+              High-frequency Ryzen bare metal for game networks, hypervisors, and
+              anything that can&apos;t share. Every spec upgradeable.
+            </p>
+          </StaggerItem>
+        </Stagger>
       </section>
 
       <section className="mx-auto max-w-5xl space-y-5 px-4 py-16 sm:px-6">
-        {DEDICATED_PLANS.map((p) => (
-          <Card key={p.id} glow className={p.soldOut ? "opacity-60" : ""}>
+        {DEDICATED_PLANS.map((p, i) => (
+          <Reveal key={p.id} delay={i * 0.06}>
+          <Card glow className={p.soldOut ? "opacity-60" : ""}>
             <CardBody className="grid items-center gap-6 lg:grid-cols-[1fr_auto]">
               <div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -71,19 +80,22 @@ export default function DedicatedPage() {
               </div>
             </CardBody>
           </Card>
+          </Reveal>
         ))}
       </section>
 
       <section className="border-t border-white/[0.06] bg-night-50 py-16">
         <div className="mx-auto grid max-w-7xl gap-6 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
-          {features.map((f) => (
-            <div key={f.title} className="text-center">
+          {features.map((f, i) => (
+            <Reveal key={f.title} delay={i * 0.08}>
+            <div className="text-center">
               <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-hyper-500/10 text-hyper-400">
                 <f.icon className="h-6 w-6" />
               </div>
               <h3 className="font-display text-base font-bold text-white">{f.title}</h3>
               <p className="mt-2 text-sm text-steel-dim">{f.body}</p>
             </div>
+            </Reveal>
           ))}
         </div>
       </section>

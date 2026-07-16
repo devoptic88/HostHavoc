@@ -6,7 +6,7 @@ import { PanelNotConfigured } from "@/components/admin/PanelNotConfigured";
 export const dynamic = "force-dynamic";
 
 export default async function AdminEggsPage() {
-  if (!pteroConfigured()) return <PanelNotConfigured title="Nests & Eggs" />;
+  if (!(await pteroConfigured())) return <PanelNotConfigured title="Nests & Eggs" />;
 
   let error = "";
   const nests: {

@@ -28,6 +28,7 @@ export default async function AdminLayout({
           { href: "/admin/eggs", label: "Nests & Eggs", icon: "eggs" },
           { href: "/admin/blog", label: "Blog", icon: "blog" },
           { href: "/admin/wiki", label: "Wiki", icon: "wiki" },
+          { href: "/admin/settings", label: "Settings", icon: "settings" },
         ]}
       />
       <main className="flex-1 px-4 py-8 sm:px-8">{children}</main>

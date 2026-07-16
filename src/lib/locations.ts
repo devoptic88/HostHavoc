@@ -29,7 +29,7 @@ export async function getDisplayLocations(): Promise<{
   locations: DisplayLocation[];
   live: boolean;
 }> {
-  if (!pteroConfigured()) return { locations: FALLBACK, live: false };
+  if (!(await pteroConfigured())) return { locations: FALLBACK, live: false };
   try {
     const res = await pteroApp.listLocations();
     const locations = res.data.map(({ attributes: a }) => ({

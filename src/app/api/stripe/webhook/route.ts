@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
+import { getSetting } from "@/lib/settings";
 import { db } from "@/lib/db";
 import { provisionOrder, suspendOrder, terminateOrder, unsuspendOrder } from "@/lib/provision";
 
 export async function POST(req: Request) {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  const secret = await getSetting("STRIPE_WEBHOOK_SECRET");
   if (!secret) {
     return NextResponse.json({ error: "Webhook not configured" }, { status: 500 });
   }
@@ -15,7 +16,7 @@ export async function POST(req: Request) {
 
   let event: Stripe.Event;
   try {
-    event = stripe().webhooks.constructEvent(payload, signature ?? "", secret);
+    event = (await stripe()).webhooks.constructEvent(payload, signature ?? "", secret);
   } catch {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }

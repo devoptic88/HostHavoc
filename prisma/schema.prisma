@@ -131,6 +131,14 @@ model TicketMessage {
   @@index([ticketId])
 }
 
+/// Key/value app configuration editable from Admin → Settings.
+/// Values here override environment variables of the same name.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model Post {
   id        String   @id @default(cuid())
   slug      String   @unique

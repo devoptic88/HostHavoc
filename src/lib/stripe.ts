@@ -1,16 +1,21 @@
 import Stripe from "stripe";
+import { getSetting } from "@/lib/settings";
 
-let _stripe: Stripe | null = null;
+let _stripe: { key: string; client: Stripe } | null = null;
 
-export function stripe(): Stripe {
-  if (!_stripe) {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
-    _stripe = new Stripe(key, { apiVersion: "2024-06-20" as Stripe.LatestApiVersion });
+/** Stripe client using the key from Admin → Settings (env fallback). */
+export async function stripe(): Promise<Stripe> {
+  const key = await getSetting("STRIPE_SECRET_KEY");
+  if (!key) throw new Error("Stripe secret key is not configured (Admin → Settings)");
+  if (!_stripe || _stripe.key !== key) {
+    _stripe = {
+      key,
+      client: new Stripe(key, { apiVersion: "2024-06-20" as Stripe.LatestApiVersion }),
+    };
   }
-  return _stripe;
+  return _stripe.client;
 }
 
-export function stripeConfigured(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY);
+export async function stripeConfigured(): Promise<boolean> {
+  return Boolean(await getSetting("STRIPE_SECRET_KEY"));
 }

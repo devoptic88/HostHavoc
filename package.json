@@ -9,7 +9,8 @@
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.mjs",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "fetch-assets": "node scripts/fetch-game-assets.mjs"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"
@@ -17,6 +18,7 @@
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",
+    "framer-motion": "^12.42.2",
     "lucide-react": "^1.24.0",
     "marked": "^18.0.6",
     "next": "14.2.35",

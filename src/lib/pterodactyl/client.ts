@@ -3,6 +3,7 @@
 // panel actions are proxied through these calls after HyperNode verifies the
 // customer owns the order tied to the server identifier.
 import { pteroFetch } from "./http";
+import { getSetting } from "@/lib/settings";
 import type {
   Backup,
   ClientDatabase,
@@ -101,13 +102,13 @@ export const writeFile = (id: string, file: string, content: string) =>
   pteroFetchRawBody(`/servers/${id}/files/write`, file, content);
 
 async function pteroFetchRawBody(path: string, file: string, content: string) {
-  const base = process.env.PTERODACTYL_URL?.replace(/\/$/, "");
+  const base = (await getSetting("PTERODACTYL_URL")).replace(/\/$/, "");
   const res = await fetch(
     `${base}/api/client${path}?file=${encodeURIComponent(file)}`,
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.PTERODACTYL_CLIENT_API_KEY}`,
+        Authorization: `Bearer ${await getSetting("PTERODACTYL_CLIENT_API_KEY")}`,
         Accept: "application/json",
         "Content-Type": "text/plain",
       },

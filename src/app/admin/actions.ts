@@ -12,6 +12,7 @@ import {
   unsuspendOrder,
 } from "@/lib/provision";
 import { slugify } from "@/lib/utils";
+import { SETTING_KEYS, setSettings, type SettingKey } from "@/lib/settings";
 
 // ─── Orders ─────────────────────────────────────────────────────────────
 
@@ -223,4 +224,22 @@ export async function deleteArticle(formData: FormData) {
   await db.article.delete({ where: { id: String(formData.get("articleId")) } });
   revalidatePath("/admin/wiki");
   revalidatePath("/wiki");
+}
+
+// ─── Settings ───────────────────────────────────────────────────────────
+
+export async function updateSettings(formData: FormData) {
+  await requireAdmin();
+  const entries: Partial<Record<SettingKey, string>> = {};
+  for (const key of SETTING_KEYS) {
+    if (formData.get(`${key}__clear`)) {
+      entries[key] = ""; // explicit clear removes the DB override
+      continue;
+    }
+    const value = String(formData.get(key) ?? "").trim();
+    if (value) entries[key] = value; // blank = keep current value
+  }
+  await setSettings(entries);
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin");
 }

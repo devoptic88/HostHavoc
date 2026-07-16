@@ -13,9 +13,10 @@ export interface Game {
   description: string[]; // paragraphs
   categories: GameCategory[];
   badge?: string; // e.g. "NEW UPDATE", "MOST POPULAR"
-  /** Steam header image (or undefined → styled gradient fallback) */
-  image?: string;
-  accent: string; // hex accent used for the game card glow
+  /** Steam appId — drives the asset pipeline (scripts/fetch-game-assets.mjs) */
+  appId?: number;
+  accent: string; // primary hex accent for per-game theming
+  accent2: string; // secondary accent — gradient partner to `accent`
   pricingUnit: "slot" | "gb";
   pricePerUnit: number; // USD / month
   slotOptions: number[]; // or GB options when pricingUnit === "gb"
@@ -25,8 +26,12 @@ export interface Game {
   faq: GameFaq[];
 }
 
-const steam = (appId: number) =>
-  `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`;
+/** Local artwork downloaded by `npm run fetch-assets` into public/games/{slug}/ */
+export const gameHero = (slug: string) => `/games/${slug}/hero.jpg`;
+export const gameCapsule = (slug: string) => `/games/${slug}/capsule.jpg`;
+export const gamePortrait = (slug: string) => `/games/${slug}/portrait.jpg`;
+export const gameScreens = (slug: string, count = 4) =>
+  Array.from({ length: count }, (_, i) => `/games/${slug}/screenshot-${i + 1}.jpg`);
 
 export const GAMES: Game[] = [
   {
@@ -42,6 +47,7 @@ export const GAMES: Game[] = [
     categories: ["popular", "sandbox"],
     badge: "MOST POPULAR",
     accent: "#34D399",
+    accent2: "#84CC16",
     pricingUnit: "gb",
     pricePerUnit: 3.0,
     slotOptions: [2, 4, 6, 8, 10, 12, 16],
@@ -80,8 +86,9 @@ export const GAMES: Game[] = [
     ],
     categories: ["popular", "survival"],
     badge: "WIPE READY",
-    image: steam(252490),
+    appId: 252490,
     accent: "#F87171",
+    accent2: "#FB923C",
     pricingUnit: "slot",
     pricePerUnit: 0.55,
     slotOptions: [50, 75, 100, 150, 200, 250, 300],
@@ -115,8 +122,9 @@ export const GAMES: Game[] = [
       "Dedicated Palworld hosting with crossplay, mod support, and 24/7 persistence.",
     categories: ["popular", "survival"],
     badge: "1.0 UPDATE",
-    image: steam(1623730),
+    appId: 1623730,
     accent: "#38BDF8",
+    accent2: "#A78BFA",
     pricingUnit: "slot",
     pricePerUnit: 1.25,
     slotOptions: [4, 8, 12, 16, 20, 24, 32],
@@ -153,8 +161,9 @@ export const GAMES: Game[] = [
     shortDescription:
       "ARK hosting with full mod/map support, clustering, and automated updates.",
     categories: ["survival"],
-    image: steam(346110),
+    appId: 346110,
     accent: "#FBBF24",
+    accent2: "#34D399",
     pricingUnit: "slot",
     pricePerUnit: 0.35,
     slotOptions: [10, 20, 30, 50, 70, 100],
@@ -190,8 +199,9 @@ export const GAMES: Game[] = [
     shortDescription:
       "Valheim hosting with mod support (BepInEx), world uploads, and automatic backups.",
     categories: ["popular", "survival"],
-    image: steam(892970),
+    appId: 892970,
     accent: "#A78BFA",
+    accent2: "#38BDF8",
     pricingUnit: "slot",
     pricePerUnit: 1.0,
     slotOptions: [10],
@@ -228,8 +238,9 @@ export const GAMES: Game[] = [
       "Project Zomboid hosting with Workshop mods, B42 support, and painless soft resets.",
     categories: ["survival"],
     badge: "B42 SUPPORT",
-    image: steam(108600),
+    appId: 108600,
     accent: "#F87171",
+    accent2: "#A78BFA",
     pricingUnit: "slot",
     pricePerUnit: 0.9,
     slotOptions: [4, 8, 12, 16, 24, 32],
@@ -265,8 +276,9 @@ export const GAMES: Game[] = [
     shortDescription:
       "7DTD hosting with 1.0 support, Darkness Falls and overhaul mod compatibility.",
     categories: ["survival"],
-    image: steam(251570),
+    appId: 251570,
     accent: "#FB923C",
+    accent2: "#F87171",
     pricingUnit: "slot",
     pricePerUnit: 0.55,
     slotOptions: [8, 12, 16, 24, 32],
@@ -302,8 +314,9 @@ export const GAMES: Game[] = [
       "Enshrouded hosting with full world config, instant setup, and NVMe performance.",
     categories: ["popular", "survival"],
     badge: "NEW UPDATE",
-    image: steam(1203620),
+    appId: 1203620,
     accent: "#38BDF8",
+    accent2: "#34D399",
     pricingUnit: "slot",
     pricePerUnit: 2.25,
     slotOptions: [4, 8, 12, 16],
@@ -337,8 +350,9 @@ export const GAMES: Game[] = [
     shortDescription:
       "Satisfactory 1.0 hosting tuned for mega-factory late game and always-on production.",
     categories: ["sandbox"],
-    image: steam(526870),
+    appId: 526870,
     accent: "#FB923C",
+    accent2: "#FBBF24",
     pricingUnit: "slot",
     pricePerUnit: 1.3,
     slotOptions: [4, 6, 8, 12],
@@ -372,8 +386,9 @@ export const GAMES: Game[] = [
     shortDescription:
       "Terraria hosting with vanilla, TShock, and tModLoader support out of the box.",
     categories: ["sandbox"],
-    image: steam(105600),
+    appId: 105600,
     accent: "#34D399",
+    accent2: "#38BDF8",
     pricingUnit: "slot",
     pricePerUnit: 0.4,
     slotOptions: [8, 12, 16, 24],
@@ -407,8 +422,9 @@ export const GAMES: Game[] = [
     shortDescription:
       "V Rising hosting with full ServerGameSettings control and castle-safe backups.",
     categories: ["survival"],
-    image: steam(1604030),
+    appId: 1604030,
     accent: "#F87171",
+    accent2: "#A78BFA",
     pricingUnit: "slot",
     pricePerUnit: 0.45,
     slotOptions: [10, 20, 30, 40, 60],
@@ -442,8 +458,9 @@ export const GAMES: Game[] = [
     shortDescription:
       "Sons of the Forest hosting with instant setup and full config control.",
     categories: ["survival"],
-    image: steam(1326470),
+    appId: 1326470,
     accent: "#34D399",
+    accent2: "#FB923C",
     pricingUnit: "slot",
     pricePerUnit: 1.75,
     slotOptions: [4, 8],
@@ -475,8 +492,9 @@ export const GAMES: Game[] = [
     shortDescription:
       "Factorio hosting with mod sync, Space Age support, and UPS-stable hardware.",
     categories: ["sandbox"],
-    image: steam(427520),
+    appId: 427520,
     accent: "#FBBF24",
+    accent2: "#FB923C",
     pricingUnit: "slot",
     pricePerUnit: 0.5,
     slotOptions: [4, 8, 16, 32],
@@ -510,8 +528,9 @@ export const GAMES: Game[] = [
     shortDescription:
       "DayZ hosting with Workshop mods, custom missions, and enterprise DDoS protection.",
     categories: ["popular", "survival"],
-    image: steam(221100),
+    appId: 221100,
     accent: "#A78BFA",
+    accent2: "#34D399",
     pricingUnit: "slot",
     pricePerUnit: 0.9,
     slotOptions: [10, 20, 30, 40, 60, 80, 100],
@@ -545,8 +564,9 @@ export const GAMES: Game[] = [
     shortDescription:
       "CS2 hosting with SourceMod-style plugins, workshop maps, and low-latency routing.",
     categories: ["fps", "popular"],
-    image: steam(730),
+    appId: 730,
     accent: "#FBBF24",
+    accent2: "#FB923C",
     pricingUnit: "slot",
     pricePerUnit: 0.5,
     slotOptions: [12, 16, 24, 32, 64],
@@ -580,8 +600,9 @@ export const GAMES: Game[] = [
     shortDescription:
       "GMod hosting with instant gamemode installs, Workshop collections, and FastDL.",
     categories: ["sandbox", "fps"],
-    image: steam(4000),
+    appId: 4000,
     accent: "#38BDF8",
+    accent2: "#FBBF24",
     pricingUnit: "slot",
     pricePerUnit: 0.5,
     slotOptions: [12, 16, 24, 32, 64, 128],

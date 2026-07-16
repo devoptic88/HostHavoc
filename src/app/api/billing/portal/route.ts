@@ -8,7 +8,7 @@ export async function POST() {
   if (!session?.user) {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
   }
-  if (!stripeConfigured()) {
+  if (!(await stripeConfigured())) {
     return NextResponse.json(
       { error: "Billing portal is unavailable until Stripe is configured." },
       { status: 501 },
@@ -21,7 +21,7 @@ export async function POST() {
       { status: 404 },
     );
   }
-  const portal = await stripe().billingPortal.sessions.create({
+  const portal = await (await stripe()).billingPortal.sessions.create({
     customer: user.stripeCustomerId,
     return_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/dashboard/billing`,
   });

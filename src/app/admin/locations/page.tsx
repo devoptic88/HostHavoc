@@ -8,7 +8,7 @@ import { createLocation, deleteLocation } from "../actions";
 export const dynamic = "force-dynamic";
 
 export default async function AdminLocationsPage() {
-  if (!pteroConfigured()) return <PanelNotConfigured title="Locations" />;
+  if (!(await pteroConfigured())) return <PanelNotConfigured title="Locations" />;
 
   let locations: AppLocation[] = [];
   let error = "";
