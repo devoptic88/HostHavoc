@@ -1,0 +1,16 @@
+import Stripe from "stripe";
+
+let _stripe: Stripe | null = null;
+
+export function stripe(): Stripe {
+  if (!_stripe) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
+    _stripe = new Stripe(key, { apiVersion: "2024-06-20" as Stripe.LatestApiVersion });
+  }
+  return _stripe;
+}
+
+export function stripeConfigured(): boolean {
+  return Boolean(process.env.STRIPE_SECRET_KEY);
+}

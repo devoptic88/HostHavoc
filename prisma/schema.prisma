@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+  FAILED
+  MANUAL // VPS/dedicated orders fulfilled by hand
+}
+
+enum ProductType {
+  GAME_SERVER
+  VPS
+  DEDICATED
+}
+
+enum TicketStatus {
+  OPEN
+  ANSWERED
+  CUSTOMER_REPLY
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String
+  passwordHash   String
+  role           Role     @default(CUSTOMER)
+  pteroUserId    Int?     @unique // Pterodactyl application-API user id
+  stripeCustomerId String? @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orders  Order[]
+  tickets Ticket[]
+  ticketMessages TicketMessage[]
+}
+
+model Plan {
+  id          String      @id @default(cuid())
+  productType ProductType
+  gameSlug    String? // links to game content file for GAME_SERVER plans
+  name        String
+  slots       Int?
+  ramMb       Int
+  cpuPercent  Int // pterodactyl cpu limit (100 = 1 core)
+  diskMb      Int
+  databases   Int         @default(1)
+  backups     Int         @default(2)
+  priceMonthly Decimal    @db.Decimal(10, 2)
+  stripePriceId String?   @unique
+  eggId       Int? // pterodactyl egg to deploy
+  nestId      Int?
+  sortOrder   Int         @default(0)
+  active      Boolean     @default(true)
+
+  orders Order[]
+
+  @@index([productType, gameSlug])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  userId        String
+  planId        String
+  status        OrderStatus @default(PENDING)
+  productType   ProductType
+  serverName    String
+  locationId    Int? // pterodactyl location id chosen at checkout
+  pteroServerId Int? // application-API server id once provisioned
+  pteroServerIdentifier String? // client-API short uuid
+  stripeSubscriptionId String? @unique
+  errorMessage  String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId])
+}
+
+model Ticket {
+  id        String         @id @default(cuid())
+  userId    String
+  subject   String
+  status    TicketStatus   @default(OPEN)
+  priority  TicketPriority @default(MEDIUM)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user     User            @relation(fields: [userId], references: [id])
+  messages TicketMessage[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  authorId  String
+  body      String
+  fromStaff Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId])
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  excerpt   String
+  body      String // markdown
+  coverImage String?
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Article {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  category  String // e.g. game slug or "general"
+  title     String
+  body      String // markdown
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+}

@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hypernode
+      POSTGRES_PASSWORD: hypernode
+      POSTGRES_DB: hypernode
+    ports:
+      - "5432:5432"
+    volumes:
+      - hypernode-pgdata:/var/lib/postgresql/data
+
+volumes:
+  hypernode-pgdata:

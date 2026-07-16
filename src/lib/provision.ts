@@ -1,0 +1,182 @@
+import { db } from "@/lib/db";
+import { pteroApp, pteroClient, PterodactylError } from "@/lib/pterodactyl";
+
+/**
+ * Provisioning model:
+ *  - Game servers are created on Pterodactyl OWNED by the HyperNode service
+ *    account (the account whose client API key is configured). That lets the
+ *    platform proxy console/files/backups for every server with one key.
+ *  - The customer's email is then invited as a subuser (best-effort) so they
+ *    could also log into the raw panel if ever needed.
+ */
+
+const SUBUSER_PERMISSIONS = [
+  "control.console",
+  "control.start",
+  "control.stop",
+  "control.restart",
+  "file.create",
+  "file.read",
+  "file.read-content",
+  "file.update",
+  "file.delete",
+  "file.archive",
+  "file.sftp",
+  "backup.create",
+  "backup.read",
+  "backup.restore",
+  "backup.download",
+  "backup.delete",
+  "database.create",
+  "database.read",
+  "database.update",
+  "database.delete",
+  "database.view_password",
+  "schedule.create",
+  "schedule.read",
+  "schedule.update",
+  "schedule.delete",
+  "startup.read",
+  "startup.update",
+  "settings.rename",
+  "settings.reinstall",
+];
+
+let cachedServiceUserId: number | null = null;
+
+async function getServiceUserId(): Promise<number> {
+  if (cachedServiceUserId) return cachedServiceUserId;
+  const account = await pteroClient.getAccount();
+  cachedServiceUserId = account.attributes.id;
+  return cachedServiceUserId;
+}
+
+export async function provisionOrder(orderId: string): Promise<void> {
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { plan: true, user: true },
+  });
+  if (!order) throw new Error(`Order ${orderId} not found`);
+  if (order.pteroServerId) return; // already provisioned
+  if (order.productType !== "GAME_SERVER") {
+    // VPS / dedicated orders are fulfilled manually by an admin.
+    await db.order.update({
+      where: { id: order.id },
+      data: { status: "MANUAL" },
+    });
+    return;
+  }
+
+  await db.order.update({
+    where: { id: order.id },
+    data: { status: "PROVISIONING", errorMessage: null },
+  });
+
+  try {
+    const { plan } = order;
+    if (!plan.eggId || !plan.nestId) {
+      throw new Error(
+        `No Pterodactyl egg is mapped for "${plan.name}". Set the nest/egg for this plan in Admin → Plans, then retry provisioning.`,
+      );
+    }
+
+    const egg = (await pteroApp.getEgg(plan.nestId, plan.eggId)).attributes;
+    const environment: Record<string, string> = {};
+    for (const v of egg.relationships?.variables?.data ?? []) {
+      environment[v.attributes.env_variable] = v.attributes.default_value ?? "";
+    }
+
+    const dockerImage =
+      egg.docker_image ?? Object.values(egg.docker_images ?? {})[0];
+
+    const created = await pteroApp.createServer({
+      name: order.serverName,
+      user: await getServiceUserId(),
+      egg: plan.eggId,
+      docker_image: dockerImage,
+      startup: egg.startup,
+      environment,
+      limits: {
+        memory: plan.ramMb,
+        swap: 0,
+        disk: plan.diskMb,
+        io: 500,
+        cpu: plan.cpuPercent,
+        threads: null,
+      },
+      feature_limits: {
+        databases: plan.databases,
+        allocations: 1,
+        backups: plan.backups,
+      },
+      deploy: {
+        locations: order.locationId ? [order.locationId] : [],
+        dedicated_ip: false,
+        port_range: [],
+      },
+      external_id: order.id,
+      description: `HyperNode order ${order.id} — ${order.user.email}`,
+      start_on_completion: true,
+    });
+
+    const attrs = created.attributes;
+    await db.order.update({
+      where: { id: order.id },
+      data: {
+        status: "ACTIVE",
+        pteroServerId: attrs.id,
+        pteroServerIdentifier: attrs.identifier,
+      },
+    });
+
+    // Best-effort: give the customer direct panel access as a subuser.
+    try {
+      await pteroClient.createSubuser(
+        attrs.identifier,
+        order.user.email,
+        SUBUSER_PERMISSIONS,
+      );
+    } catch {
+      // Not fatal — HyperNode's dashboard proxies everything anyway.
+    }
+  } catch (err) {
+    const message =
+      err instanceof PterodactylError
+        ? `${err.detail}${err.errors ? ` — ${JSON.stringify(err.errors).slice(0, 500)}` : ""}`
+        : err instanceof Error
+          ? err.message
+          : "Unknown provisioning error";
+    await db.order.update({
+      where: { id: orderId },
+      data: { status: "FAILED", errorMessage: message },
+    });
+    throw err;
+  }
+}
+
+export async function suspendOrder(orderId: string): Promise<void> {
+  const order = await db.order.findUnique({ where: { id: orderId } });
+  if (!order?.pteroServerId) return;
+  await pteroApp.suspendServer(order.pteroServerId);
+  await db.order.update({ where: { id: orderId }, data: { status: "SUSPENDED" } });
+}
+
+export async function unsuspendOrder(orderId: string): Promise<void> {
+  const order = await db.order.findUnique({ where: { id: orderId } });
+  if (!order?.pteroServerId) return;
+  await pteroApp.unsuspendServer(order.pteroServerId);
+  await db.order.update({ where: { id: orderId }, data: { status: "ACTIVE" } });
+}
+
+export async function terminateOrder(orderId: string): Promise<void> {
+  const order = await db.order.findUnique({ where: { id: orderId } });
+  if (!order) return;
+  if (order.pteroServerId) {
+    try {
+      await pteroApp.deleteServer(order.pteroServerId);
+    } catch (err) {
+      if (!(err instanceof PterodactylError && err.status === 404)) throw err;
+    }
+  }
+  await db.order.update({ where: { id: orderId }, data: { status: "CANCELLED" } });
+}

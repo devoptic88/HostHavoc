@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #05070d;
+  --foreground: #c8d0dc;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(47, 107, 255, 0.4);
+  color: #fff;
+}
+
+/* Slim scrollbars for panel surfaces */
+.scrollbar-slim::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-slim::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+.scrollbar-slim::-webkit-scrollbar-thumb:hover {
+  background: #2f6bff;
+}
+
+@layer components {
+  .glass {
+    @apply border border-white/[0.06] bg-white/[0.03] backdrop-blur-md;
+  }
+  .glass-strong {
+    @apply border border-white/[0.08] bg-night-100/80 backdrop-blur-xl;
+  }
+  .text-gradient-hyper {
+    @apply bg-hyper-gradient bg-clip-text text-transparent;
+  }
+  .text-gradient-steel {
+    @apply bg-steel-gradient bg-clip-text text-transparent;
+  }
+  .ring-focus {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-hyper-500 focus-visible:ring-offset-2 focus-visible:ring-offset-night;
+  }
+}
+
+/* Rendered markdown (blog posts, wiki articles) */
+.prose-hypernode {
+  @apply text-sm leading-relaxed text-steel-dim;
+}
+.prose-hypernode h1,
+.prose-hypernode h2,
+.prose-hypernode h3 {
+  @apply mb-3 mt-8 font-display font-bold text-white first:mt-0;
+}
+.prose-hypernode h1 {
+  @apply text-2xl;
+}
+.prose-hypernode h2 {
+  @apply text-xl;
+}
+.prose-hypernode h3 {
+  @apply text-base;
+}
+.prose-hypernode p {
+  @apply my-4;
+}
+.prose-hypernode a {
+  @apply text-hyper-300 underline underline-offset-2 hover:text-hyper-200;
+}
+.prose-hypernode ul,
+.prose-hypernode ol {
+  @apply my-4 ml-6 space-y-1.5;
+}
+.prose-hypernode ul {
+  @apply list-disc;
+}
+.prose-hypernode ol {
+  @apply list-decimal;
+}
+.prose-hypernode code {
+  @apply rounded bg-night-200 px-1.5 py-0.5 font-mono text-xs text-hyper-200;
+}
+.prose-hypernode pre {
+  @apply scrollbar-slim my-4 overflow-x-auto rounded-xl border border-white/[0.06] bg-night-100 p-4;
+}
+.prose-hypernode pre code {
+  @apply bg-transparent p-0 text-steel;
+}
+.prose-hypernode blockquote {
+  @apply my-4 border-l-2 border-hyper-500 pl-4 italic text-steel;
+}
+.prose-hypernode strong {
+  @apply font-semibold text-white;
+}
