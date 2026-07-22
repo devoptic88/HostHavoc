@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { pteroApp, pteroClient, PterodactylError } from "@/lib/pterodactyl";
 import { randomBytes } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Provisioning model:
@@ -45,6 +46,10 @@ const SUBUSER_PERMISSIONS = [
 
 let cachedServiceUserId: number | null = null;
 
+type ProvisionableOrder = Prisma.OrderGetPayload<{
+  include: { plan: true; user: true };
+}>;
+
 function generatedEggValue(env: string, rules: string): string {
   const normalized = env.toUpperCase();
   const ruleSet = rules.toLowerCase();
@@ -83,7 +88,7 @@ async function findServerByExternalId(externalId: string) {
   return null;
 }
 
-async function findRecoverableServer(order: NonNullable<Awaited<ReturnType<typeof db.order.findUnique>>>) {
+async function findRecoverableServer(order: ProvisionableOrder) {
   const linkedOrder = await findServerByExternalId(order.id);
   if (linkedOrder) return linkedOrder;
 
