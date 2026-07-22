@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { pteroApp, pteroClient, PterodactylError } from "@/lib/pterodactyl";
 import { randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
+import type { ClientAllocation, ClientEggVariable } from "@/lib/pterodactyl";
 
 /**
  * Provisioning model:
@@ -69,6 +70,77 @@ function generatedEggValue(env: string, rules: string): string {
   }
 
   return "";
+}
+
+function normalizeVariableText(variable: ClientEggVariable) {
+  return `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase();
+}
+
+function rustIdentity(name: string, orderId: string) {
+  const base = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 24);
+  const suffix = orderId.slice(-6).toLowerCase();
+  return `${base || "rust-server"}-${suffix}`.slice(0, 32);
+}
+
+function desiredRustValue(
+  variable: ClientEggVariable,
+  order: ProvisionableOrder,
+  allocation: ClientAllocation,
+) {
+  const text = normalizeVariableText(variable);
+
+  if (text.includes("identity")) {
+    return rustIdentity(order.serverName, order.id);
+  }
+
+  if (
+    text.includes("server name") ||
+    text.includes("server title") ||
+    text.includes("hostname")
+  ) {
+    return order.serverName;
+  }
+
+  if (
+    text.includes("query") &&
+    text.includes("port")
+  ) {
+    // Rust discovery relies on the query port being reachable. Using the
+    // server's primary allocation keeps browser listing working on single-port
+    // installs instead of leaving the egg default pointed at an unrelated port.
+    return String(allocation.port);
+  }
+
+  if (text.includes("description") && !(variable.server_value || variable.default_value)) {
+    return `Hosted on HyperNode`;
+  }
+
+  return null;
+}
+
+async function applyRustProvisioningDefaults(order: ProvisionableOrder, serverIdentifier: string) {
+  const [details, startup] = await Promise.all([
+    pteroClient.getClientServer(serverIdentifier),
+    pteroClient.getStartup(serverIdentifier),
+  ]);
+  const allocation = details.attributes.relationships?.allocations?.data
+    .map((item) => item.attributes)
+    .find((item) => item.is_default);
+  if (!allocation) return;
+
+  const editableVars = startup.data
+    .map((item) => item.attributes)
+    .filter((variable) => variable.is_editable);
+
+  for (const variable of editableVars) {
+    const next = desiredRustValue(variable, order, allocation);
+    if (next === null || next === variable.server_value || next === "") continue;
+    await pteroClient.updateVariable(serverIdentifier, variable.env_variable, next);
+  }
 }
 
 async function getServiceUserId(): Promise<number> {
@@ -191,6 +263,9 @@ export async function provisionOrder(orderId: string): Promise<void> {
     const recoverable = await findRecoverableServer(order);
     if (recoverable) {
       await attachProvisionedServer(order.id, recoverable, order.user.email);
+      if (plan.gameSlug === "rust") {
+        await applyRustProvisioningDefaults(order, recoverable.identifier);
+      }
       return;
     }
 
@@ -245,6 +320,10 @@ export async function provisionOrder(orderId: string): Promise<void> {
 
     const attrs = created.attributes;
     await attachProvisionedServer(order.id, attrs, order.user.email);
+
+    if (plan.gameSlug === "rust") {
+      await applyRustProvisioningDefaults(order, attrs.identifier);
+    }
 
     // Best-effort: give the customer direct panel access as a subuser.
     try {
