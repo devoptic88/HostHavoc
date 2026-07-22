@@ -1,9 +1,29 @@
-import { Console } from "@/components/dashboard/Console";
+import { notFound } from "next/navigation";
+import { db } from "@/lib/db";
+import { ServerOverview } from "@/components/dashboard/ServerOverview";
 
-export default function ServerConsolePage({
+export const dynamic = "force-dynamic";
+
+export default async function ServerOverviewPage({
   params,
 }: {
   params: { orderId: string };
 }) {
-  return <Console orderId={params.orderId} />;
+  const order = await db.order.findUnique({
+    where: { id: params.orderId },
+    include: { plan: true },
+  });
+  if (!order) notFound();
+
+  return (
+    <ServerOverview
+      orderId={order.id}
+      name={order.serverName}
+      planName={order.plan.name}
+      gameSlug={order.plan.gameSlug}
+      ramMb={order.plan.ramMb}
+      cpuPercent={order.plan.cpuPercent}
+      diskMb={order.plan.diskMb}
+    />
+  );
 }

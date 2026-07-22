@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { pteroApp, pteroClient, PterodactylError } from "@/lib/pterodactyl";
+import { randomBytes } from "node:crypto";
 
 /**
  * Provisioning model:
@@ -44,11 +45,45 @@ const SUBUSER_PERMISSIONS = [
 
 let cachedServiceUserId: number | null = null;
 
+function generatedEggValue(env: string, rules: string): string {
+  const normalized = env.toUpperCase();
+  const ruleSet = rules.toLowerCase();
+  const required = ruleSet.split("|").includes("required");
+  if (!required) return "";
+
+  // Many community eggs leave secret defaults blank but still mark them
+  // required. Generate a safe value so provisioning can succeed.
+  if (
+    normalized.includes("PASS") ||
+    normalized.includes("PASSWORD") ||
+    normalized.includes("SECRET") ||
+    normalized.includes("TOKEN") ||
+    normalized.includes("KEY")
+  ) {
+    return randomBytes(18).toString("base64url");
+  }
+
+  return "";
+}
+
 async function getServiceUserId(): Promise<number> {
   if (cachedServiceUserId) return cachedServiceUserId;
   const account = await pteroClient.getAccount();
   cachedServiceUserId = account.attributes.id;
   return cachedServiceUserId;
+}
+
+/** First unassigned allocation on a node — used when a plan pins a node. */
+async function findFreeAllocation(nodeId: number): Promise<number> {
+  for (let page = 1; page <= 10; page++) {
+    const res = await pteroApp.getNodeAllocations(nodeId, page);
+    const free = res.data.find((a) => !a.attributes.assigned);
+    if (free) return free.attributes.id;
+    if (page >= (res.meta?.pagination.total_pages ?? 1)) break;
+  }
+  throw new Error(
+    `Node ${nodeId} has no free allocations — add ports to it in Admin → Nodes (or the panel), or unpin the node on this plan.`,
+  );
 }
 
 export async function provisionOrder(orderId: string): Promise<void> {
@@ -58,6 +93,7 @@ export async function provisionOrder(orderId: string): Promise<void> {
   });
   if (!order) throw new Error(`Order ${orderId} not found`);
   if (order.pteroServerId) return; // already provisioned
+  if (order.status === "PROVISIONING") return; // avoid duplicate create attempts
   if (order.productType !== "GAME_SERVER") {
     // VPS / dedicated orders are fulfilled manually by an admin.
     await db.order.update({
@@ -83,11 +119,25 @@ export async function provisionOrder(orderId: string): Promise<void> {
     const egg = (await pteroApp.getEgg(plan.nestId, plan.eggId)).attributes;
     const environment: Record<string, string> = {};
     for (const v of egg.relationships?.variables?.data ?? []) {
-      environment[v.attributes.env_variable] = v.attributes.default_value ?? "";
+      environment[v.attributes.env_variable] =
+        v.attributes.default_value ||
+        generatedEggValue(v.attributes.env_variable, v.attributes.rules);
     }
 
     const dockerImage =
       egg.docker_image ?? Object.values(egg.docker_images ?? {})[0];
+
+    // A plan pinned to a node deploys onto a specific free allocation there;
+    // otherwise Pterodactyl picks a node in the customer's chosen location.
+    const placement = plan.nodeId
+      ? { allocation: { default: await findFreeAllocation(plan.nodeId) } }
+      : {
+          deploy: {
+            locations: order.locationId ? [order.locationId] : [],
+            dedicated_ip: false,
+            port_range: [] as string[],
+          },
+        };
 
     const created = await pteroApp.createServer({
       name: order.serverName,
@@ -109,14 +159,10 @@ export async function provisionOrder(orderId: string): Promise<void> {
         allocations: 1,
         backups: plan.backups,
       },
-      deploy: {
-        locations: order.locationId ? [order.locationId] : [],
-        dedicated_ip: false,
-        port_range: [],
-      },
+      ...placement,
       external_id: order.id,
       description: `HyperNode order ${order.id} — ${order.user.email}`,
-      start_on_completion: true,
+      start_on_completion: false,
     });
 
     const attrs = created.attributes;

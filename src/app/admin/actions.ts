@@ -20,24 +20,28 @@ export async function retryProvision(formData: FormData) {
   await requireAdmin();
   await provisionOrder(String(formData.get("orderId"))).catch(() => {});
   revalidatePath("/admin/orders");
+  revalidatePath("/admin/servers");
 }
 
 export async function adminSuspend(formData: FormData) {
   await requireAdmin();
   await suspendOrder(String(formData.get("orderId")));
   revalidatePath("/admin/orders");
+  revalidatePath("/admin/servers");
 }
 
 export async function adminUnsuspend(formData: FormData) {
   await requireAdmin();
   await unsuspendOrder(String(formData.get("orderId")));
   revalidatePath("/admin/orders");
+  revalidatePath("/admin/servers");
 }
 
 export async function adminTerminate(formData: FormData) {
   await requireAdmin();
   await terminateOrder(String(formData.get("orderId")));
   revalidatePath("/admin/orders");
+  revalidatePath("/admin/servers");
 }
 
 export async function markOrderActive(formData: FormData) {
@@ -51,35 +55,66 @@ export async function markOrderActive(formData: FormData) {
 
 // ─── Plans ──────────────────────────────────────────────────────────────
 
-export async function updatePlan(formData: FormData) {
-  await requireAdmin();
-  const id = String(formData.get("planId"));
+function parsePlanForm(formData: FormData) {
   const num = (k: string) => {
     const v = String(formData.get(k) ?? "").trim();
     return v === "" ? null : Number(v);
   };
-  const eggId = num("eggId");
-  const nestId = num("nestId");
+  const str = (k: string) => String(formData.get(k) ?? "").trim();
+  const productType = str("productType") as "GAME_SERVER" | "VPS" | "DEDICATED";
+  return {
+    productType,
+    gameSlug: productType === "GAME_SERVER" ? str("gameSlug") || null : null,
+    name: str("name"),
+    slots: num("slots"),
+    ramMb: num("ramMb") ?? 0,
+    cpuPercent: num("cpuPercent") ?? 0,
+    diskMb: num("diskMb") ?? 0,
+    databases: num("databases") ?? 1,
+    backups: num("backups") ?? 2,
+    priceMonthly: num("price") ?? 0,
+    nestId: num("nestId"),
+    eggId: num("eggId"),
+    nodeId: num("nodeId"),
+    sortOrder: num("sortOrder") ?? 0,
+    active: Boolean(formData.get("active")),
+  };
+}
 
-  await db.plan.update({
-    where: { id },
-    data: {
-      eggId,
-      nestId,
-      ramMb: num("ramMb") ?? undefined,
-      cpuPercent: num("cpuPercent") ?? undefined,
-      diskMb: num("diskMb") ?? undefined,
-      priceMonthly: num("price") ?? undefined,
-    },
-  });
+export async function createPlan(formData: FormData) {
+  await requireAdmin();
+  const data = parsePlanForm(formData);
+  if (!data.name) throw new Error("Plan name is required");
+  await db.plan.create({ data });
+  revalidatePath("/admin/plans");
+}
 
-  // Optionally propagate the egg mapping to every plan of the same game.
-  const plan = await db.plan.findUnique({ where: { id } });
-  if (formData.get("applyToGame") && plan?.gameSlug && eggId && nestId) {
+export async function updatePlan(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("planId"));
+  const data = parsePlanForm(formData);
+  if (!data.name) throw new Error("Plan name is required");
+  await db.plan.update({ where: { id }, data });
+
+  // Optionally propagate the deployment mapping to every plan of the same game.
+  if (formData.get("applyToGame") && data.gameSlug && data.eggId && data.nestId) {
     await db.plan.updateMany({
-      where: { gameSlug: plan.gameSlug },
-      data: { eggId, nestId },
+      where: { gameSlug: data.gameSlug, productType: "GAME_SERVER" },
+      data: { eggId: data.eggId, nestId: data.nestId, nodeId: data.nodeId },
     });
+  }
+  revalidatePath("/admin/plans");
+}
+
+export async function deletePlan(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("planId"));
+  const orders = await db.order.count({ where: { planId: id } });
+  if (orders > 0) {
+    // Plans with order history can't be removed — retire them instead.
+    await db.plan.update({ where: { id }, data: { active: false } });
+  } else {
+    await db.plan.delete({ where: { id } });
   }
   revalidatePath("/admin/plans");
 }
@@ -114,7 +149,23 @@ export async function pteroUnsuspendServer(formData: FormData) {
 
 export async function pteroDeleteServer(formData: FormData) {
   await requireAdmin();
-  await pteroApp.deleteServer(Number(formData.get("serverId")));
+  const serverId = Number(formData.get("serverId"));
+  await pteroApp.deleteServer(serverId);
+  const order = await db.order.findFirst({ where: { pteroServerId: serverId } });
+  if (order) {
+    await db.order.update({
+      where: { id: order.id },
+      data: {
+        status: "CANCELLED",
+        pteroServerId: null,
+        pteroServerIdentifier: null,
+        errorMessage: null,
+      },
+    });
+    revalidatePath("/admin/orders");
+    revalidatePath("/dashboard");
+    revalidatePath(`/dashboard/servers/${order.id}`);
+  }
   revalidatePath("/admin/servers");
 }
 

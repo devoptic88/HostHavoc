@@ -72,6 +72,7 @@ model Plan {
   stripePriceId String?   @unique
   eggId       Int? // pterodactyl egg to deploy
   nestId      Int?
+  nodeId      Int? // pin deployment to one pterodactyl node (null = customer's location)
   sortOrder   Int         @default(0)
   active      Boolean     @default(true)
 

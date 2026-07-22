@@ -15,6 +15,8 @@ export function Console({ orderId }: { orderId: string }) {
   const wsRef = useRef<WebSocket | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const closedByUs = useRef(false);
+  const sawInstallOutput = useRef(false);
+  const announcedReady = useRef(false);
 
   const append = useCallback((line: string) => {
     setLines((prev) => [...prev.slice(-800), line]);
@@ -22,6 +24,8 @@ export function Console({ orderId }: { orderId: string }) {
 
   useEffect(() => {
     closedByUs.current = false;
+    sawInstallOutput.current = false;
+    announcedReady.current = false;
     let ws: WebSocket | null = null;
     let retryTimer: ReturnType<typeof setTimeout>;
 
@@ -47,11 +51,25 @@ export function Console({ orderId }: { orderId: string }) {
                 break;
               case "console output":
               case "install output":
+                if (msg.event === "install output") sawInstallOutput.current = true;
                 append(String(msg.args?.[0] ?? ""));
                 break;
-              case "status":
-                append(`\x1b[36m[HyperNode] Server is now ${msg.args?.[0]}\x1b[0m`);
+              case "status": {
+                const nextStatus = String(msg.args?.[0] ?? "");
+                append(`\x1b[36m[Server] Status: ${nextStatus}\x1b[0m`);
+                if (
+                  sawInstallOutput.current &&
+                  !announcedReady.current &&
+                  nextStatus === "offline"
+                ) {
+                  append(
+                    "\x1b[32m[Server] Installation complete. Your server is ready to start.\x1b[0m",
+                  );
+                  announcedReady.current = true;
+                  sawInstallOutput.current = false;
+                }
                 break;
+              }
               case "token expiring": {
                 fetch(`/api/servers/${orderId}/ws`)
                   .then((r) => r.json())

@@ -3,6 +3,7 @@ import { CheckCircle2 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ButtonLink } from "@/components/ui/Button";
+import { provisionOrder } from "@/lib/provision";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,15 @@ export default async function CheckoutSuccessPage({
       })
     : null;
 
+  if (
+    order?.productType === "GAME_SERVER" &&
+    !order.pteroServerIdentifier &&
+    order.status === "PENDING" &&
+    Boolean(order.stripeSubscriptionId)
+  ) {
+    await provisionOrder(order.id).catch(() => {});
+  }
+
   return (
     <div className="relative">
       <div className="absolute inset-0 bg-radial-glow" />
@@ -31,13 +41,19 @@ export default async function CheckoutSuccessPage({
         </h1>
         <p className="mt-4 text-steel-dim">
           {order?.productType === "GAME_SERVER"
-            ? `"${order.serverName}" is being provisioned right now — it typically comes online within a few minutes.`
+            ? `"${order.serverName}" is being provisioned right now — jump in and watch the installation live.`
             : "Your order is confirmed. Our team will complete the setup and email you the access details shortly."}
         </p>
         <div className="mt-8">
-          <ButtonLink href="/dashboard" size="lg">
-            Go to your dashboard
-          </ButtonLink>
+          {order?.productType === "GAME_SERVER" ? (
+            <ButtonLink href={`/dashboard/servers/${order.id}`} size="lg">
+              Take me to my server →
+            </ButtonLink>
+          ) : (
+            <ButtonLink href="/dashboard" size="lg">
+              Go to your dashboard
+            </ButtonLink>
+          )}
         </div>
       </div>
     </div>

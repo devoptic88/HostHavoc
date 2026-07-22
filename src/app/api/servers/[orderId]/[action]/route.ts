@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pteroClient, PterodactylError } from "@/lib/pterodactyl";
+import { provisionOrder } from "@/lib/provision";
 
 /**
  * Authenticated proxy between the HyperNode dashboard and the Pterodactyl
@@ -9,13 +10,18 @@ import { pteroClient, PterodactylError } from "@/lib/pterodactyl";
  * may access any server) before forwarding with the service-account key.
  */
 
-async function resolveServer(orderId: string) {
+async function resolveOrder(orderId: string) {
   const session = await auth();
   if (!session?.user) throw new HttpError(401, "Not logged in");
   const order = await db.order.findUnique({ where: { id: orderId } });
   if (!order || (order.userId !== session.user.id && session.user.role !== "ADMIN")) {
     throw new HttpError(404, "Server not found");
   }
+  return order;
+}
+
+async function resolveServer(orderId: string) {
+  const order = await resolveOrder(orderId);
   if (!order.pteroServerIdentifier) {
     throw new HttpError(409, "Server is not provisioned yet");
   }
@@ -47,6 +53,24 @@ export async function GET(
   { params }: { params: { orderId: string; action: string } },
 ) {
   try {
+    // Status works before the server exists — the provisioning screen polls it.
+    if (params.action === "status") {
+      const order = await resolveOrder(params.orderId);
+      if (
+        order.productType === "GAME_SERVER" &&
+        !order.pteroServerIdentifier &&
+        order.status === "PENDING" &&
+        Boolean(order.stripeSubscriptionId)
+      ) {
+        await provisionOrder(order.id).catch(() => {});
+      }
+      const fresh = await db.order.findUniqueOrThrow({ where: { id: order.id } });
+      return NextResponse.json({
+        status: fresh.status,
+        provisioned: Boolean(fresh.pteroServerIdentifier),
+        error: fresh.errorMessage,
+      });
+    }
     const { id } = await resolveServer(params.orderId);
     const url = new URL(req.url);
     switch (params.action) {
