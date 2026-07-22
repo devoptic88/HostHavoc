@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, ArrowLeft, Check, Copy, Cpu, Gauge, HardDrive, Network, Users } from "lucide-react";
-import { getGame } from "@/content/games";
+import { ArrowLeft, Check, Copy, Cpu, Gauge, HardDrive, Network, Users } from "lucide-react";
+import { gameCapsule, getGame } from "@/content/games";
 import { cn, formatBytes } from "@/lib/utils";
 
 interface Resources {
@@ -110,15 +110,8 @@ export function ServerTopbar({
         accent: "panel",
         icon: Network,
       },
-      {
-        label: "STATUS",
-        value: running ? "Live" : state === "starting" ? "Starting" : state === "stopping" ? "Stopping" : "Offline",
-        secondary: planName,
-        accent: "status",
-        icon: Activity,
-      },
     ],
-    [planName, res, running, state],
+    [res],
   );
 
   function copyAddress() {
@@ -138,15 +131,13 @@ export function ServerTopbar({
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 items-center gap-4">
             <div
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-lg font-black uppercase text-white shadow-[0_8px_30px_rgba(239,68,68,0.18)]"
-              style={{
-                background: game
-                  ? `linear-gradient(135deg, ${game.accent}, ${game.accent2})`
-                  : "linear-gradient(135deg, #2F6BFF, #38BDF8)",
-              }}
-            >
-              {game?.name.slice(0, 1) ?? "S"}
-            </div>
+              className="h-14 w-14 shrink-0 rounded-2xl border border-white/10 bg-black/25 bg-contain bg-center bg-no-repeat shadow-[0_8px_30px_rgba(239,68,68,0.18)]"
+              style={
+                game
+                  ? { backgroundImage: `url('${gameCapsule(game.slug)}')` }
+                  : { background: "linear-gradient(135deg, #2F6BFF, #38BDF8)" }
+              }
+            />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="font-display text-3xl font-black uppercase tracking-tight text-white">
@@ -183,7 +174,7 @@ export function ServerTopbar({
           </div>
         </div>
 
-        <div className="mt-3 grid gap-2 xl:grid-cols-[minmax(260px,1.35fr)_repeat(5,minmax(0,1fr))]">
+        <div className="mt-3 grid gap-2 xl:grid-cols-[minmax(260px,1.35fr)_repeat(4,minmax(0,1fr))]">
           <div className="rounded-[18px] border border-white/[0.08] bg-black/20 px-4 py-2.5 backdrop-blur-sm">
             <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-steel-faint">
               {game?.name ?? "Game"} Server

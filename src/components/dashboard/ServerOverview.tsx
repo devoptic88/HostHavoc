@@ -27,6 +27,10 @@ interface ClientServer {
   };
 }
 
+function truncateText(input: string, max = 20) {
+  return input.length > max ? `${input.slice(0, max)}...` : input;
+}
+
 export function ServerOverview({
   orderId,
   name,
@@ -108,7 +112,7 @@ export function ServerOverview({
                   <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-steel-faint">
                     {game.name} Server
                   </p>
-                  <p className="text-sm text-steel">{game.tagline}</p>
+                  <p className="text-sm text-steel">{truncateText(game.tagline, 20)}</p>
                 </div>
               </div>
             )}
