@@ -174,7 +174,7 @@ export function ServerTopbar({
           </div>
         </div>
 
-        <div className="mt-3 grid gap-2 xl:grid-cols-[minmax(260px,1.35fr)_repeat(4,minmax(0,1fr))]">
+        <div className="mt-3 grid gap-2 xl:grid-cols-[minmax(260px,1.35fr)_repeat(5,minmax(0,1fr))]">
           <div className="rounded-[18px] border border-white/[0.08] bg-black/20 px-4 py-2.5 backdrop-blur-sm">
             <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-steel-faint">
               {game?.name ?? "Game"} Server
