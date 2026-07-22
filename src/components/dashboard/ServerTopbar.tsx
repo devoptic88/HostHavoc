@@ -130,15 +130,15 @@ export function ServerTopbar({
   }
 
   return (
-    <div className="mb-6 overflow-hidden rounded-[26px] border border-white/[0.08] bg-night-100 shadow-[0_18px_80px_rgba(2,6,23,0.42)]">
+    <div className="mb-4 overflow-hidden rounded-[22px] border border-white/[0.08] bg-night-100 shadow-[0_18px_80px_rgba(2,6,23,0.36)]">
       <div
-        className="border-b-4 border-hyper-400 bg-cover bg-center px-4 py-5 sm:px-6"
+        className="border-b-4 border-hyper-400 bg-cover bg-center px-4 py-3 sm:px-5"
         style={headerStyle}
       >
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 items-center gap-4">
             <div
-              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-xl font-black uppercase text-white shadow-[0_8px_30px_rgba(239,68,68,0.18)]"
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-lg font-black uppercase text-white shadow-[0_8px_30px_rgba(239,68,68,0.18)]"
               style={{
                 background: game
                   ? `linear-gradient(135deg, ${game.accent}, ${game.accent2})`
@@ -149,7 +149,7 @@ export function ServerTopbar({
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="font-display text-4xl font-black uppercase tracking-tight text-white">
+                <span className="font-display text-3xl font-black uppercase tracking-tight text-white">
                   {game?.name ?? "Server"}
                 </span>
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-steel-faint">
@@ -164,11 +164,11 @@ export function ServerTopbar({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {address && (
               <button
                 onClick={copyAddress}
-                className="ring-focus inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-3 py-2 font-mono text-xs text-hyper-300 transition-colors hover:border-hyper-400/40"
+                className="ring-focus inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-3 py-1.5 font-mono text-xs text-hyper-300 transition-colors hover:border-hyper-400/40"
               >
                 {address}
                 {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
@@ -176,30 +176,29 @@ export function ServerTopbar({
             )}
             <Link
               href="/dashboard"
-              className="ring-focus inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm font-medium text-steel transition-colors hover:bg-white/[0.06] hover:text-white"
+              className="ring-focus inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-medium text-steel transition-colors hover:bg-white/[0.06] hover:text-white"
             >
               <ArrowLeft className="h-4 w-4" /> Back
             </Link>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 xl:grid-cols-[320px_repeat(5,minmax(0,1fr))]">
-          <div className="rounded-[22px] border border-white/[0.08] bg-black/20 px-5 py-4 backdrop-blur-sm">
-            <div className="text-[11px] font-bold uppercase tracking-[0.35em] text-steel-faint">
+        <div className="mt-3 grid gap-2 xl:grid-cols-[minmax(260px,1.35fr)_repeat(5,minmax(0,1fr))]">
+          <div className="rounded-[18px] border border-white/[0.08] bg-black/20 px-4 py-2.5 backdrop-blur-sm">
+            <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-steel-faint">
               {game?.name ?? "Game"} Server
             </div>
-            <div className="mt-2 text-lg font-semibold text-white">
+            <div className="mt-1 text-sm font-semibold text-white line-clamp-1">
               {game?.tagline ?? "Live game server management"}
             </div>
           </div>
-
           {stats.map((stat) => {
             const Icon = stat.icon;
             return (
               <div
                 key={stat.label}
                 className={cn(
-                  "rounded-[22px] border px-4 py-3 backdrop-blur-sm",
+                  "rounded-[18px] border px-3 py-2.5 backdrop-blur-sm",
                   stat.accent === "status"
                     ? "border-white/[0.12] bg-white/[0.06]"
                     : "border-white/[0.08] bg-black/20",
@@ -213,13 +212,13 @@ export function ServerTopbar({
                 </div>
                 <p
                   className={cn(
-                    "mt-2 font-mono text-2xl font-semibold text-white",
+                    "mt-1.5 font-mono text-lg font-semibold text-white",
                     stat.accent === "status" && running && "text-success",
                   )}
                 >
                   {stat.value}
                 </p>
-                <p className="mt-1 text-xs text-steel">{stat.secondary ?? ""}</p>
+                <p className="mt-0.5 text-[11px] text-steel">{stat.secondary ?? ""}</p>
               </div>
             );
           })}
