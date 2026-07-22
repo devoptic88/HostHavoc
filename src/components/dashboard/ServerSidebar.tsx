@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
-  AlertTriangle,
   ChevronDown,
   Database,
   FolderOpen,
@@ -12,30 +11,21 @@ import {
   Gauge,
   History,
   Play,
-  Repeat,
   RotateCw,
   Settings,
-  ShieldCheck,
   Skull,
   Square,
   TerminalSquare,
   Timer,
-  type LucideIcon,
+  Repeat,
 } from "lucide-react";
-import { cn, formatUptime } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { formatUptime } from "@/lib/utils";
 
 interface Resources {
   current_state: string;
   resources: { uptime: number };
 }
-
-type NavItem = {
-  path: string;
-  label: string;
-  icon: LucideIcon;
-  children?: { path: string; label: string }[];
-  external?: boolean;
-};
 
 export function ServerSidebar({
   orderId,
@@ -52,17 +42,17 @@ export function ServerSidebar({
 
   const refresh = useCallback(async () => {
     try {
-      const response = await fetch(`/api/servers/${orderId}/resources`);
-      if (response.ok) setRes(await response.json());
+      const r = await fetch(`/api/servers/${orderId}/resources`);
+      if (r.ok) setRes(await r.json());
     } catch {
-      // transient
+      /* transient */
     }
   }, [orderId]);
 
   useEffect(() => {
     refresh();
-    const timer = setInterval(refresh, 5000);
-    return () => clearInterval(timer);
+    const t = setInterval(refresh, 5000);
+    return () => clearInterval(t);
   }, [refresh]);
 
   async function power(signal: string) {
@@ -92,63 +82,33 @@ export function ServerSidebar({
   const running = state === "running";
   const isRust = gameSlug === "rust";
 
-  const sections: { title: string; items: NavItem[] }[] = [
+  const items = [
+    { path: "", label: "Overview", icon: Gauge },
+    { path: "/startup", label: "Game Settings", icon: Gamepad2 },
+    { path: "/console", label: "Console", icon: TerminalSquare },
     {
-      title: "Monitor",
-      items: [
-        { path: "", label: "Operational Overview", icon: Gauge },
-        { path: "/console", label: "Live Console", icon: TerminalSquare },
+      path: "/files",
+      label: "Server Files",
+      icon: FolderOpen,
+      children: [
+        { path: "/files", label: "Files" },
+        { path: "/files/sftp", label: "SFTP" },
+        { path: "/files/installer", label: "Installer" },
       ],
     },
-    {
-      title: "Manage",
-      items: [
-        { path: "/startup", label: "Game Settings", icon: Gamepad2 },
-        {
-          path: "/files",
-          label: "Files & Installers",
-          icon: FolderOpen,
-          children: [
-            { path: "/files", label: "Files" },
-            { path: "/files/sftp", label: "SFTP" },
-            { path: "/files/installer", label: "Installer" },
-          ],
-        },
-        { path: "/schedules", label: "Automated Tasks", icon: Repeat },
-        { path: "/settings", label: "Manage Instance", icon: Settings },
-      ],
-    },
-    {
-      title: "Data & Recovery",
-      items: [
-        { path: "/backups", label: "Backups", icon: History },
-        { path: "/databases", label: "Databases", icon: Database },
-      ],
-    },
-    {
-      title: "Support",
-      items: [
-        {
-          path: `/dashboard/tickets?server=${orderId}&topic=operations`,
-          label: "Open Support Ticket",
-          icon: ShieldCheck,
-          external: true,
-        },
-      ],
-    },
+    { path: "/backups", label: "Backups", icon: History },
+    { path: "/schedules", label: "Automated Tasks", icon: Repeat },
+    { path: "/databases", label: "Databases", icon: Database },
+    { path: "/settings", label: "Manage Instance", icon: Settings },
   ];
 
   return (
-    <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[300px] lg:self-start">
+    <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[280px] lg:self-start">
       <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-night-100">
         <div
           className={cn(
             "h-[3px] w-full",
-            running
-              ? "bg-success"
-              : state === "starting" || state === "stopping"
-                ? "bg-warning"
-                : "bg-white/10",
+            running ? "bg-success" : state === "starting" || state === "stopping" ? "bg-warning" : "bg-white/10",
           )}
         />
         <div className="border-b border-white/[0.06] p-4">
@@ -156,24 +116,18 @@ export function ServerSidebar({
             <span
               className={cn(
                 "h-2.5 w-2.5 rounded-full",
-                running ? "animate-pulse bg-success" : "bg-steel-faint",
+                running ? "bg-success animate-pulse" : "bg-steel-faint",
               )}
             />
             <span className="text-sm font-semibold text-white">
-              {running
-                ? "Server online"
-                : state === "starting"
-                  ? "Starting..."
-                  : state === "stopping"
-                    ? "Stopping..."
-                    : "Server offline"}
+              {running ? "Server online" : state === "starting" ? "Starting…" : state === "stopping" ? "Stopping…" : "Server offline"}
             </span>
-            {running && res ? (
+            {running && res && (
               <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-steel-faint">
                 <Timer className="h-3 w-3" />
                 {formatUptime(res.resources.uptime)}
               </span>
-            ) : null}
+            )}
           </div>
           <div className="mt-3 grid grid-cols-3 gap-1.5">
             <button
@@ -199,7 +153,7 @@ export function ServerSidebar({
               <Skull className="h-3.5 w-3.5" /> Halt
             </button>
           </div>
-          {!running ? (
+          {!running && (
             <button
               disabled={busy || running}
               onClick={() => power("start")}
@@ -207,98 +161,84 @@ export function ServerSidebar({
             >
               <Play className="h-3.5 w-3.5" /> Start Server
             </button>
-          ) : null}
-          {error ? (
-            <div className="mt-3 rounded-xl border border-danger/20 bg-danger/10 px-3 py-3 text-xs text-danger">
-              <div className="flex items-center gap-2 font-semibold">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Power action failed
-              </div>
-              <p className="mt-1 text-danger/90">{error}</p>
-            </div>
-          ) : null}
+          )}
+          {error && <p className="mt-2 text-xs text-danger">{error}</p>}
         </div>
 
-        <nav className="space-y-4 p-2">
-          {sections.map((section) => (
-            <div key={section.title}>
-              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.26em] text-steel-faint">
-                {section.title}
-              </p>
-              <div className="space-y-1">
-                {section.items.map((item) => {
-                  const href = item.external ? item.path : `${base}${item.path}`;
-                  const Icon = item.icon;
-                  const active = item.path === "" ? pathname === base : pathname === href;
-                  const expanded = item.children?.some((child) => pathname === `${base}${child.path}`) ?? false;
+        <nav className="p-2">
+          {items.map((item) => {
+            const href = `${base}${item.path}`;
+            const Icon = item.icon;
+            const active = item.path === "" ? pathname === base : pathname === href;
+            const expanded = item.children?.some((child) => pathname === `${base}${child.path}`) ?? false;
 
-                  if (!item.children) {
+            if (!item.children) {
+              return (
+                <Link
+                  key={item.path}
+                  href={href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                    active
+                      ? cn(
+                          "bg-hyper-500/15 text-hyper-300 ring-1 ring-inset ring-hyper-400/30",
+                          isRust && "bg-danger/10 text-danger ring-danger/30",
+                        )
+                      : "text-steel-dim hover:bg-white/[0.05] hover:text-white",
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </Link>
+              );
+            }
+
+            return (
+              <div key={item.path}>
+                <Link
+                  href={href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                    expanded
+                      ? cn(
+                          "bg-hyper-500/15 text-hyper-300 ring-1 ring-inset ring-hyper-400/30",
+                          isRust && "bg-danger/10 text-danger ring-danger/30",
+                        )
+                      : "text-steel-dim hover:bg-white/[0.05] hover:text-white",
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">{item.label}</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 transition-transform",
+                      expanded && "rotate-180",
+                    )}
+                  />
+                </Link>
+                <div className={cn("mt-1 space-y-1 pl-10", expanded ? "block" : "hidden")}>
+                  {item.children.map((child) => {
+                    const childHref = `${base}${child.path}`;
+                    const childActive = pathname === childHref;
                     return (
                       <Link
-                        key={item.path}
-                        href={href}
+                        key={child.path}
+                        href={childHref}
                         className={cn(
-                          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                          active
-                            ? cn(
-                                "bg-hyper-500/15 text-hyper-300 ring-1 ring-inset ring-hyper-400/30",
-                                isRust && "bg-danger/10 text-danger ring-danger/30",
-                              )
+                          "block rounded-lg px-3 py-2 text-sm transition-colors",
+                          childActive
+                            ? "text-hyper-300"
                             : "text-steel-dim hover:bg-white/[0.05] hover:text-white",
                         )}
                       >
-                        <Icon className="h-4 w-4 shrink-0" />
-                        {item.label}
+                        {child.label}
                       </Link>
                     );
-                  }
-
-                  return (
-                    <div key={item.path}>
-                      <Link
-                        href={href}
-                        className={cn(
-                          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                          expanded
-                            ? cn(
-                                "bg-hyper-500/15 text-hyper-300 ring-1 ring-inset ring-hyper-400/30",
-                                isRust && "bg-danger/10 text-danger ring-danger/30",
-                              )
-                            : "text-steel-dim hover:bg-white/[0.05] hover:text-white",
-                        )}
-                      >
-                        <Icon className="h-4 w-4 shrink-0" />
-                        <span className="flex-1">{item.label}</span>
-                        <ChevronDown
-                          className={cn("h-4 w-4 shrink-0 transition-transform", expanded && "rotate-180")}
-                        />
-                      </Link>
-                      <div className={cn("mt-1 space-y-1 pl-10", expanded ? "block" : "hidden")}>
-                        {item.children.map((child) => {
-                          const childHref = `${base}${child.path}`;
-                          const childActive = pathname === childHref;
-                          return (
-                            <Link
-                              key={child.path}
-                              href={childHref}
-                              className={cn(
-                                "block rounded-lg px-3 py-2 text-sm transition-colors",
-                                childActive
-                                  ? "text-hyper-300"
-                                  : "text-steel-dim hover:bg-white/[0.05] hover:text-white",
-                              )}
-                            >
-                              {child.label}
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </nav>
       </div>
     </aside>
