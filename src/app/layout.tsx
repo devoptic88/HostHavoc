@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Inter, Exo_2, JetBrains_Mono } from "next/font/google";
+import { Manrope, Bitter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const exo = Exo_2({
+const inter = Manrope({ subsets: ["latin"], variable: "--font-inter" });
+const exo = Bitter({
   subsets: ["latin"],
   variable: "--font-exo",
   style: ["normal", "italic"],

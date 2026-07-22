@@ -2,9 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, Loader2, Server } from "lucide-react";
-import { Card, CardBody } from "@/components/ui/Card";
+import {
+  AlertTriangle,
+  Check,
+  Loader2,
+  Server,
+  Sparkles,
+  TerminalSquare,
+  type LucideIcon,
+} from "lucide-react";
 import { ButtonLink } from "@/components/ui/Button";
+import { Card, CardBody } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
 
 type OrderStatus =
@@ -16,11 +24,6 @@ type OrderStatus =
   | "FAILED"
   | "MANUAL";
 
-/**
- * Shown on the server page while the order is still being provisioned.
- * Polls the order status and refreshes into the live console (which
- * streams the installation output from Wings) the moment the server exists.
- */
 export function ProvisioningScreen({
   orderId,
   serverName,
@@ -47,32 +50,34 @@ export function ProvisioningScreen({
         setError(data.error ?? null);
         if (data.provisioned) {
           clearInterval(timer);
-          router.refresh(); // layout re-renders into the live console
+          router.refresh();
         }
       } catch {
-        /* transient network error — keep polling */
+        // transient network error - keep polling
       }
     }, 2500);
     return () => clearInterval(timer);
   }, [orderId, status, router]);
 
   const failed = status === "FAILED";
-  const creating = !failed; // PENDING or PROVISIONING
-
+  const creating = !failed;
   const steps: { label: string; state: "done" | "active" | "pending" | "failed" }[] = [
     { label: "Payment confirmed", state: "done" },
     {
-      label: "Creating your server",
+      label: "Allocating hardware profile",
       state: failed ? "failed" : creating ? "active" : "done",
     },
-    { label: "Installing game files", state: "pending" },
-    { label: "Server online", state: "pending" },
+    {
+      label: "Installing game files and startup profile",
+      state: status === "PROVISIONING" ? "active" : "pending",
+    },
+    { label: "Publishing overview and live console", state: "pending" },
   ];
 
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <CardBody className="py-12">
-        <div className="mx-auto max-w-md text-center">
+        <div className="mx-auto max-w-xl text-center">
           {failed ? (
             <AlertTriangle className="mx-auto h-12 w-12 text-danger" />
           ) : (
@@ -92,27 +97,42 @@ export function ProvisioningScreen({
           </h2>
           <p className="mt-2 text-sm text-steel-dim">
             {failed
-              ? "Something went wrong while creating your server. Our team has been notified — you can also open a ticket and we'll sort it out fast."
-              : "This usually takes under a minute. As soon as the server exists you'll drop straight into its live console and watch the installation happen."}
+              ? "Something went wrong while creating your server. Our team has been notified and you can open a ticket with this server already attached."
+              : "This usually takes a few minutes. We will land you in the operational overview first, then straight into the live console once the instance is available."}
           </p>
 
+          {!failed ? (
+            <div className="mt-6 grid gap-3 text-left sm:grid-cols-2">
+              <StageInfo
+                icon={Sparkles}
+                title="What we stage"
+                body="Allocation, startup profile, backups, and panel wiring are prepared automatically."
+              />
+              <StageInfo
+                icon={TerminalSquare}
+                title="What happens next"
+                body="Once provisioning completes, you land in the overview with console, files, and support context ready."
+              />
+            </div>
+          ) : null}
+
           <ol className="mx-auto mt-8 max-w-xs space-y-3 text-left">
-            {steps.map((s) => (
-              <li key={s.label} className="flex items-center gap-3 text-sm">
+            {steps.map((step) => (
+              <li key={step.label} className="flex items-center gap-3 text-sm">
                 <span
                   className={cn(
                     "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-                    s.state === "done" && "bg-success/15 text-success",
-                    s.state === "active" && "bg-hyper-500/15 text-hyper-300",
-                    s.state === "failed" && "bg-danger/15 text-danger",
-                    s.state === "pending" && "bg-white/[0.04] text-steel-faint",
+                    step.state === "done" && "bg-success/15 text-success",
+                    step.state === "active" && "bg-hyper-500/15 text-hyper-300",
+                    step.state === "failed" && "bg-danger/15 text-danger",
+                    step.state === "pending" && "bg-white/[0.04] text-steel-faint",
                   )}
                 >
-                  {s.state === "done" ? (
+                  {step.state === "done" ? (
                     <Check className="h-3.5 w-3.5" />
-                  ) : s.state === "active" ? (
+                  ) : step.state === "active" ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : s.state === "failed" ? (
+                  ) : step.state === "failed" ? (
                     <AlertTriangle className="h-3.5 w-3.5" />
                   ) : (
                     <span className="h-1.5 w-1.5 rounded-full bg-current" />
@@ -120,34 +140,54 @@ export function ProvisioningScreen({
                 </span>
                 <span
                   className={cn(
-                    s.state === "done" && "text-steel",
-                    s.state === "active" && "font-semibold text-white",
-                    s.state === "failed" && "font-semibold text-danger",
-                    s.state === "pending" && "text-steel-faint",
+                    step.state === "done" && "text-steel",
+                    step.state === "active" && "font-semibold text-white",
+                    step.state === "failed" && "font-semibold text-danger",
+                    step.state === "pending" && "text-steel-faint",
                   )}
                 >
-                  {s.label}
+                  {step.label}
                 </span>
               </li>
             ))}
           </ol>
 
-          {failed && (
+          {failed ? (
             <>
-              {error && (
+              {error ? (
                 <p className="mx-auto mt-6 max-w-sm rounded-lg border border-danger/20 bg-danger/5 px-4 py-3 text-left font-mono text-xs text-danger/90">
                   {error}
                 </p>
-              )}
+              ) : null}
               <div className="mt-6">
-                <ButtonLink href="/dashboard/tickets" variant="secondary" size="sm">
+                <ButtonLink href={`/dashboard/tickets?server=${orderId}&topic=provisioning`} variant="secondary" size="sm">
                   Open a support ticket
                 </ButtonLink>
               </div>
             </>
-          )}
+          ) : null}
         </div>
       </CardBody>
     </Card>
+  );
+}
+
+function StageInfo({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: LucideIcon;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex items-center gap-2 text-steel-faint">
+        <Icon className="h-4 w-4 text-hyper-300" />
+        <p className="text-[10px] font-bold uppercase tracking-[0.24em]">{title}</p>
+      </div>
+      <p className="mt-2 text-sm text-steel">{body}</p>
+    </div>
   );
 }

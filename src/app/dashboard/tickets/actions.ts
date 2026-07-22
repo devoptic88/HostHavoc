@@ -11,7 +11,27 @@ export async function createTicket(formData: FormData) {
   const subject = String(formData.get("subject") ?? "").trim().slice(0, 120);
   const body = String(formData.get("body") ?? "").trim().slice(0, 5000);
   const priority = String(formData.get("priority") ?? "MEDIUM");
+  const orderId = String(formData.get("orderId") ?? "").trim();
+  const topic = String(formData.get("topic") ?? "").trim().slice(0, 40);
   if (!subject || !body) throw new Error("Subject and message are required");
+
+  let contextPrefix = "";
+  if (orderId) {
+    const order = await db.order.findUnique({
+      where: { id: orderId },
+      include: { plan: true },
+    });
+    if (order && order.userId === session.user.id) {
+      const contextLines = [
+        "Server Context",
+        `Server Name: ${order.serverName}`,
+        `Order ID: ${order.id}`,
+        `Plan: ${order.plan.name}`,
+      ];
+      if (topic) contextLines.push(`Topic: ${topic}`);
+      contextPrefix = `${contextLines.join("\n")}\n\n`;
+    }
+  }
 
   const ticket = await db.ticket.create({
     data: {
@@ -21,7 +41,11 @@ export async function createTicket(formData: FormData) {
         ? (priority as "LOW" | "MEDIUM" | "HIGH")
         : "MEDIUM",
       messages: {
-        create: { authorId: session.user.id, body, fromStaff: false },
+        create: {
+          authorId: session.user.id,
+          body: `${contextPrefix}${body}`,
+          fromStaff: false,
+        },
       },
     },
   });

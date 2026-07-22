@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Activity, Server } from "lucide-react";
-import { pteroApp, pteroConfigured, type AppNode } from "@/lib/pterodactyl";
-import { Card, CardBody } from "@/components/ui/Card";
+import { Activity, LifeBuoy, Server, ShieldCheck, Timer, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { Card, CardBody } from "@/components/ui/Card";
+import { pteroApp, pteroConfigured, type AppNode } from "@/lib/pterodactyl";
 import { formatBytes } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -16,7 +16,7 @@ async function getNodes(): Promise<{ nodes: AppNode[]; live: boolean }> {
   if (!(await pteroConfigured())) return { nodes: [], live: false };
   try {
     const res = await pteroApp.listNodes();
-    return { nodes: res.data.map((n) => n.attributes), live: true };
+    return { nodes: res.data.map((node) => node.attributes), live: true };
   } catch {
     return { nodes: [], live: false };
   }
@@ -24,7 +24,7 @@ async function getNodes(): Promise<{ nodes: AppNode[]; live: boolean }> {
 
 export default async function StatusPage() {
   const { nodes, live } = await getNodes();
-  const allHealthy = nodes.every((n) => !n.maintenance_mode);
+  const allHealthy = nodes.every((node) => !node.maintenance_mode);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
@@ -49,45 +49,66 @@ export default async function StatusPage() {
             </Badge>
           )}
         </div>
+        <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-steel-dim">
+          We expose live infrastructure state here so buyers and customers can verify platform health before they deploy and while they operate. This page stays calm on purpose: clear signals, direct language, and fast support escalation when something changes.
+        </p>
+      </div>
+
+      <div className="mb-8 grid gap-4 md:grid-cols-3">
+        <StatusCallout
+          icon={ShieldCheck}
+          title="Operational policy"
+          body="Live status is mirrored from the infrastructure layer whenever telemetry is available."
+        />
+        <StatusCallout
+          icon={Timer}
+          title="Response posture"
+          body="Support and operations use the same incident signals surfaced here during provisioning and runtime issues."
+        />
+        <StatusCallout
+          icon={LifeBuoy}
+          title="Need help?"
+          body="Customers can open server-aware tickets directly from the dashboard when something looks off."
+        />
       </div>
 
       {nodes.length > 0 ? (
         <div className="grid gap-5 md:grid-cols-2">
-          {nodes.map((n) => {
-            const memPct = n.allocated_resources
-              ? Math.min(100, Math.round((n.allocated_resources.memory / n.memory) * 100))
+          {nodes.map((node) => {
+            const memPct = node.allocated_resources
+              ? Math.min(100, Math.round((node.allocated_resources.memory / node.memory) * 100))
               : null;
-            const diskPct = n.allocated_resources
-              ? Math.min(100, Math.round((n.allocated_resources.disk / n.disk) * 100))
+            const diskPct = node.allocated_resources
+              ? Math.min(100, Math.round((node.allocated_resources.disk / node.disk) * 100))
               : null;
             return (
-              <Card key={n.id}>
+              <Card key={node.id}>
                 <CardBody>
                   <div className="flex items-center justify-between">
                     <h2 className="flex items-center gap-2 font-display text-base font-bold text-white">
-                      <Server className="h-4 w-4 text-hyper-400" /> {n.name}
+                      <Server className="h-4 w-4 text-hyper-400" /> {node.name}
                     </h2>
-                    {n.maintenance_mode ? (
+                    {node.maintenance_mode ? (
                       <Badge tone="yellow">Maintenance</Badge>
                     ) : (
                       <Badge tone="green">Operational</Badge>
                     )}
                   </div>
                   <div className="mt-5 space-y-4">
-                    {memPct !== null && (
+                    {memPct !== null ? (
                       <Meter
                         label="Memory allocated"
                         pct={memPct}
-                        detail={`${formatBytes((n.allocated_resources?.memory ?? 0) * 1024 * 1024)} / ${formatBytes(n.memory * 1024 * 1024)}`}
+                        detail={`${formatBytes((node.allocated_resources?.memory ?? 0) * 1024 * 1024)} / ${formatBytes(node.memory * 1024 * 1024)}`}
                       />
-                    )}
-                    {diskPct !== null && (
+                    ) : null}
+                    {diskPct !== null ? (
                       <Meter
                         label="Disk allocated"
                         pct={diskPct}
-                        detail={`${formatBytes((n.allocated_resources?.disk ?? 0) * 1024 * 1024)} / ${formatBytes(n.disk * 1024 * 1024)}`}
+                        detail={`${formatBytes((node.allocated_resources?.disk ?? 0) * 1024 * 1024)} / ${formatBytes(node.disk * 1024 * 1024)}`}
                       />
-                    )}
+                    ) : null}
                   </div>
                 </CardBody>
               </Card>
@@ -96,8 +117,7 @@ export default async function StatusPage() {
         </div>
       ) : (
         <p className="py-16 text-center text-sm text-steel-faint">
-          Node telemetry will appear here once the panel connection is
-          configured. All customer services are monitored 24/7 regardless.
+          Node telemetry will appear here once the panel connection is configured. Customer services are still monitored continuously regardless.
         </p>
       )}
     </div>
@@ -115,6 +135,26 @@ function Meter({ label, pct, detail }: { label: string; pct: number; detail: str
       <div className="h-2 overflow-hidden rounded-full bg-night-200">
         <div className={`h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
       </div>
+    </div>
+  );
+}
+
+function StatusCallout({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: LucideIcon;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4">
+      <div className="flex items-center gap-2 text-steel-faint">
+        <Icon className="h-4 w-4 text-hyper-300" />
+        <p className="text-[10px] font-bold uppercase tracking-[0.24em]">{title}</p>
+      </div>
+      <p className="mt-2 text-sm text-steel">{body}</p>
     </div>
   );
 }

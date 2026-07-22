@@ -1,9 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Check, Copy, CreditCard, RadioTower, Shield, Timer } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  CreditCard,
+  FolderOpen,
+  RadioTower,
+  Shield,
+  TerminalSquare,
+  Timer,
+  type LucideIcon,
+} from "lucide-react";
 import { gameCapsule, getGame } from "@/content/games";
-import { formatBytes, formatMoney, formatUptime } from "@/lib/utils";
+import { cn, formatBytes, formatMoney, formatUptime } from "@/lib/utils";
 
 interface Resources {
   current_state: string;
@@ -58,23 +70,23 @@ export function ServerOverview({
 
   const refresh = useCallback(async () => {
     try {
-      const r = await fetch(`/api/servers/${orderId}/resources`);
-      if (r.ok) setRes(await r.json());
+      const response = await fetch(`/api/servers/${orderId}/resources`);
+      if (response.ok) setRes(await response.json());
     } catch {
-      /* transient */
+      // transient
     }
   }, [orderId]);
 
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 5000);
-    return () => clearInterval(t);
+    const timer = setInterval(refresh, 5000);
+    return () => clearInterval(timer);
   }, [refresh]);
 
   useEffect(() => {
     fetch(`/api/servers/${orderId}/details`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setDetails(d))
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => setDetails(data))
       .catch(() => {});
   }, [orderId]);
 
@@ -82,10 +94,33 @@ export function ServerOverview({
   const gameLogo = game?.slug === "rust" ? "/games/rust/logo.png" : game ? gameCapsule(game.slug) : null;
   const state = res?.current_state ?? "offline";
   const running = state === "running";
+  const memoryPct = res ? Math.min(100, Math.round((res.resources.memory_bytes / (ramMb * 1024 * 1024)) * 100)) : 0;
+  const diskPct = res ? Math.min(100, Math.round((res.resources.disk_bytes / (diskMb * 1024 * 1024)) * 100)) : 0;
+  const cpuLivePct = res ? Math.round(res.resources.cpu_absolute) : 0;
 
-  const alloc = details?.relationships?.allocations?.data.find((a) => a.attributes.is_default)
-    ?.attributes;
+  const alloc = details?.relationships?.allocations?.data.find((item) => item.attributes.is_default)?.attributes;
   const address = alloc ? `${alloc.ip_alias ?? alloc.ip}:${alloc.port}` : null;
+
+  const alerts = [
+    !running
+      ? {
+          title: "Server offline",
+          body: "Open the live console or use the power controls to bring the instance online.",
+        }
+      : null,
+    running && memoryPct > 85
+      ? {
+          title: "Memory headroom is tight",
+          body: "Consider trimming mods or upgrading the plan before players feel it.",
+        }
+      : null,
+    running && diskPct > 85
+      ? {
+          title: "Disk usage is climbing",
+          body: "Clean backups or old builds before storage pressure causes trouble.",
+        }
+      : null,
+  ].filter(Boolean) as { title: string; body: string }[];
 
   function copyAddress() {
     if (!address) return;
@@ -105,15 +140,12 @@ export function ServerOverview({
 
   return (
     <div className="space-y-4">
-      <div
-        className="overflow-hidden rounded-2xl border border-white/10 bg-night-100 shadow-xl"
-        style={heroStyle}
-      >
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-night-100 shadow-xl" style={heroStyle}>
         <div className="bg-gradient-to-b from-transparent via-night/25 to-night/75 p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="mb-3 flex min-w-0 items-start gap-3">
-                {game && (
+                {game ? (
                   <div
                     className="h-12 w-12 shrink-0 rounded-xl border border-white/10 bg-black/25 bg-contain bg-center bg-no-repeat"
                     style={
@@ -122,7 +154,7 @@ export function ServerOverview({
                         : { background: `linear-gradient(135deg, ${game.accent}, ${game.accent2})` }
                     }
                   />
-                )}
+                ) : null}
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="font-display text-3xl font-black uppercase tracking-tight text-white">
@@ -140,14 +172,11 @@ export function ServerOverview({
               </div>
 
               <div className="grid gap-2 xl:grid-cols-[minmax(240px,1.5fr)_repeat(5,minmax(0,1fr))]">
-                <TopMetricCard
-                  label={`${game?.name ?? "Game"} Server`}
-                  value={truncateText(game?.tagline ?? "Live game server management", 20)}
-                />
-                <TopMetricCard label="RAM" value={`${ramMb} MB`} />
-                <TopMetricCard label="CPU" value={`${cpuPercent}%`} />
-                <TopMetricCard label="SSD" value={`${diskMb >= 1024 ? `${(diskMb / 1024).toFixed(1)} GB` : `${diskMb} MB`}`} />
-                <TopMetricCard label="Players" value="0" />
+                <TopMetricCard label={`${game?.name ?? "Game"} Server`} value={truncateText(game?.tagline ?? "Live game server management", 20)} />
+                <TopMetricCard label="RAM Limit" value={`${ramMb} MB`} />
+                <TopMetricCard label="CPU Limit" value={`${cpuPercent}%`} />
+                <TopMetricCard label="Disk Limit" value={diskMb >= 1024 ? `${(diskMb / 1024).toFixed(1)} GB` : `${diskMb} MB`} />
+                <TopMetricCard label="State" value={state} />
                 <TopMetricCard
                   label="Network"
                   value={res ? `IN ${formatBytes(res.resources.network_rx_bytes)}` : "IN 0 B"}
@@ -157,7 +186,7 @@ export function ServerOverview({
             </div>
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              {address && (
+              {address ? (
                 <button
                   onClick={copyAddress}
                   className="ring-focus inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1.5 font-mono text-xs text-hyper-300 transition-colors hover:border-hyper-400/40"
@@ -165,7 +194,7 @@ export function ServerOverview({
                   {address}
                   {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
-              )}
+              ) : null}
               <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm font-medium text-white">
                 {running ? "Server online" : "Server offline"}
               </div>
@@ -174,7 +203,27 @@ export function ServerOverview({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.9fr_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_1fr]">
+        <InfoCard
+          icon={<Timer className="h-4 w-4" />}
+          title="Live Resource & State"
+          body={
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <ResourceMeter label="CPU" value={`${cpuLivePct}%`} percent={cpuLivePct} />
+                <ResourceMeter label="Memory" value={`${memoryPct}%`} percent={memoryPct} />
+                <ResourceMeter label="Disk" value={`${diskPct}%`} percent={diskPct} />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <DetailRow label="Runtime state" value={state} />
+                <DetailRow label="Uptime" value={running && res ? formatUptime(res.resources.uptime) : "Offline"} />
+                <DetailRow label="Inbound traffic" value={res ? formatBytes(res.resources.network_rx_bytes) : "0 B"} />
+                <DetailRow label="Outbound traffic" value={res ? formatBytes(res.resources.network_tx_bytes) : "0 B"} />
+              </div>
+            </>
+          }
+        />
+
         <InfoCard
           icon={<CreditCard className="h-4 w-4" />}
           title="Plan & Subscription"
@@ -194,7 +243,7 @@ export function ServerOverview({
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <MiniStat label="RAM" value={`${ramMb} MB`} />
                 <MiniStat label="CPU" value={`${cpuPercent}%`} />
-                <MiniStat label="SSD" value={`${diskMb} MB`} />
+                <MiniStat label="Disk" value={`${diskMb} MB`} />
               </div>
             </>
           }
@@ -202,13 +251,39 @@ export function ServerOverview({
 
         <InfoCard
           icon={<RadioTower className="h-4 w-4" />}
-          title="Connection"
+          title="Next Actions"
+          body={
+            <div className="space-y-3">
+              <QuickLink
+                href={`/dashboard/servers/${orderId}/console`}
+                icon={TerminalSquare}
+                title="Open live console"
+                body="Jump straight into logs, commands, and runtime visibility."
+              />
+              <QuickLink
+                href={`/dashboard/servers/${orderId}/files`}
+                icon={FolderOpen}
+                title="Review files and installers"
+                body="Edit configs, inspect builds, or swap content safely."
+              />
+              <QuickLink
+                href={`/dashboard/tickets?server=${orderId}&topic=operations`}
+                icon={Shield}
+                title="Get contextual support"
+                body="Create a ticket with this server attached for faster triage."
+              />
+            </div>
+          }
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+        <InfoCard
+          icon={<Shield className="h-4 w-4" />}
+          title="Connection & Alerts"
           body={
             <>
-              <p className="text-sm text-steel">
-                Primary address and quick connection details for your live instance.
-              </p>
-              <div className="mt-4 space-y-3">
+              <div className="space-y-3">
                 <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
                   <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-steel-faint">
                     Hostname
@@ -221,43 +296,40 @@ export function ServerOverview({
                   </p>
                   <p className="mt-1 text-sm text-white">{game?.name ?? "Game Server"}</p>
                 </div>
+                {alerts.length > 0 ? (
+                  alerts.map((alert) => (
+                    <div
+                      key={alert.title}
+                      className="rounded-xl border border-warning/20 bg-warning/10 px-3 py-3 text-sm text-warning"
+                    >
+                      <div className="flex items-center gap-2 font-semibold">
+                        <AlertTriangle className="h-4 w-4" />
+                        {alert.title}
+                      </div>
+                      <p className="mt-1 text-warning/90">{alert.body}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-success/20 bg-success/10 px-3 py-3 text-sm text-success">
+                    No actionable alerts right now. This server is within normal operating headroom.
+                  </div>
+                )}
               </div>
             </>
           }
         />
 
         <InfoCard
-          icon={<Shield className="h-4 w-4" />}
-          title="Server Information"
+          icon={<Timer className="h-4 w-4" />}
+          title="Operational Summary"
           body={
-            <>
-              <div className="space-y-3">
-                <DetailRow label="Uptime" value={running && res ? formatUptime(res.resources.uptime) : "Server is offline"} />
-                <DetailRow label="State" value={state} />
-                <DetailRow label="Network In" value={res ? formatBytes(res.resources.network_rx_bytes) : "0 B"} />
-                <DetailRow label="Network Out" value={res ? formatBytes(res.resources.network_tx_bytes) : "0 B"} />
-              </div>
-              <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-steel">
-                Need help setting up your server? Open a ticket and we&apos;ll help you tune mods, startup settings, and performance.
-              </div>
-            </>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <MiniStat label="Status" value={running ? "Responding" : "Offline"} />
+              <MiniStat label="Provisioning model" value="Transparent staged deploy" />
+              <MiniStat label="Support path" value="Context-aware ticketing" />
+            </div>
           }
         />
-      </div>
-
-      <div className="glass rounded-2xl p-4">
-        <div className="flex items-center gap-2 text-steel-faint">
-          <Timer className="h-4 w-4" />
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-steel-faint">Status Summary</p>
-        </div>
-        <p className="mt-2 font-mono text-lg font-semibold text-white">
-          {running && res ? formatUptime(res.resources.uptime) : "Server is offline"}
-        </p>
-        <p className="mt-1 text-sm text-steel">
-          {running
-            ? "Your instance is online and responding to live resource checks."
-            : "Start the server from the control sidebar when you're ready to bring it online."}
-        </p>
       </div>
     </div>
   );
@@ -316,5 +388,54 @@ function DetailRow({ label, value }: { label: string; value: string }) {
       <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-steel-faint">{label}</p>
       <p className="text-sm text-white">{value}</p>
     </div>
+  );
+}
+
+function ResourceMeter({
+  label,
+  value,
+  percent,
+}: {
+  label: string;
+  value: string;
+  percent: number;
+}) {
+  const tone = percent > 90 ? "bg-danger" : percent > 75 ? "bg-warning" : "bg-hyper-gradient";
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-steel-faint">{label}</p>
+        <p className="text-sm font-semibold text-white">{value}</p>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-night-200">
+        <div className={cn("h-full rounded-full", tone)} style={{ width: `${Math.max(percent, 4)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function QuickLink({
+  href,
+  icon: Icon,
+  title,
+  body,
+}: {
+  href: string;
+  icon: LucideIcon;
+  title: string;
+  body: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="block rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 transition-colors hover:border-hyper-400/30 hover:bg-hyper-500/10"
+    >
+      <div className="flex items-center gap-2 text-white">
+        <Icon className="h-4 w-4 text-hyper-300" />
+        <p className="text-sm font-semibold">{title}</p>
+      </div>
+      <p className="mt-1 text-sm text-steel">{body}</p>
+    </Link>
   );
 }

@@ -1,21 +1,20 @@
 import {
-  Cpu,
+  Activity,
+  ArrowRight,
+  Gauge,
   Gamepad2,
-  Globe2,
   HardDrive,
-  Headset,
   Rocket,
   Server,
-  Shield,
   ShieldCheck,
-  Star,
+  Sparkles,
+  TerminalSquare,
   Zap,
 } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { GameCard } from "@/components/marketing/GameCard";
-import { GameMarquee } from "@/components/marketing/GameMarquee";
 import { Reveal } from "@/components/motion/Reveal";
 import { CountUp } from "@/components/motion/CountUp";
 import { Stagger, StaggerItem } from "@/components/motion/Stagger";
@@ -24,341 +23,331 @@ import { getDisplayLocations } from "@/lib/locations";
 
 export const revalidate = 300;
 
-const services = [
+const pillars = [
   {
     icon: Gamepad2,
-    title: "Game Server Hosting",
+    title: "Game Servers",
     href: "/games",
-    price: "from $3.60/mo",
-    points: ["15+ games supported", "Automatic off-site backups", "One-click mod installers", "Instant activation"],
+    body: "Shared game hosting tuned for modded communities, wipe-day spikes, and real operators.",
   },
   {
     icon: Server,
-    title: "Ryzen VPS Hosting",
+    title: "Ryzen VPS",
     href: "/vps",
-    price: "from $5/mo",
-    points: ["AMD Ryzen hypervisors", "1–6 vCPU plans", "NVMe storage", "Unmetered bandwidth"],
+    body: "Performance-first virtual infrastructure for bots, proxies, web apps, and orchestration glue.",
   },
   {
     icon: HardDrive,
-    title: "Dedicated Servers",
+    title: "Dedicated",
     href: "/dedicated",
-    price: "from $200/mo",
-    points: ["Ryzen 7000/9000 series", "Up to 192 GB DDR5", "10 Gbps uplinks", "Fully owned hardware"],
+    body: "Bare-metal hardware for agencies, resellers, and operators who need total control.",
   },
 ];
 
-const features = [
-  { icon: Shield, title: "DDoS Protection Standard", body: "Multi-terabit filtering on every service, tuned for game traffic. No add-on fees, no asterisks." },
-  { icon: Cpu, title: "Industry-Leading Hardware", body: "High-clock Ryzen CPUs, DDR5 memory, and NVMe drives — owned, not resold." },
-  { icon: Headset, title: "Real 24/7 Support", body: "Humans who run game servers themselves, with sub-10-minute median response times." },
-  { icon: Zap, title: "Instant Activation", body: "Servers provision automatically the moment your payment clears." },
-  { icon: Rocket, title: "No Commitment", body: "Month-to-month billing, upgrade or cancel anytime, 72-hour money-back guarantee." },
-  { icon: ShieldCheck, title: "Refined Control Panel", body: "Console, files, backups, and mods in one fast dashboard — no clunky legacy panels." },
+const proofStats = [
+  { label: "Provisioning flow", value: "< 5 min" },
+  { label: "Support model", value: "24/7 operator team" },
+  { label: "Billing", value: "Monthly or annual" },
+  { label: "Infrastructure", value: "Owned NVMe hardware" },
 ];
 
-const testimonials = [
+const controlPoints = [
+  "Operational overview before deeper tools",
+  "Fast console, file manager, backups, and startup controls",
+  "Context-aware support that already knows the server in question",
+];
+
+const conversionProof = [
   {
-    name: "Marcus T.",
-    role: "Rust community owner",
-    body: "Moved a 200-pop Rust server here after two hosts fell over on wipe day. Zero missed wipes in six months and support actually answers at 3am.",
+    icon: ShieldCheck,
+    title: "Defensible trust signals",
+    body: "Status, provisioning flow, and support posture show up where buying decisions happen instead of hiding in the footer.",
   },
   {
-    name: "Elena R.",
-    role: "Minecraft network admin",
-    body: "The panel is the best I've used — modpack installs just work, and TPS stays pinned at 20 even with 40 players in the End.",
+    icon: TerminalSquare,
+    title: "Panel as the proof",
+    body: "The product UI is the hero asset. Buyers should see how the host feels to operate before they ever check out.",
   },
   {
-    name: "Dax K.",
-    role: "Palworld server admin",
-    body: "Set up crossplay for my Xbox friends in one click. My old host wanted a support ticket and three days for the same thing.",
+    icon: Zap,
+    title: "Serious buyer UX",
+    body: "Advanced but guided configuration, annual billing, and promo-ready checkout are built for high-value operators.",
   },
 ];
+
+const flagshipSlugs = new Set(["rust", "minecraft", "palworld"]);
 
 export default async function HomePage() {
   const { locations } = await getDisplayLocations();
-  const featured = GAMES.filter((g) => g.badge).slice(0, 4);
-  const regions = ["North America", "Europe", "Asia Pacific"] as const;
+  const featured = GAMES.filter((game) => flagshipSlugs.has(game.slug));
 
   return (
     <>
-      {/* ─── Hero ─────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-40"
-          style={{ backgroundImage: "url('/games/rust/hero.jpg')" }}
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,10,20,0.84)_0%,rgba(5,10,20,0.58)_28%,rgba(5,10,20,0.78)_62%,rgba(5,10,20,0.96)_100%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(47,107,255,0.28),transparent_38%),radial-gradient(circle_at_20%_55%,rgba(56,189,248,0.18),transparent_34%)]" />
-        <div className="absolute inset-0 bg-grid-faint bg-[size:32px_32px] opacity-70" />
+      <section className="relative overflow-hidden border-b border-white/[0.06]">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(47,107,255,0.24),transparent_28%),linear-gradient(180deg,rgba(8,12,20,0.96)_0%,rgba(5,7,13,1)_100%)]" />
+        <div className="absolute inset-0 bg-grid-faint bg-[size:36px_36px] opacity-60" />
         <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-20 sm:px-6 lg:pb-24 lg:pt-28">
-          <Stagger className="mx-auto flex min-h-[420px] max-w-6xl flex-col items-center justify-center text-center">
-            <StaggerItem>
-              <Badge tone="blue" className="mb-6">
-                <Zap className="h-3 w-3" /> Instant setup · NVMe hardware · DDoS protected
-              </Badge>
-            </StaggerItem>
-            <StaggerItem>
-              <h1 className="mx-auto max-w-5xl font-display text-4xl font-extrabold italic tracking-tight text-white sm:text-6xl lg:text-7xl">
-                Game servers that{" "}
-                <span className="text-gradient-hyper">never blink</span>
-              </h1>
-            </StaggerItem>
-            <StaggerItem>
-              <p className="mx-auto mt-6 max-w-4xl text-lg leading-relaxed text-steel sm:text-xl">
-                Deploy high-performance game servers in minutes on owned Ryzen
-                hardware. One dashboard for console, files, mods, and backups —
-                with humans on support around the clock.
-              </p>
-            </StaggerItem>
-            <StaggerItem>
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-                <ButtonLink href="/games" size="lg">
-                  <Gamepad2 className="h-5 w-5" /> Browse Games
-                </ButtonLink>
-                <ButtonLink href="/vps" variant="secondary" size="lg">
-                  VPS & Dedicated
-                </ButtonLink>
-              </div>
-              <p className="mt-6 text-xs text-steel-faint">
-                72-hour money-back guarantee · No contracts · Cancel anytime
-              </p>
-            </StaggerItem>
-          </Stagger>
-
-          {/* Featured games */}
-          <div className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {featured.map((g, i) => (
-              <Reveal key={g.slug} delay={0.4 + i * 0.1} className="h-full">
-                <GameCard game={g} />
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ─── Game art marquee ─────────────────────────────────── */}
-      <section className="border-y border-white/[0.06] bg-night-50 py-12">
-        <Reveal>
-          <p className="mb-8 text-center text-xs font-semibold uppercase tracking-[0.2em] text-steel-faint">
-            16 games and counting — deployed in minutes
-          </p>
-          <GameMarquee />
-        </Reveal>
-      </section>
-
-      {/* ─── Services ─────────────────────────────────────────── */}
-      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
-        <Reveal>
-          <div className="mb-12 text-center">
-            <h2 className="font-display text-3xl font-bold italic text-white sm:text-4xl">
-              Everything you need to <span className="text-gradient-hyper">host anything</span>
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-steel-dim">
-              From a four-friend Palworld world to a hundred-node network — same
-              hardware, same support, same panel.
-            </p>
-          </div>
-        </Reveal>
-        <div className="grid gap-6 md:grid-cols-3">
-          {services.map((s, i) => (
-            <Reveal key={s.title} delay={i * 0.1} className="h-full">
-            <Card glow className="group h-full">
-              <CardBody className="flex h-full flex-col">
-                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-hyper-500/10 text-hyper-400 transition-colors group-hover:bg-hyper-500/20">
-                  <s.icon className="h-6 w-6" />
+          <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+            <Stagger className="max-w-3xl">
+              <StaggerItem>
+                <Badge tone="blue" className="mb-6">
+                  <Sparkles className="h-3 w-3" /> Premium hosting for serious community operators
+                </Badge>
+              </StaggerItem>
+              <StaggerItem>
+                <h1 className="max-w-4xl font-display text-4xl font-extrabold italic tracking-tight text-white sm:text-6xl lg:text-7xl">
+                  Infrastructure that <span className="text-gradient-hyper">looks real</span> because it is built to operate that way
+                </h1>
+              </StaggerItem>
+              <StaggerItem>
+                <p className="mt-6 max-w-3xl text-lg leading-relaxed text-steel sm:text-xl">
+                  HyperNode is a launch-ready premium host for modded communities, agencies, and high-value operators. Provision transparently, manage from a mission-control dashboard, and keep support one click from the server in question.
+                </p>
+              </StaggerItem>
+              <StaggerItem>
+                <div className="mt-8 flex flex-wrap items-center gap-4">
+                  <ButtonLink href="/games" size="lg">
+                    <Gamepad2 className="h-5 w-5" /> Browse Game Hosting
+                  </ButtonLink>
+                  <ButtonLink href="/status" variant="secondary" size="lg">
+                    <Activity className="h-5 w-5" /> View Network Status
+                  </ButtonLink>
                 </div>
-                <h3 className="font-display text-xl font-bold text-white">{s.title}</h3>
-                <p className="mt-1 text-sm font-semibold text-hyper-300">{s.price}</p>
-                <ul className="mt-4 flex-1 space-y-2">
-                  {s.points.map((p) => (
-                    <li key={p} className="flex items-start gap-2 text-sm text-steel-dim">
-                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                      {p}
-                    </li>
+              </StaggerItem>
+              <StaggerItem>
+                <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                  {proofStats.map((stat) => (
+                    <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
+                      <p className="section-eyebrow">{stat.label}</p>
+                      <p className="mt-2 text-base font-semibold text-white">{stat.value}</p>
+                    </div>
                   ))}
-                </ul>
-                <ButtonLink href={s.href} variant="outline" size="sm" className="mt-6">
-                  Explore →
-                </ButtonLink>
-              </CardBody>
-            </Card>
-            </Reveal>
-          ))}
-        </div>
-      </section>
+                </div>
+              </StaggerItem>
+            </Stagger>
 
-      {/* ─── Network ──────────────────────────────────────────── */}
-      <section className="border-y border-white/[0.06] bg-night-50 py-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <Reveal>
-          <div className="mb-12 text-center">
-            <Badge tone="blue" className="mb-4">
-              <Globe2 className="h-3 w-3" /> Global network
-            </Badge>
-            <h2 className="font-display text-3xl font-bold italic text-white sm:text-4xl">
-              Low latency, <span className="text-gradient-hyper">wherever you play</span>
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-steel-dim">
-              Locations synced live from our infrastructure — what you see here
-              is what you can deploy to right now.
-            </p>
-          </div>
-          </Reveal>
-          <div className="grid gap-6 md:grid-cols-3">
-            {regions.map((region, ri) => {
-              const locs = locations.filter((l) => l.region === region);
-              return (
-                <Reveal key={region} delay={ri * 0.1} className="h-full">
-                <Card className="h-full">
-                  <CardBody>
-                    <h3 className="mb-4 font-display text-sm font-bold uppercase tracking-widest text-steel-dim">
-                      {region}
-                    </h3>
-                    {locs.length ? (
-                      <ul className="space-y-2.5">
-                        {locs.map((l) => (
-                          <li key={l.id} className="flex items-center gap-2.5 text-sm text-steel">
-                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
-                            {l.long}
+            <Reveal delay={0.2}>
+              <div className="surface-panel overflow-hidden rounded-[30px] shadow-card">
+                <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
+                  <div>
+                    <p className="section-eyebrow">Product Proof</p>
+                    <p className="mt-1 text-lg font-semibold text-white">Operational overview -&gt; console</p>
+                  </div>
+                  <span className="rounded-full border border-success/20 bg-success/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-success">
+                    Live posture
+                  </span>
+                </div>
+                <div className="grid gap-4 p-5">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <OpsMeter label="CPU" value="42%" width="42%" />
+                    <OpsMeter label="Memory" value="61%" width="61%" />
+                    <OpsMeter label="Disk" value="34%" width="34%" />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-[1.05fr_0.95fr]">
+                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                      <p className="section-eyebrow">Why it converts</p>
+                      <ul className="mt-3 space-y-3 text-sm text-steel">
+                        {controlPoints.map((point) => (
+                          <li key={point} className="flex items-start gap-2">
+                            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-hyper-300" />
+                            {point}
                           </li>
                         ))}
                       </ul>
-                    ) : (
-                      <p className="text-sm text-steel-faint">Coming soon</p>
-                    )}
-                  </CardBody>
-                </Card>
-                </Reveal>
-              );
-            })}
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 font-mono text-xs text-steel">
+                      <p className="section-eyebrow">Provisioning trace</p>
+                      <div className="mt-3 space-y-2">
+                        <p>[HyperNode] Allocation created on Chicago-2</p>
+                        <p>[HyperNode] Startup profile applied</p>
+                        <p>[HyperNode] Game files verified</p>
+                        <p>[HyperNode] Backups + schedules armed</p>
+                        <p className="text-success">[HyperNode] Overview published</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>
 
-      {/* ─── DDoS stats ───────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
-        <div className="glass relative overflow-hidden rounded-3xl p-10 sm:p-14">
-          <div className="absolute inset-0 bg-radial-glow" />
-          <div className="relative grid gap-10 lg:grid-cols-2 lg:items-center">
-            <div>
-              <Badge tone="blue" className="mb-4">
-                <Shield className="h-3 w-3" /> Always-on protection
-              </Badge>
-              <h2 className="font-display text-3xl font-bold italic text-white">
-                DDoS protection as a <span className="text-gradient-hyper">standard</span>, not an upsell
-              </h2>
-              <p className="mt-4 leading-relaxed text-steel-dim">
-                Every HyperNode service sits behind multi-terabit mitigation
-                with filters tuned specifically for game traffic, so a salty
-                raider with a booter can&apos;t take your community offline.
-              </p>
-            </div>
-            <div className="grid grid-cols-3 gap-6 text-center">
-              <div>
-                <p className="font-display text-4xl font-extrabold text-gradient-hyper">
-                  <CountUp value={50} suffix="+" />
-                </p>
-                <p className="mt-2 text-xs uppercase tracking-wider text-steel-faint">
-                  Attack types filtered
-                </p>
-              </div>
-              <div>
-                <p className="font-display text-4xl font-extrabold text-gradient-hyper">
-                  <CountUp value={100} suffix="k+" />
-                </p>
-                <p className="mt-2 text-xs uppercase tracking-wider text-steel-faint">
-                  Attacks mitigated
-                </p>
-              </div>
-              <div>
-                <p className="font-display text-4xl font-extrabold text-gradient-hyper">&lt;1s</p>
-                <p className="mt-2 text-xs uppercase tracking-wider text-steel-faint">
-                  Time to mitigation
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── Feature grid ─────────────────────────────────────── */}
-      <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6">
         <Reveal>
-          <div className="mb-12 text-center">
-            <h2 className="font-display text-3xl font-bold italic text-white sm:text-4xl">
-              Why communities <span className="text-gradient-hyper">stay</span>
+          <div className="mb-10 text-center">
+            <p className="section-eyebrow">Three Product Pillars</p>
+            <h2 className="mt-3 font-display text-3xl font-bold italic text-white sm:text-4xl">
+              One brand, three ways to operate serious infrastructure
             </h2>
           </div>
         </Reveal>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((f, i) => (
-            <Reveal key={f.title} delay={(i % 3) * 0.08} className="h-full">
-            <Card glow className="h-full">
-              <CardBody>
-                <f.icon className="mb-3 h-6 w-6 text-hyper-400" />
-                <h3 className="font-display text-base font-bold text-white">{f.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-steel-dim">{f.body}</p>
-              </CardBody>
-            </Card>
+        <div className="grid gap-6 md:grid-cols-3">
+          {pillars.map((pillar, index) => (
+            <Reveal key={pillar.title} delay={index * 0.08} className="h-full">
+              <Card glow className="h-full">
+                <CardBody className="flex h-full flex-col">
+                  <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-hyper-500/10 text-hyper-300">
+                    <pillar.icon className="h-6 w-6" />
+                  </div>
+                  <h3 className="font-display text-xl font-bold text-white">{pillar.title}</h3>
+                  <p className="mt-3 flex-1 text-sm leading-relaxed text-steel-dim">{pillar.body}</p>
+                  <ButtonLink href={pillar.href} variant="outline" size="sm" className="mt-6">
+                    Explore <ArrowRight className="h-4 w-4" />
+                  </ButtonLink>
+                </CardBody>
+              </Card>
             </Reveal>
           ))}
         </div>
       </section>
 
-      {/* ─── Testimonials ─────────────────────────────────────── */}
       <section className="border-y border-white/[0.06] bg-night-50 py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="mb-12 flex flex-col items-center text-center">
-            <div className="mb-3 flex gap-1">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} className="h-5 w-5 fill-warning text-warning" />
-              ))}
+          <Reveal>
+            <div className="mb-10 flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
+              <div>
+                <p className="section-eyebrow">Flagship Sales Pages</p>
+                <h2 className="mt-3 font-display text-3xl font-bold italic text-white sm:text-4xl">
+                  Rust, Minecraft, and Palworld lead the story
+                </h2>
+              </div>
+              <ButtonLink href="/games" variant="secondary" size="sm">
+                Browse all games
+              </ButtonLink>
             </div>
-            <h2 className="font-display text-3xl font-bold italic text-white">
-              Trusted by server owners
-            </h2>
-          </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            {testimonials.map((t, i) => (
-              <Reveal key={t.name} delay={i * 0.1} className="h-full">
-              <Card className="h-full">
-                <CardBody>
-                  <p className="text-sm leading-relaxed text-steel">&ldquo;{t.body}&rdquo;</p>
-                  <div className="mt-5 border-t border-white/[0.06] pt-4">
-                    <p className="text-sm font-bold text-white">{t.name}</p>
-                    <p className="text-xs text-steel-faint">{t.role}</p>
-                  </div>
-                </CardBody>
-              </Card>
+          </Reveal>
+          <div className="grid gap-5 md:grid-cols-3">
+            {featured.map((game, index) => (
+              <Reveal key={game.slug} delay={index * 0.08} className="h-full">
+                <GameCard game={game} />
               </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ─── Final CTA ────────────────────────────────────────── */}
+      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6">
+        <Reveal>
+          <div className="mb-10 text-center">
+            <p className="section-eyebrow">Trust + Conversion</p>
+            <h2 className="mt-3 font-display text-3xl font-bold italic text-white sm:text-4xl">
+              Proof belongs beside the buy button
+            </h2>
+          </div>
+        </Reveal>
+        <div className="grid gap-6 md:grid-cols-3">
+          {conversionProof.map((item, index) => (
+            <Reveal key={item.title} delay={index * 0.08}>
+              <Card className="h-full">
+                <CardBody>
+                  <item.icon className="h-6 w-6 text-hyper-300" />
+                  <h3 className="mt-4 font-display text-lg font-bold text-white">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-steel-dim">{item.body}</p>
+                </CardBody>
+              </Card>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-y border-white/[0.06] bg-night-50 py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <Reveal>
+            <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+              <div>
+                <p className="section-eyebrow">Shared Infrastructure Story</p>
+                <h2 className="mt-3 font-display text-3xl font-bold italic text-white sm:text-4xl">
+                  Fast provisioning, visible status, and operators who answer with context
+                </h2>
+                <p className="mt-4 text-sm leading-relaxed text-steel-dim">
+                  HyperNode is designed so the same truth flows through marketing, checkout, provisioning, dashboard, and support. Buyers see the operational posture before purchasing, and customers keep that same clarity after deployment.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3 text-sm text-steel">
+                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2">
+                    {locations.length} live deployment locations
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2">
+                    Annual billing ready
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2">
+                    Promotion-ready checkout
+                  </span>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <TrustStat label="Deploy regions" value={String(locations.length)} />
+                <TrustStat label="Flagship pages" value="3" />
+                <TrustStat label="Server workflow" value="Overview -> Console" />
+                <TrustStat label="Support path" value="Server-aware tickets" />
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
       <section className="mx-auto max-w-7xl px-4 py-24 text-center sm:px-6">
         <Reveal>
-        <h2 className="font-display text-4xl font-extrabold italic text-white sm:text-5xl">
-          Ready to <span className="text-gradient-hyper">deploy</span>?
-        </h2>
-        <p className="mx-auto mt-4 max-w-lg text-steel-dim">
-          Instant provisioning, a 72-hour money-back guarantee, and real 24/7
-          technical support. Your server is minutes away.
-        </p>
-        <div className="mt-8 flex justify-center gap-4">
-          <ButtonLink href="/games" size="lg">
-            <Rocket className="h-5 w-5" /> Deploy your server
-          </ButtonLink>
-        </div>
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs text-steel-faint">
-          <span>✓ 72-hour money-back guarantee</span>
-          <span>✓ Instant service provisioning</span>
-          <span>✓ Real 24/7 technical support</span>
-        </div>
+          <h2 className="font-display text-4xl font-extrabold italic text-white sm:text-5xl">
+            Ready to operate like a <span className="text-gradient-hyper">real host</span>?
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-steel-dim">
+            Start with shared game hosting, verify the network posture, and move into a dashboard designed around serious day-to-day server management.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <ButtonLink href="/games" size="lg">
+              <Rocket className="h-5 w-5" /> Deploy your first server
+            </ButtonLink>
+            <ButtonLink href="/status" variant="secondary" size="lg">
+              <Gauge className="h-5 w-5" /> Inspect network status
+            </ButtonLink>
+          </div>
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs text-steel-faint">
+            <span>Provisioning posture you can show to customers</span>
+            <span>Dashboard built for operators, not tourists</span>
+            <span>Support surfaces that stay calm under pressure</span>
+          </div>
         </Reveal>
       </section>
     </>
+  );
+}
+
+function OpsMeter({
+  label,
+  value,
+  width,
+}: {
+  label: string;
+  value: string;
+  width: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="section-eyebrow">{label}</p>
+        <p className="text-sm font-semibold text-white">{value}</p>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-night-200">
+        <div className="h-full rounded-full bg-hyper-gradient" style={{ width }} />
+      </div>
+    </div>
+  );
+}
+
+function TrustStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-left">
+      <p className="section-eyebrow">{label}</p>
+      <p className="mt-3 font-display text-2xl font-bold text-white">
+        {value === String(Number(value)) ? <CountUp value={Number(value)} /> : value}
+      </p>
+    </div>
   );
 }
