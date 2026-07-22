@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pteroClient, PterodactylError } from "@/lib/pterodactyl";
 import { provisionOrder } from "@/lib/provision";
+import { queryRustServer } from "@/lib/serverQuery";
 import type { ClientEggVariable } from "@/lib/pterodactyl";
 
 /**
@@ -149,6 +150,15 @@ export async function GET(
         return NextResponse.json((await pteroClient.getClientServer(id)).attributes);
       case "resources":
         return NextResponse.json((await pteroClient.getResources(id)).attributes);
+      case "query": {
+        const server = await pteroClient.getClientServer(id);
+        const allocation = server.attributes.relationships?.allocations?.data
+          .map((item) => item.attributes)
+          .find((item) => item.is_default);
+        if (!allocation) throw new HttpError(404, "No server allocation found");
+        const host = allocation.ip_alias ?? allocation.ip;
+        return NextResponse.json(await queryRustServer(host, allocation.port));
+      }
       case "ws":
         return NextResponse.json(await pteroClient.getWebsocket(id));
       case "files":

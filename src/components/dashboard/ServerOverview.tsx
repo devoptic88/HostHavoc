@@ -40,15 +40,27 @@ interface ClientServer {
   };
 }
 
+interface LivePlayer {
+  name: string;
+  score: number;
+  durationSeconds: number;
+}
+
+interface QuerySnapshot {
+  playerCount: number;
+  maxPlayers: number;
+  players: LivePlayer[];
+}
+
 type MetricPoint = {
   ts: number;
-  cpu: number;
-  ram: number;
-  disk: number;
-  players: number;
+  cpuPercent: number;
+  ramBytes: number;
+  diskBytes: number;
+  playerCount: number;
 };
 
-type PerfMetric = "disk" | "ram" | "cpu";
+type PerfMetric = "diskBytes" | "ramBytes" | "cpuPercent";
 type HistoryRange = "24h" | "3d" | "week" | "month";
 
 const RANGE_LABELS: Record<HistoryRange, string> = {
@@ -65,18 +77,22 @@ const HELP_POINTS = [
   "Most issues resolved within an hour",
 ];
 
-function clampPercent(value: number) {
-  return Math.max(0, Math.min(100, Math.round(value)));
+function formatMetricValue(metric: PerfMetric, value: number) {
+  if (metric === "cpuPercent") return `${Math.round(value)}%`;
+  return formatBytes(value);
+}
+
+function formatChartTick(metric: PerfMetric | "playerCount", value: number) {
+  if (metric === "playerCount") return String(Math.round(value));
+  return formatMetricValue(metric, value);
 }
 
 function useSessionHistory({
   res,
-  ramMb,
-  diskMb,
+  query,
 }: {
   res: Resources | null;
-  ramMb: number;
-  diskMb: number;
+  query: QuerySnapshot | null;
 }) {
   const [history, setHistory] = useState<MetricPoint[]>([]);
 
@@ -84,17 +100,17 @@ function useSessionHistory({
     if (!res) return;
     const point: MetricPoint = {
       ts: Date.now(),
-      cpu: clampPercent(res.resources.cpu_absolute),
-      ram: clampPercent((res.resources.memory_bytes / (ramMb * 1024 * 1024)) * 100),
-      disk: clampPercent((res.resources.disk_bytes / (diskMb * 1024 * 1024)) * 100),
-      players: 0,
+      cpuPercent: Math.max(0, res.resources.cpu_absolute),
+      ramBytes: Math.max(0, res.resources.memory_bytes),
+      diskBytes: Math.max(0, res.resources.disk_bytes),
+      playerCount: Math.max(0, query?.playerCount ?? 0),
     };
 
     setHistory((current) => {
       const next = [...current, point];
       return next.slice(-24);
     });
-  }, [diskMb, ramMb, res]);
+  }, [query, res]);
 
   return history;
 }
@@ -122,15 +138,20 @@ export function ServerOverview({
 }) {
   const [res, setRes] = useState<Resources | null>(null);
   const [details, setDetails] = useState<ClientServer | null>(null);
+  const [query, setQuery] = useState<QuerySnapshot | null>(null);
   const [copied, setCopied] = useState(false);
-  const [perfMetric, setPerfMetric] = useState<PerfMetric>("ram");
+  const [perfMetric, setPerfMetric] = useState<PerfMetric>("ramBytes");
   const [historyRange, setHistoryRange] = useState<HistoryRange>("24h");
   const [playerSearch, setPlayerSearch] = useState("");
 
   const refresh = useCallback(async () => {
     try {
-      const response = await fetch(`/api/servers/${orderId}/resources`);
-      if (response.ok) setRes(await response.json());
+      const [resourceResponse, queryResponse] = await Promise.all([
+        fetch(`/api/servers/${orderId}/resources`),
+        fetch(`/api/servers/${orderId}/query`),
+      ]);
+      if (resourceResponse.ok) setRes(await resourceResponse.json());
+      if (queryResponse.ok) setQuery(await queryResponse.json());
     } catch {
       // transient
     }
@@ -149,12 +170,18 @@ export function ServerOverview({
       .catch(() => {});
   }, [orderId]);
 
-  const history = useSessionHistory({ res, ramMb, diskMb });
+  const history = useSessionHistory({ res, query });
   const game = gameSlug ? getGame(gameSlug) : undefined;
   const gameLogo = game?.slug === "rust" ? "/games/rust/logo.png" : game ? gameCapsule(game.slug) : null;
   const state = res?.current_state ?? "offline";
   const running = state === "running";
-  const playerCount = 0;
+  const liveRam = res?.resources.memory_bytes ?? ramMb * 1024 * 1024;
+  const liveCpu = res?.resources.cpu_absolute ?? cpuPercent;
+  const liveDisk = res?.resources.disk_bytes ?? diskMb * 1024 * 1024;
+  const livePlayers = query?.playerCount ?? 0;
+  const filteredPlayers = (query?.players ?? []).filter((player) =>
+    player.name.toLowerCase().includes(playerSearch.toLowerCase()),
+  );
 
   const alloc = details?.relationships?.allocations?.data.find((item) => item.attributes.is_default)?.attributes;
   const address = alloc ? `${alloc.ip_alias ?? alloc.ip}:${alloc.port}` : null;
@@ -225,10 +252,14 @@ export function ServerOverview({
                   value={game?.tagline ?? "Live game server management"}
                   compact
                 />
-                <TopMetricCard label="RAM" value={`${ramMb} MB`} />
-                <TopMetricCard label="CPU" value={`${cpuPercent}%`} />
-                <TopMetricCard label="SSD" value={diskMb >= 1024 ? `${(diskMb / 1024).toFixed(1)} GB` : `${diskMb} MB`} />
-                <TopMetricCard label="Players" value={String(playerCount)} />
+                <TopMetricCard label="RAM" value={formatBytes(liveRam)} />
+                <TopMetricCard label="CPU" value={`${Math.round(liveCpu)}%`} />
+                <TopMetricCard label="SSD" value={formatBytes(liveDisk)} />
+                <TopMetricCard
+                  label="Players"
+                  value={String(livePlayers)}
+                  secondary={query ? `/ ${query.maxPlayers || "?"} max` : ""}
+                />
                 <TopMetricCard
                   label="Network"
                   value={res ? `IN ${formatBytes(res.resources.network_rx_bytes)}` : "IN 0 B"}
@@ -262,9 +293,9 @@ export function ServerOverview({
           actions={
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {[
-                { id: "disk", label: "SSD", tone: "text-warning" },
-                { id: "ram", label: "RAM", tone: "text-success" },
-                { id: "cpu", label: "CPU", tone: "text-hyper-300" },
+                { id: "diskBytes", label: "SSD", tone: "text-warning" },
+                { id: "ramBytes", label: "RAM", tone: "text-success" },
+                { id: "cpuPercent", label: "CPU", tone: "text-hyper-300" },
               ].map((option) => (
                 <button
                   key={option.id}
@@ -283,8 +314,8 @@ export function ServerOverview({
           <LineChart
             points={historyPoints}
             metric={perfMetric}
-            colorClass={perfMetric === "ram" ? "stroke-success" : perfMetric === "disk" ? "stroke-warning" : "stroke-hyper-300"}
-            fillClass={perfMetric === "ram" ? "fill-success/20" : perfMetric === "disk" ? "fill-warning/15" : "fill-hyper-500/15"}
+            colorClass={perfMetric === "ramBytes" ? "stroke-success" : perfMetric === "diskBytes" ? "stroke-warning" : "stroke-hyper-300"}
+            fillClass={perfMetric === "ramBytes" ? "fill-success/20" : perfMetric === "diskBytes" ? "fill-warning/15" : "fill-hyper-500/15"}
             emptyText="Live resource history will build as this page remains open."
           />
         </OverviewPanel>
@@ -311,11 +342,10 @@ export function ServerOverview({
         >
           <LineChart
             points={historyPoints}
-            metric="players"
+            metric="playerCount"
             colorClass="stroke-hyper-300"
             fillClass="fill-hyper-500/10"
-            maxValue={10}
-            emptyText="Player history will appear here as sessions are observed."
+            emptyText="Live player history will build as the server is queried."
           />
         </OverviewPanel>
       </div>
@@ -363,16 +393,35 @@ export function ServerOverview({
             </div>
           }
         >
-          <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-white/10 bg-white/[0.02] px-6 text-center">
-            <Gamepad2 className="h-14 w-14 text-steel-faint" />
-            <p className="mt-5 text-2xl font-semibold text-white">No players online.</p>
-            <p className="mt-2 max-w-sm text-sm text-steel-dim">
-              Once players connect to your server, they will appear here.
-            </p>
-            <button className="ring-focus mt-6 rounded-full bg-hyper-gradient px-5 py-2.5 text-sm font-semibold text-white shadow-glow-sm transition-all hover:brightness-110">
-              How to Join your Server
-            </button>
-          </div>
+          {filteredPlayers.length > 0 ? (
+            <div className="space-y-3">
+              {filteredPlayers.map((player) => (
+                <div
+                  key={`${player.name}-${player.durationSeconds}`}
+                  className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-white">{player.name}</p>
+                    <p className="text-xs text-steel-faint">Score {player.score}</p>
+                  </div>
+                  <p className="mt-1 text-xs text-steel-dim">
+                    Connected for {Math.max(0, Math.round(player.durationSeconds / 60))} min
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-white/10 bg-white/[0.02] px-6 text-center">
+              <Gamepad2 className="h-14 w-14 text-steel-faint" />
+              <p className="mt-5 text-2xl font-semibold text-white">No players online.</p>
+              <p className="mt-2 max-w-sm text-sm text-steel-dim">
+                Once players connect to your server, they will appear here live.
+              </p>
+              <button className="ring-focus mt-6 rounded-full bg-hyper-gradient px-5 py-2.5 text-sm font-semibold text-white shadow-glow-sm transition-all hover:brightness-110">
+                How to Join your Server
+              </button>
+            </div>
+          )}
         </OverviewPanel>
 
         <div className="space-y-4">
@@ -389,9 +438,9 @@ export function ServerOverview({
               </p>
             </div>
             <div className="mt-4 grid gap-3">
-              <MiniStat label="RAM" value={`${ramMb} MB`} />
-              <MiniStat label="CPU" value={`${cpuPercent}%`} />
-              <MiniStat label="SSD" value={`${diskMb} MB`} />
+              <MiniStat label="RAM" value={formatBytes(liveRam)} />
+              <MiniStat label="CPU" value={`${Math.round(liveCpu)}%`} />
+              <MiniStat label="SSD" value={formatBytes(liveDisk)} />
             </div>
           </OverviewPanel>
 
@@ -475,14 +524,12 @@ function LineChart({
   metric,
   colorClass,
   fillClass,
-  maxValue = 100,
   emptyText,
 }: {
   points: MetricPoint[];
-  metric: keyof MetricPoint;
+  metric: PerfMetric | "playerCount";
   colorClass: string;
   fillClass: string;
-  maxValue?: number;
   emptyText: string;
 }) {
   const width = 640;
@@ -492,7 +539,8 @@ function LineChart({
   const chartWidth = width - padding * 2;
 
   const values = points.map((point) => Number(point[metric]));
-  const effectiveMax = Math.max(maxValue, ...values, 1);
+  const peak = values.length > 0 ? Math.max(...values) : 0;
+  const effectiveMax = Math.max(peak, metric === "playerCount" ? 1 : 1);
 
   const polyline = points
     .map((point, index) => {
@@ -507,11 +555,13 @@ function LineChart({
       ? `${polyline} ${padding + chartWidth},${height - padding} ${padding},${height - padding}`
       : "";
 
+  const tickValues = Array.from({ length: 6 }).map((_, index) => effectiveMax - (effectiveMax * index) / 5);
+
   return (
     <div className="rounded-xl border border-white/10 bg-night-100/70 p-4">
       <div className="mb-3 grid grid-cols-6 gap-2 text-[11px] text-steel-faint">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <span key={index}>{Math.round((effectiveMax / 5) * (5 - index))}</span>
+        {tickValues.map((value, index) => (
+          <span key={index}>{formatChartTick(metric, value)}</span>
         ))}
       </div>
       <div className="relative">
