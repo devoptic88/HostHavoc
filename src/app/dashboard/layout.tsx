@@ -15,6 +15,11 @@ export default async function DashboardLayout({
       <Sidebar
         title="Customer Area"
         footerNote={session.user.email}
+        portalSwitch={
+          session.user.role === "ADMIN"
+            ? { href: "/admin", label: "Open Admin Panel" }
+            : undefined
+        }
         items={[
           { href: "/dashboard", label: "My Servers", icon: "server", exact: true },
           { href: "/dashboard/billing", label: "Billing", icon: "billing" },

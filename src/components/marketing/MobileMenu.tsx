@@ -40,14 +40,35 @@ export function MobileMenu({
             ))}
             <div className="mt-3 flex gap-3 border-t border-white/[0.06] pt-4">
               {loggedIn ? (
-                <ButtonLink
-                  href={isAdmin ? "/admin" : "/dashboard"}
-                  variant="primary"
-                  size="sm"
-                  className="flex-1"
-                >
-                  {isAdmin ? "Admin Panel" : "Dashboard"}
-                </ButtonLink>
+                isAdmin ? (
+                  <>
+                    <ButtonLink
+                      href="/dashboard"
+                      variant="secondary"
+                      size="sm"
+                      className="flex-1"
+                    >
+                      Customer Portal
+                    </ButtonLink>
+                    <ButtonLink
+                      href="/admin"
+                      variant="primary"
+                      size="sm"
+                      className="flex-1"
+                    >
+                      Admin Panel
+                    </ButtonLink>
+                  </>
+                ) : (
+                  <ButtonLink
+                    href="/dashboard"
+                    variant="primary"
+                    size="sm"
+                    className="flex-1"
+                  >
+                    Dashboard
+                  </ButtonLink>
+                )
               ) : (
                 <>
                   <ButtonLink href="/login" variant="secondary" size="sm" className="flex-1">

@@ -34,13 +34,20 @@ export async function Navbar() {
           </nav>
           <div className="hidden items-center gap-3 lg:flex">
             {session?.user ? (
-              <ButtonLink
-                href={session.user.role === "ADMIN" ? "/admin" : "/dashboard"}
-                variant="primary"
-                size="sm"
-              >
-                {session.user.role === "ADMIN" ? "Admin Panel" : "Dashboard"}
-              </ButtonLink>
+              session.user.role === "ADMIN" ? (
+                <>
+                  <ButtonLink href="/dashboard" variant="secondary" size="sm">
+                    Customer Portal
+                  </ButtonLink>
+                  <ButtonLink href="/admin" variant="primary" size="sm">
+                    Admin Panel
+                  </ButtonLink>
+                </>
+              ) : (
+                <ButtonLink href="/dashboard" variant="primary" size="sm">
+                  Dashboard
+                </ButtonLink>
+              )
             ) : (
               <>
                 <ButtonLink href="/login" variant="ghost" size="sm">

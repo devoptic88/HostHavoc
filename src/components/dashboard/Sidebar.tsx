@@ -54,10 +54,15 @@ export function Sidebar({
   items,
   title,
   footerNote,
+  portalSwitch,
 }: {
   items: NavItem[];
   title: string;
   footerNote?: string;
+  portalSwitch?: {
+    href: string;
+    label: string;
+  };
 }) {
   const pathname = usePathname();
 
@@ -93,6 +98,14 @@ export function Sidebar({
         })}
       </nav>
       <div className="hidden border-t border-white/[0.06] px-3 py-3 lg:block">
+        {portalSwitch && (
+          <Link
+            href={portalSwitch.href}
+            className="mb-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-steel-dim transition-colors hover:bg-white/[0.05] hover:text-white"
+          >
+            <LayoutDashboard className="h-4 w-4" /> {portalSwitch.label}
+          </Link>
+        )}
         {footerNote && (
           <p className="mb-2 px-3 text-[11px] text-steel-faint">{footerNote}</p>
         )}

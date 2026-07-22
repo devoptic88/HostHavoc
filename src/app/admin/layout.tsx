@@ -16,6 +16,7 @@ export default async function AdminLayout({
       <Sidebar
         title="Admin Control"
         footerNote={session.user.email}
+        portalSwitch={{ href: "/dashboard", label: "Open Customer Portal" }}
         items={[
           { href: "/admin", label: "Overview", icon: "overview", exact: true },
           { href: "/admin/orders", label: "Orders", icon: "orders" },
