@@ -75,9 +75,9 @@ export async function GET(
     const url = new URL(req.url);
     switch (params.action) {
       case "details":
-        return NextResponse.json(await pteroClient.getClientServer(id));
+        return NextResponse.json((await pteroClient.getClientServer(id)).attributes);
       case "resources":
-        return NextResponse.json(await pteroClient.getResources(id));
+        return NextResponse.json((await pteroClient.getResources(id)).attributes);
       case "ws":
         return NextResponse.json(await pteroClient.getWebsocket(id));
       case "files":
