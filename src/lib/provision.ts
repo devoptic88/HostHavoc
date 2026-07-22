@@ -73,6 +73,73 @@ async function getServiceUserId(): Promise<number> {
   return cachedServiceUserId;
 }
 
+async function findServerByExternalId(externalId: string) {
+  for (let page = 1; page <= 10; page++) {
+    const res = await pteroApp.listServers(page);
+    const match = res.data.find((server) => server.attributes.external_id === externalId);
+    if (match) return match.attributes;
+    if (page >= (res.meta?.pagination.total_pages ?? 1)) break;
+  }
+  return null;
+}
+
+async function findRecoverableServer(order: NonNullable<Awaited<ReturnType<typeof db.order.findUnique>>>) {
+  const linkedOrder = await findServerByExternalId(order.id);
+  if (linkedOrder) return linkedOrder;
+
+  const serviceUserId = await getServiceUserId();
+  const linkedServerIds = new Set(
+    (
+      await db.order.findMany({
+        where: { pteroServerId: { not: null } },
+        select: { pteroServerId: true },
+      })
+    )
+      .map((row) => row.pteroServerId)
+      .filter((id): id is number => id !== null),
+  );
+
+  const candidates = [];
+  for (let page = 1; page <= 10; page++) {
+    const res = await pteroApp.listServers(page, order.serverName);
+    for (const server of res.data) {
+      const attrs = server.attributes;
+      if (attrs.name !== order.serverName) continue;
+      if (attrs.user !== serviceUserId) continue;
+      if (linkedServerIds.has(attrs.id)) continue;
+      if (attrs.egg !== order.plan.eggId || attrs.node !== order.plan.nodeId) continue;
+      if (!attrs.description.includes(order.user.email)) continue;
+      candidates.push(attrs);
+    }
+    if (page >= (res.meta?.pagination.total_pages ?? 1)) break;
+  }
+
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+async function attachProvisionedServer(
+  orderId: string,
+  server: { id: number; identifier: string; description?: string; external_id?: string | null },
+  userEmail: string,
+) {
+  if (server.external_id !== orderId || server.description !== `HyperNode order ${orderId} — ${userEmail}`) {
+    await pteroApp.updateServerDetails(server.id, {
+      external_id: orderId,
+      description: `HyperNode order ${orderId} — ${userEmail}`,
+    });
+  }
+
+  await db.order.update({
+    where: { id: orderId },
+    data: {
+      status: "ACTIVE",
+      pteroServerId: server.id,
+      pteroServerIdentifier: server.identifier,
+      errorMessage: null,
+    },
+  });
+}
+
 /** First unassigned allocation on a node — used when a plan pins a node. */
 async function findFreeAllocation(nodeId: number): Promise<number> {
   for (let page = 1; page <= 10; page++) {
@@ -114,6 +181,12 @@ export async function provisionOrder(orderId: string): Promise<void> {
       throw new Error(
         `No Pterodactyl egg is mapped for "${plan.name}". Set the nest/egg for this plan in Admin → Plans, then retry provisioning.`,
       );
+    }
+
+    const recoverable = await findRecoverableServer(order);
+    if (recoverable) {
+      await attachProvisionedServer(order.id, recoverable, order.user.email);
+      return;
     }
 
     const egg = (await pteroApp.getEgg(plan.nestId, plan.eggId)).attributes;
@@ -166,14 +239,7 @@ export async function provisionOrder(orderId: string): Promise<void> {
     });
 
     const attrs = created.attributes;
-    await db.order.update({
-      where: { id: order.id },
-      data: {
-        status: "ACTIVE",
-        pteroServerId: attrs.id,
-        pteroServerIdentifier: attrs.identifier,
-      },
-    });
+    await attachProvisionedServer(order.id, attrs, order.user.email);
 
     // Best-effort: give the customer direct panel access as a subuser.
     try {

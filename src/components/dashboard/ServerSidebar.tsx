@@ -37,6 +37,7 @@ export function ServerSidebar({
   const base = `/dashboard/servers/${orderId}`;
   const [res, setRes] = useState<Resources | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -55,15 +56,25 @@ export function ServerSidebar({
 
   async function power(signal: string) {
     setBusy(true);
-    await fetch(`/api/servers/${orderId}/power`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ signal }),
-    });
-    setTimeout(() => {
-      refresh();
-      setBusy(false);
-    }, 1200);
+    setError(null);
+    try {
+      const response = await fetch(`/api/servers/${orderId}/power`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signal }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error ?? "Power action failed");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Power action failed");
+    } finally {
+      setTimeout(() => {
+        refresh();
+        setBusy(false);
+      }, 1200);
+    }
   }
 
   const state = res?.current_state ?? "offline";
@@ -141,6 +152,7 @@ export function ServerSidebar({
               <Play className="h-3.5 w-3.5" /> Start Server
             </button>
           )}
+          {error && <p className="mt-2 text-xs text-danger">{error}</p>}
         </div>
 
         <nav className="p-2">
