@@ -21,6 +21,11 @@ export default async function ServerOverviewPage({
       name={order.serverName}
       planName={order.plan.name}
       gameSlug={order.plan.gameSlug}
+      ramMb={order.plan.ramMb}
+      cpuPercent={order.plan.cpuPercent}
+      diskMb={order.plan.diskMb}
+      priceMonthly={Number(order.plan.priceMonthly)}
+      orderStatus={order.status}
     />
   );
 }

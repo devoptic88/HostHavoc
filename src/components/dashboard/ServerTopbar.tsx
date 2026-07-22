@@ -66,6 +66,7 @@ export function ServerTopbar({
   }, [orderId]);
 
   const game = gameSlug ? getGame(gameSlug) : undefined;
+  const gameLogo = game?.slug === "rust" ? "/games/rust/logo.png" : game ? gameCapsule(game.slug) : null;
   const alloc = details?.relationships?.allocations?.data.find((item) => item.attributes.is_default)
     ?.attributes;
   const address = alloc ? `${alloc.ip_alias ?? alloc.ip}:${alloc.port}` : null;
@@ -133,8 +134,8 @@ export function ServerTopbar({
             <div
               className="h-14 w-14 shrink-0 rounded-2xl border border-white/10 bg-black/25 bg-contain bg-center bg-no-repeat shadow-[0_8px_30px_rgba(239,68,68,0.18)]"
               style={
-                game
-                  ? { backgroundImage: `url('${gameCapsule(game.slug)}')` }
+                gameLogo
+                  ? { backgroundImage: `url('${gameLogo}')` }
                   : { background: "linear-gradient(135deg, #2F6BFF, #38BDF8)" }
               }
             />

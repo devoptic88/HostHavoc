@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Cloud,
+  Clock3,
+  Cog,
   Globe,
   Loader2,
   Lock,
@@ -10,7 +13,6 @@ import {
   Shield,
   SlidersHorizontal,
   Sparkles,
-  Swords,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -28,31 +30,38 @@ interface Variable {
 
 const rustSections = [
   {
-    id: "identity",
-    title: "Server Identity",
-    description: "Tune the public-facing identity your players see in the browser.",
+    id: "basic",
+    title: "Basic",
+    description: "Displayed identity, quick listing info, and player-facing server details.",
+    icon: Cog,
+    matchers: ["SERVER_NAME", "HOSTNAME", "DESCRIPTION", "URL", "HEADERIMAGE", "BANNER", "IDENTITY"],
+  },
+  {
+    id: "world",
+    title: "World",
+    description: "Map generation, save identity, level, seed, and world size controls.",
     icon: Globe,
-    matchers: ["SERVER_NAME", "DESCRIPTION", "URL", "HEADERIMAGE", "LEVEL", "WORLD", "SEED"],
+    matchers: ["LEVEL", "WORLD", "SEED", "MAP", "SAVE", "WORLD_SIZE"],
   },
   {
-    id: "gameplay",
-    title: "Gameplay and Progression",
-    description: "Adjust vanilla progression, decay, and moment-to-moment sandbox rules.",
-    icon: Swords,
-    matchers: ["MODE", "PVE", "PVP", "DECAY", "CRAFT", "GATHER", "XP", "PLAYER", "ANIMAL", "NPC"],
+    id: "weather",
+    title: "Weather",
+    description: "Weather cycles, environment behaviors, and world ambience toggles.",
+    icon: Cloud,
+    matchers: ["WEATHER", "RAIN", "FOG", "WIND", "SNOW", "CLIMATE", "TIME"],
   },
   {
-    id: "wipes",
-    title: "Wipes and Map Rotation",
-    description: "Keep wipe-day variables and map generation settings grouped together.",
+    id: "decay",
+    title: "Decay",
+    description: "Decay, upkeep, progression, and gameplay balance controls for wipes.",
+    icon: Clock3,
+    matchers: ["DECAY", "UPKEEP", "PVE", "PVP", "CRAFT", "GATHER", "XP", "PLAYER", "ANIMAL", "NPC", "BLUEPRINT", "WIPE"],
+  },
+  {
+    id: "advanced",
+    title: "Advanced",
+    description: "Connection details, RCON values, ports, and remaining startup variables.",
     icon: Shield,
-    matchers: ["WIPE", "BLUEPRINT", "MAP", "SAVE", "SEED", "WORLD_SIZE"],
-  },
-  {
-    id: "network",
-    title: "Network and Access",
-    description: "Connection details, RCON, query visibility, and remote admin controls.",
-    icon: Globe,
     matchers: ["RCON", "PORT", "IP", "QUERY", "APP_PORT", "STEAM"],
   },
 ];
@@ -70,6 +79,7 @@ export function Startup({
   const [error, setError] = useState("");
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState("basic");
 
   const load = useCallback(async () => {
     try {
@@ -104,6 +114,14 @@ export function Startup({
 
   const isRust = gameSlug === "rust";
   const grouped = useMemo(() => groupVariables(vars, isRust), [vars, isRust]);
+  const visibleSections = isRust ? grouped.filter((section) => section.id === activeTab) : grouped;
+
+  useEffect(() => {
+    if (!isRust || grouped.length === 0) return;
+    if (!grouped.some((section) => section.id === activeTab)) {
+      setActiveTab(grouped[0].id);
+    }
+  }, [activeTab, grouped, isRust]);
 
   return (
     <div className="space-y-5">
@@ -150,9 +168,34 @@ export function Startup({
       )}
 
       <div className={cn("glass overflow-hidden rounded-2xl", isRust && "border-white/10 bg-[#091019]")}>
-        <div className="flex items-center gap-2 border-b border-white/[0.06] px-5 py-3 text-sm font-semibold text-white">
-          <SlidersHorizontal className="h-4 w-4 text-hyper-400" />
-          {isRust ? "Game settings" : "Startup variables"}
+        <div className="border-b border-white/[0.06]">
+          <div className="flex items-center gap-2 px-5 py-3 text-sm font-semibold text-white">
+            <SlidersHorizontal className="h-4 w-4 text-hyper-400" />
+            {isRust ? "Game settings" : "Startup variables"}
+          </div>
+          {isRust && grouped.length > 0 && (
+            <div className="flex flex-wrap gap-1 border-t border-white/[0.06] px-3 py-2">
+              {grouped.map((section) => {
+                const Icon = section.icon;
+                const active = section.id === activeTab;
+                return (
+                  <button
+                    key={section.id}
+                    onClick={() => setActiveTab(section.id)}
+                    className={cn(
+                      "ring-focus inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors",
+                      active
+                        ? "bg-hyper-500/15 text-hyper-300 ring-1 ring-inset ring-hyper-400/30"
+                        : "text-steel hover:bg-white/[0.04] hover:text-white",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {section.title}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {error && <p className="px-5 py-3 text-sm text-danger">{error}</p>}
@@ -165,7 +208,7 @@ export function Startup({
           </p>
         ) : (
           <div className="space-y-5 px-5 py-5">
-            {grouped.map((section) => (
+            {visibleSections.map((section) => (
               <section key={section.id} className="rounded-[22px] border border-white/[0.06] bg-white/[0.02]">
                 <div className="border-b border-white/[0.06] px-4 py-3">
                   <div className="flex items-center gap-2 text-white">
@@ -261,13 +304,21 @@ function groupVariables(vars: Variable[], isRust: boolean) {
     else misc.push(variable);
   }
 
+  const ordered = buckets.filter((section) => section.variables.length > 0);
+  const advanced = ordered.find((section) => section.id === "advanced");
+
+  if (advanced && misc.length > 0) {
+    advanced.variables.push(...misc);
+    return ordered;
+  }
+
   return [
-    ...buckets.filter((section) => section.variables.length > 0),
+    ...ordered,
     ...(misc.length > 0
       ? [
           {
             id: "advanced",
-            title: "Advanced Runtime",
+            title: "Advanced",
             description: "Remaining egg variables that do not fit the common Rust control groups.",
             icon: SlidersHorizontal,
             variables: misc,
