@@ -60,10 +60,6 @@ export default async function ServerLayout({
         name={order.serverName}
         planName={order.plan.name}
         gameSlug={order.plan.gameSlug}
-        ramMb={order.plan.ramMb}
-        cpuPercent={order.plan.cpuPercent}
-        diskMb={order.plan.diskMb}
-        viewerLabel={session.user.email}
       />
       <div className="flex flex-col gap-6 lg:flex-row">
         <ServerSidebar orderId={order.id} gameSlug={order.plan.gameSlug} />

@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, Check, Cpu, Gauge as GaugeIcon, HardDrive, Network } from "lucide-react";
+import { Copy, Check } from "lucide-react";
 import { getGame } from "@/content/games";
-import { formatBytes, formatUptime } from "@/lib/utils";
+import { formatUptime } from "@/lib/utils";
 
 interface Resources {
   current_state: string;
@@ -32,17 +32,11 @@ export function ServerOverview({
   name,
   planName,
   gameSlug,
-  ramMb,
-  cpuPercent,
-  diskMb,
 }: {
   orderId: string;
   name: string;
   planName: string;
   gameSlug?: string | null;
-  ramMb: number;
-  cpuPercent: number;
-  diskMb: number;
 }) {
   const [res, setRes] = useState<Resources | null>(null);
   const [details, setDetails] = useState<ClientServer | null>(null);
@@ -73,10 +67,6 @@ export function ServerOverview({
   const game = gameSlug ? getGame(gameSlug) : undefined;
   const state = res?.current_state ?? "offline";
   const running = state === "running";
-
-  const memPct = res ? Math.min(100, (res.resources.memory_bytes / (ramMb * 1024 * 1024)) * 100) : 0;
-  const cpuPct = res ? Math.min(100, (res.resources.cpu_absolute / cpuPercent) * 100) : 0;
-  const diskPct = res ? Math.min(100, (res.resources.disk_bytes / (diskMb * 1024 * 1024)) * 100) : 0;
 
   const alloc = details?.relationships?.allocations?.data.find((a) => a.attributes.is_default)
     ?.attributes;
@@ -138,79 +128,12 @@ export function ServerOverview({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Dial icon={<HardDrive className="h-4 w-4" />} label="RAM" pct={memPct} value={res ? formatBytes(res.resources.memory_bytes) : "--"} />
-        <Dial icon={<Cpu className="h-4 w-4" />} label="CPU" pct={cpuPct} value={res ? `${res.resources.cpu_absolute.toFixed(1)}%` : "--"} />
-        <Dial icon={<GaugeIcon className="h-4 w-4" />} label="Disk" pct={diskPct} value={res ? formatBytes(res.resources.disk_bytes) : "--"} />
-        <div className="glass rounded-2xl p-4">
-          <div className="flex items-center gap-2 text-steel-faint">
-            <Network className="h-4 w-4" />
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em]">Network</p>
-          </div>
-          <div className="mt-3 space-y-1 font-mono text-sm text-white">
-            <p>
-              <span className="text-steel-faint">IN</span>{" "}
-              {res ? formatBytes(res.resources.network_rx_bytes) : "--"}
-            </p>
-            <p>
-              <span className="text-steel-faint">OUT</span>{" "}
-              {res ? formatBytes(res.resources.network_tx_bytes) : "--"}
-            </p>
-          </div>
-        </div>
-      </div>
-
       <div className="glass rounded-2xl p-4">
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-steel-faint">Uptime</p>
         <p className="mt-1 font-mono text-lg font-semibold text-white">
           {running && res ? formatUptime(res.resources.uptime) : "Server is offline"}
         </p>
       </div>
-    </div>
-  );
-}
-
-function Dial({
-  icon,
-  label,
-  pct,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  pct: number;
-  value: string;
-}) {
-  const r = 26;
-  const c = 2 * Math.PI * r;
-  const offset = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
-  return (
-    <div className="glass flex flex-col items-center rounded-2xl p-4">
-      <div className="relative h-16 w-16">
-        <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
-          <circle cx="32" cy="32" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
-          <circle
-            cx="32"
-            cy="32"
-            r={r}
-            fill="none"
-            stroke="#38BDF8"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeDasharray={c}
-            strokeDashoffset={offset}
-            style={{ transition: "stroke-dashoffset 0.5s ease" }}
-          />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-          {Math.round(pct)}%
-        </div>
-      </div>
-      <div className="mt-2 flex items-center gap-1.5 text-steel-faint">
-        {icon}
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em]">{label}</p>
-      </div>
-      <p className="mt-1 font-mono text-sm font-semibold text-white">{value}</p>
     </div>
   );
 }
