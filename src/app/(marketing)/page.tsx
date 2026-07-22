@@ -84,23 +84,28 @@ export default async function HomePage() {
     <>
       {/* ─── Hero ─────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-grid-faint bg-[size:32px_32px]" />
-        <div className="absolute inset-0 bg-radial-glow" />
-        <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-20 sm:px-6 lg:pt-28">
-          <Stagger className="mx-auto max-w-3xl text-center">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-40"
+          style={{ backgroundImage: "url('/games/rust/hero.jpg')" }}
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,10,20,0.84)_0%,rgba(5,10,20,0.58)_28%,rgba(5,10,20,0.78)_62%,rgba(5,10,20,0.96)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(47,107,255,0.28),transparent_38%),radial-gradient(circle_at_20%_55%,rgba(56,189,248,0.18),transparent_34%)]" />
+        <div className="absolute inset-0 bg-grid-faint bg-[size:32px_32px] opacity-70" />
+        <div className="relative mx-auto max-w-7xl px-4 pb-20 pt-20 sm:px-6 lg:pb-24 lg:pt-28">
+          <Stagger className="mx-auto flex min-h-[420px] max-w-6xl flex-col items-center justify-center text-center">
             <StaggerItem>
               <Badge tone="blue" className="mb-6">
                 <Zap className="h-3 w-3" /> Instant setup · NVMe hardware · DDoS protected
               </Badge>
             </StaggerItem>
             <StaggerItem>
-              <h1 className="font-display text-4xl font-extrabold italic tracking-tight text-white sm:text-6xl">
+              <h1 className="mx-auto max-w-5xl font-display text-4xl font-extrabold italic tracking-tight text-white sm:text-6xl lg:text-7xl">
                 Game servers that{" "}
                 <span className="text-gradient-hyper">never blink</span>
               </h1>
             </StaggerItem>
             <StaggerItem>
-              <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-steel-dim">
+              <p className="mx-auto mt-6 max-w-4xl text-lg leading-relaxed text-steel sm:text-xl">
                 Deploy high-performance game servers in minutes on owned Ryzen
                 hardware. One dashboard for console, files, mods, and backups —
                 with humans on support around the clock.

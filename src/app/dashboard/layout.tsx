@@ -15,6 +15,7 @@ export default async function DashboardLayout({
       <Sidebar
         title="Customer Area"
         footerNote={session.user.email}
+        hiddenPathPrefixes={["/dashboard/servers/"]}
         portalSwitch={
           session.user.role === "ADMIN"
             ? { href: "/admin", label: "Open Admin Panel" }

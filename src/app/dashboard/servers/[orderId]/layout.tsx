@@ -53,7 +53,7 @@ export default async function ServerLayout({
   }
 
   return (
-    <div className="mx-auto max-w-[1400px]">
+    <div className="w-full">
       <div className="flex flex-col gap-6 lg:flex-row">
         <ServerSidebar orderId={order.id} gameSlug={order.plan.gameSlug} />
         <div className="min-w-0 flex-1">{children}</div>

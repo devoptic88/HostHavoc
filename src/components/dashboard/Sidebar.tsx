@@ -55,6 +55,7 @@ export function Sidebar({
   title,
   footerNote,
   portalSwitch,
+  hiddenPathPrefixes = [],
 }: {
   items: NavItem[];
   title: string;
@@ -63,8 +64,12 @@ export function Sidebar({
     href: string;
     label: string;
   };
+  hiddenPathPrefixes?: string[];
 }) {
   const pathname = usePathname();
+  const hidden = hiddenPathPrefixes.some((prefix) => pathname.startsWith(prefix));
+
+  if (hidden) return null;
 
   return (
     <aside className="glass-strong flex w-full shrink-0 flex-col border-b border-white/[0.06] lg:min-h-screen lg:w-64 lg:border-b-0 lg:border-r">
