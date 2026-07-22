@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pteroClient, PterodactylError } from "@/lib/pterodactyl";
 import { provisionOrder } from "@/lib/provision";
+import type { ClientEggVariable } from "@/lib/pterodactyl";
 
 /**
  * Authenticated proxy between the HyperNode dashboard and the Pterodactyl
@@ -46,6 +47,76 @@ function handle(err: unknown) {
   }
   console.error(err);
   return NextResponse.json({ error: "Internal error" }, { status: 500 });
+}
+
+type InstallProfile = "official" | "staging" | "umod";
+
+function normalize(input: string) {
+  return input.trim().toLowerCase();
+}
+
+function variableText(variable: ClientEggVariable) {
+  return `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase();
+}
+
+function isBooleanLike(variable: ClientEggVariable) {
+  return /boolean|bool|true|false|0|1/.test(variable.rules.toLowerCase());
+}
+
+function truthyFor(variable: ClientEggVariable) {
+  const sample = normalize(variable.server_value || variable.default_value);
+  if (sample === "true" || sample === "false") return "true";
+  if (sample === "yes" || sample === "no") return "yes";
+  return "1";
+}
+
+function falsyFor(variable: ClientEggVariable) {
+  const sample = normalize(variable.server_value || variable.default_value);
+  if (sample === "true" || sample === "false") return "false";
+  if (sample === "yes" || sample === "no") return "no";
+  return "0";
+}
+
+function desiredValue(variable: ClientEggVariable, profile: InstallProfile) {
+  const text = variableText(variable);
+
+  if (text.includes("branch")) {
+    return profile === "staging" ? "staging" : "public";
+  }
+
+  if (text.includes("framework")) {
+    return profile === "umod" ? "oxide" : "none";
+  }
+
+  if (text.includes("oxide") || text.includes("umod")) {
+    if (isBooleanLike(variable)) {
+      return profile === "umod" ? truthyFor(variable) : falsyFor(variable);
+    }
+    if (text.includes("version")) {
+      return profile === "umod" ? "latest" : "";
+    }
+    return profile === "umod" ? "oxide" : "";
+  }
+
+  if (text.includes("carbon")) {
+    if (isBooleanLike(variable)) return falsyFor(variable);
+    return "";
+  }
+
+  return null;
+}
+
+async function applyInstallProfile(serverId: string, profile: InstallProfile) {
+  const startup = await pteroClient.getStartup(serverId);
+  const editableVars = startup.data.map((item) => item.attributes).filter((variable) => variable.is_editable);
+
+  for (const variable of editableVars) {
+    const next = desiredValue(variable, profile);
+    if (next === null || next === variable.server_value) continue;
+    await pteroClient.updateVariable(serverId, variable.env_variable, next);
+  }
+
+  await pteroClient.reinstall(serverId);
 }
 
 export async function GET(
@@ -184,6 +255,14 @@ export async function POST(
       case "reinstall":
         await pteroClient.reinstall(id);
         break;
+      case "install-profile": {
+        const profile = String(body.profile ?? "").toLowerCase() as InstallProfile;
+        if (!["official", "staging", "umod"].includes(profile)) {
+          throw new HttpError(400, "Unknown install profile");
+        }
+        await applyInstallProfile(id, profile);
+        break;
+      }
       case "create-schedule":
         return NextResponse.json(
           await pteroClient.createSchedule(id, {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
+  ChevronDown,
   Database,
   FolderOpen,
   Gamepad2,
@@ -85,7 +86,16 @@ export function ServerSidebar({
     { path: "", label: "Overview", icon: Gauge },
     { path: "/startup", label: "Game Settings", icon: Gamepad2 },
     { path: "/console", label: "Console", icon: TerminalSquare },
-    { path: "/files", label: "Server Files", icon: FolderOpen },
+    {
+      path: "/files",
+      label: "Server Files",
+      icon: FolderOpen,
+      children: [
+        { path: "/files", label: "Files" },
+        { path: "/files/sftp", label: "SFTP" },
+        { path: "/files/installer", label: "Installer" },
+      ],
+    },
     { path: "/backups", label: "Backups", icon: History },
     { path: "/schedules", label: "Automated Tasks", icon: Repeat },
     { path: "/databases", label: "Databases", icon: Database },
@@ -158,26 +168,75 @@ export function ServerSidebar({
         <nav className="p-2">
           {items.map((item) => {
             const href = `${base}${item.path}`;
-            const active =
-              item.path === "" ? pathname === base : pathname === href;
             const Icon = item.icon;
+            const active = item.path === "" ? pathname === base : pathname === href;
+            const expanded = item.children?.some((child) => pathname === `${base}${child.path}`) ?? false;
+
+            if (!item.children) {
+              return (
+                <Link
+                  key={item.path}
+                  href={href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                    active
+                      ? cn(
+                          "bg-hyper-500/15 text-hyper-300 ring-1 ring-inset ring-hyper-400/30",
+                          isRust && "bg-danger/10 text-danger ring-danger/30",
+                        )
+                      : "text-steel-dim hover:bg-white/[0.05] hover:text-white",
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </Link>
+              );
+            }
+
             return (
-              <Link
-                key={item.path}
-                href={href}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                  active
-                    ? cn(
-                        "bg-hyper-500/15 text-hyper-300 ring-1 ring-inset ring-hyper-400/30",
-                        isRust && "bg-danger/10 text-danger ring-danger/30",
-                      )
-                    : "text-steel-dim hover:bg-white/[0.05] hover:text-white",
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </Link>
+              <div key={item.path}>
+                <Link
+                  href={href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                    expanded
+                      ? cn(
+                          "bg-hyper-500/15 text-hyper-300 ring-1 ring-inset ring-hyper-400/30",
+                          isRust && "bg-danger/10 text-danger ring-danger/30",
+                        )
+                      : "text-steel-dim hover:bg-white/[0.05] hover:text-white",
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">{item.label}</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 transition-transform",
+                      expanded && "rotate-180",
+                    )}
+                  />
+                </Link>
+                <div className={cn("mt-1 space-y-1 pl-10", expanded ? "block" : "hidden")}>
+                  {item.children.map((child) => {
+                    const childHref = `${base}${child.path}`;
+                    const childActive = pathname === childHref;
+                    return (
+                      <Link
+                        key={child.path}
+                        href={childHref}
+                        className={cn(
+                          "block rounded-lg px-3 py-2 text-sm transition-colors",
+                          childActive
+                            ? "text-hyper-300"
+                            : "text-steel-dim hover:bg-white/[0.05] hover:text-white",
+                        )}
+                      >
+                        {child.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </nav>
