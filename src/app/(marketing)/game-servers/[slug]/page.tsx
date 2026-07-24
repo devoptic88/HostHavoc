@@ -31,6 +31,7 @@ import { CountUp } from "@/components/motion/CountUp";
 import { TypingConsole } from "@/components/motion/TypingConsole";
 import { Card, CardBody } from "@/components/ui/Card";
 import { slugify } from "@/lib/utils";
+import { listGamePlanOptions } from "@/lib/plans";
 
 export const revalidate = 300;
 
@@ -73,7 +74,11 @@ const withoutUs = [
 export default async function GamePage({ params }: { params: { slug: string } }) {
   const game = getGame(params.slug);
   if (!game) notFound();
-  const { locations } = await getDisplayLocations();
+  const [{ locations }, planOptions] = await Promise.all([
+    getDisplayLocations(),
+    listGamePlanOptions(game.slug),
+  ]);
+  const startingAt = planOptions[0]?.priceMonthly ?? startingPrice(game);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -83,7 +88,7 @@ export default async function GamePage({ params }: { params: { slug: string } })
     brand: { "@type": "Brand", name: "HyperNode" },
     offers: {
       "@type": "Offer",
-      price: startingPrice(game).toFixed(2),
+      price: startingAt.toFixed(2),
       priceCurrency: "USD",
       availability: "https://schema.org/InStock",
     },
@@ -127,7 +132,7 @@ export default async function GamePage({ params }: { params: { slug: string } })
         accent2={game.accent2}
         heroSrc={gameHero(game.slug)}
       >
-        <GameConfigurator game={game} locations={locations} />
+        <GameConfigurator game={game} locations={locations} plans={planOptions} />
       </GameHero>
 
       {/* ─── Selling points ──────────────────────────────────── */}
@@ -344,7 +349,7 @@ export default async function GamePage({ params }: { params: { slug: string } })
               }}
             >
               <Rocket className="h-5 w-5" />
-              Deploy from ${startingPrice(game).toFixed(2)}/mo
+              Deploy from ${startingAt.toFixed(2)}/mo
             </a>
           </div>
         </Reveal>

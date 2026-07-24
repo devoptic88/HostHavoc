@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { stripe, stripeConfigured } from "@/lib/stripe";
-import { gameBySlug, resolveFixedPlan, resolveGamePlan } from "@/lib/plans";
+import { gameBySlug, resolveExistingGamePlan, resolveFixedPlan, resolveGamePlan } from "@/lib/plans";
 import { provisionOrder } from "@/lib/provision";
 
 export async function POST(req: Request) {
@@ -28,7 +28,9 @@ export async function POST(req: Request) {
     } else {
       const game = gameBySlug(String(body.game));
       if (!game) throw new Error("Unknown game");
-      plan = await resolveGamePlan(game, Number(body.units));
+      plan = body.plan
+        ? await resolveExistingGamePlan(game, String(body.plan))
+        : await resolveGamePlan(game, Number(body.units));
       locationId = Number.isFinite(Number(body.location)) && Number(body.location) > 0
         ? Number(body.location)
         : null;

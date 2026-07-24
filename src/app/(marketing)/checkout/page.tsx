@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { gameBySlug } from "@/lib/plans";
+import { gameBySlug, resolveExistingGamePlan } from "@/lib/plans";
 import { priceFor } from "@/content/games";
 import { VPS_PLANS, DEDICATED_PLANS } from "@/content/plans";
 import { getDisplayLocations } from "@/lib/locations";
@@ -57,7 +57,26 @@ export default async function CheckoutPage({
   } else if (searchParams.game) {
     const game = gameBySlug(searchParams.game);
     const units = Number(searchParams.units);
-    if (game && game.slotOptions.includes(units)) {
+    if (game && searchParams.plan) {
+      const { locations } = await getDisplayLocations();
+      const loc = locations.find((l) => l.id === Number(searchParams.location));
+      try {
+        const plan = await resolveExistingGamePlan(game, searchParams.plan);
+        summary = {
+          title: `${game.name} Server`,
+          detail: `${plan.name}${plan.slots ? ` · ${plan.slots} ${game.pricingUnit === "gb" ? "GB RAM" : "player slots"}` : ""}`,
+          price: Number(plan.priceMonthly),
+          payload: {
+            game: game.slug,
+            plan: plan.id,
+            location: loc?.id ?? locations[0]?.id,
+          },
+          locationName: loc?.long ?? locations[0]?.long,
+        };
+      } catch {
+        summary = null;
+      }
+    } else if (game && game.slotOptions.includes(units)) {
       const { locations } = await getDisplayLocations();
       const loc = locations.find((l) => l.id === Number(searchParams.location));
       summary = {

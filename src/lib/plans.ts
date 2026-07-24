@@ -3,6 +3,13 @@ import { GAMES, priceFor, type Game } from "@/content/games";
 import { VPS_PLANS, DEDICATED_PLANS } from "@/content/plans";
 import type { Plan, ProductType } from "@prisma/client";
 
+export type LiveGamePlanOption = {
+  id: string;
+  name: string;
+  slots: number;
+  priceMonthly: number;
+};
+
 /** Resource heuristics for game plans — editable later in Admin → Plans. */
 export function gameResources(game: Game, units: number) {
   const ramMb =
@@ -52,6 +59,38 @@ export async function resolveGamePlan(game: Game, units: number): Promise<Plan> 
       nestId: sibling?.nestId ?? null,
     },
   });
+}
+
+export async function resolveExistingGamePlan(game: Game, planId: string): Promise<Plan> {
+  const plan = await db.plan.findFirst({
+    where: {
+      id: planId,
+      productType: "GAME_SERVER",
+      gameSlug: game.slug,
+      active: true,
+    },
+  });
+  if (!plan) throw new Error("Unknown plan");
+  return plan;
+}
+
+export async function listGamePlanOptions(gameSlug: string): Promise<LiveGamePlanOption[]> {
+  const plans = await db.plan.findMany({
+    where: {
+      productType: "GAME_SERVER",
+      gameSlug,
+      active: true,
+      slots: { not: null },
+    },
+    orderBy: [{ sortOrder: "asc" }, { slots: "asc" }, { priceMonthly: "asc" }],
+  });
+
+  return plans.map((plan) => ({
+    id: plan.id,
+    name: plan.name,
+    slots: plan.slots ?? 0,
+    priceMonthly: Number(plan.priceMonthly),
+  }));
 }
 
 export async function resolveFixedPlan(
