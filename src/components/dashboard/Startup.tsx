@@ -77,7 +77,8 @@ export function Startup({
   const [startupCmd, setStartupCmd] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [savingAll, setSavingAll] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState("basic");
 
@@ -99,17 +100,52 @@ export function Startup({
     load();
   }, [load]);
 
-  async function save(v: Variable) {
-    const value = edits[v.env_variable] ?? v.server_value;
-    setSavingKey(v.env_variable);
-    const res = await fetch(`/api/servers/${orderId}/update-variable`, {
+  const dirtyKeys = useMemo(
+    () =>
+      vars
+        .filter((variable) => variable.is_editable)
+        .filter(
+          (variable) =>
+            (edits[variable.env_variable] ?? variable.server_value ?? "") !==
+            (variable.server_value ?? ""),
+        )
+        .map((variable) => variable.env_variable),
+    [edits, vars],
+  );
+
+  async function saveAll() {
+    if (dirtyKeys.length === 0) return;
+
+    setSavingAll(true);
+    setError("");
+    setMessage("");
+
+    const currentValues = new Map(vars.map((variable) => [variable.env_variable, variable.server_value ?? ""]));
+    const updates = Object.fromEntries(
+      dirtyKeys.map((key) => [key, edits[key] ?? currentValues.get(key) ?? ""]),
+    );
+
+    const res = await fetch(`/api/servers/${orderId}/save-startup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: v.env_variable, value }),
+      body: JSON.stringify({ updates }),
     });
-    if (!res.ok) setError((await res.json()).error ?? "Failed to save variable");
-    setSavingKey(null);
-    load();
+    const payload = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      setError(payload?.error ?? "Failed to save startup settings");
+      setSavingAll(false);
+      return;
+    }
+
+    setMessage(
+      payload?.configPath
+        ? `Saved startup settings and synced ${payload.configPath}.`
+        : "Saved startup settings.",
+    );
+    setEdits({});
+    setSavingAll(false);
+    await load();
   }
 
   const isRust = gameSlug === "rust";
@@ -198,7 +234,12 @@ export function Startup({
           )}
         </div>
 
-        {error && <p className="px-5 py-3 text-sm text-danger">{error}</p>}
+        {(error || message) && (
+          <div className="space-y-2 px-5 py-3">
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            {message ? <p className="text-sm text-success">{message}</p> : null}
+          </div>
+        )}
 
         {loading ? (
           <p className="px-5 py-10 text-center text-sm text-steel-faint">Loading...</p>
@@ -246,31 +287,33 @@ export function Startup({
                             setEdits((s) => ({ ...s, [v.env_variable]: e.target.value }))
                           }
                         />
-                        {v.is_editable ? (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="h-auto"
-                            disabled={savingKey === v.env_variable}
-                            onClick={() => save(v)}
-                          >
-                            {savingKey === v.env_variable ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Save className="h-4 w-4" />
-                            )}
-                          </Button>
-                        ) : (
+                        {!v.is_editable ? (
                           <div className="flex h-full w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-steel-faint">
                             <Lock className="h-4 w-4" />
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     </li>
                   ))}
                 </ul>
               </section>
             ))}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-white/[0.06] bg-white/[0.02] px-4 py-4">
+              <p className="text-sm text-steel-dim">
+                {dirtyKeys.length === 0
+                  ? "No unsaved changes."
+                  : `${dirtyKeys.length} change${dirtyKeys.length === 1 ? "" : "s"} ready to save across startup settings.`}
+              </p>
+              <Button
+                onClick={saveAll}
+                disabled={savingAll || dirtyKeys.length === 0}
+                className="min-w-[170px]"
+              >
+                {savingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save all changes
+              </Button>
+            </div>
           </div>
         )}
       </div>

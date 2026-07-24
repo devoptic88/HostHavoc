@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pteroClient, PterodactylError } from "@/lib/pterodactyl";
+import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
 import { provisionOrder } from "@/lib/provision";
+import { buildRustServerConfig, isRustStartupProfile } from "@/lib/rustStartup";
 import { queryRustServer } from "@/lib/serverQuery";
 import type { ClientEggVariable } from "@/lib/pterodactyl";
 
@@ -44,7 +46,7 @@ function handle(err: unknown) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (err instanceof PterodactylError) {
-    return NextResponse.json({ error: err.detail }, { status: err.status || 502 });
+    return NextResponse.json({ error: formatPterodactylError(err) }, { status: err.status || 502 });
   }
   console.error(err);
   return NextResponse.json({ error: "Internal error" }, { status: 500 });
@@ -118,6 +120,16 @@ async function applyInstallProfile(serverId: string, profile: InstallProfile) {
   }
 
   await pteroClient.reinstall(serverId);
+}
+
+async function syncRustConfig(serverId: string, vars: ClientEggVariable[]) {
+  if (!isRustStartupProfile(vars)) return null;
+
+  const config = buildRustServerConfig(vars);
+  if (!config) return null;
+
+  await pteroClient.writeFile(serverId, config.path, config.content);
+  return config.path;
 }
 
 export async function GET(
@@ -255,6 +267,35 @@ export async function POST(
         return NextResponse.json(
           await pteroClient.updateVariable(id, String(body.key), String(body.value)),
         );
+      case "save-startup": {
+        const updates =
+          body && typeof body.updates === "object" && body.updates !== null
+            ? (body.updates as Record<string, unknown>)
+            : null;
+        if (!updates) throw new HttpError(400, "updates payload required");
+
+        const startup = await pteroClient.getStartup(id);
+        const vars = startup.data.map((item) => item.attributes);
+        const editableVars = new Map(
+          vars
+            .filter((variable) => variable.is_editable)
+            .map((variable) => [variable.env_variable, variable]),
+        );
+
+        for (const [key, rawValue] of Object.entries(updates)) {
+          const variable = editableVars.get(key);
+          if (!variable) continue;
+
+          const nextValue = String(rawValue ?? "");
+          if (nextValue === variable.server_value) continue;
+
+          await pteroClient.updateVariable(id, key, nextValue);
+          variable.server_value = nextValue;
+        }
+
+        const configPath = await syncRustConfig(id, vars);
+        return NextResponse.json({ ok: true, configPath });
+      }
       case "rename":
         await pteroClient.renameServer(id, String(body.name));
         await db.order.update({

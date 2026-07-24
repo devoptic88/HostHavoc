@@ -18,6 +18,12 @@ interface Resources {
   };
 }
 
+interface QuerySnapshot {
+  playerCount: number;
+  maxPlayers: number;
+  players: { name: string; score: number; durationSeconds: number }[];
+}
+
 interface ClientServer {
   relationships?: {
     allocations?: {
@@ -33,22 +39,33 @@ export function ServerTopbar({
   name,
   planName,
   gameSlug,
+  ramMb,
+  cpuPercent,
+  diskMb,
 }: {
   orderId: string;
   name: string;
   planName: string;
   gameSlug?: string | null;
+  ramMb: number;
+  cpuPercent: number;
+  diskMb: number;
 }) {
   const [res, setRes] = useState<Resources | null>(null);
+  const [query, setQuery] = useState<QuerySnapshot | null>(null);
   const [details, setDetails] = useState<ClientServer | null>(null);
   const [copied, setCopied] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      const response = await fetch(`/api/servers/${orderId}/resources`);
-      if (response.ok) setRes(await response.json());
+      const [resourceResponse, queryResponse] = await Promise.all([
+        fetch(`/api/servers/${orderId}/resources`),
+        fetch(`/api/servers/${orderId}/query`),
+      ]);
+      if (resourceResponse.ok) setRes(await resourceResponse.json());
+      if (queryResponse.ok) setQuery(await queryResponse.json());
     } catch {
-      /* transient */
+      // transient
     }
   }, [orderId]);
 
@@ -67,8 +84,7 @@ export function ServerTopbar({
 
   const game = gameSlug ? getGame(gameSlug) : undefined;
   const gameLogo = game?.slug === "rust" ? "/games/rust/logo.png" : game ? gameCapsule(game.slug) : null;
-  const alloc = details?.relationships?.allocations?.data.find((item) => item.attributes.is_default)
-    ?.attributes;
+  const alloc = details?.relationships?.allocations?.data.find((item) => item.attributes.is_default)?.attributes;
   const address = alloc ? `${alloc.ip_alias ?? alloc.ip}:${alloc.port}` : null;
   const state = res?.current_state ?? "offline";
   const running = state === "running";
@@ -78,29 +94,35 @@ export function ServerTopbar({
       }
     : undefined;
 
+  const liveRam = running && res ? res.resources.memory_bytes : ramMb * 1024 * 1024;
+  const liveCpu = running && res ? res.resources.cpu_absolute : cpuPercent;
+  const liveDisk = running && res ? res.resources.disk_bytes : diskMb * 1024 * 1024;
+  const livePlayers = query?.playerCount ?? 0;
+
   const stats = useMemo(
     () => [
       {
         label: "RAM",
-        value: res ? `${Math.round(res.resources.memory_bytes / (1024 * 1024 * 1024))} GB` : "0 GB",
+        value: formatBytes(liveRam),
         accent: "gauge",
         icon: HardDrive,
       },
       {
         label: "CPU",
-        value: res ? `${Math.round(res.resources.cpu_absolute)}%` : "0%",
+        value: `${Math.round(liveCpu)}%`,
         accent: "gauge",
         icon: Cpu,
       },
       {
         label: "SSD",
-        value: res ? formatBytes(res.resources.disk_bytes) : "0 B",
+        value: formatBytes(liveDisk),
         accent: "gauge",
         icon: Gauge,
       },
       {
         label: "PLAYERS",
-        value: "0",
+        value: String(livePlayers),
+        secondary: query ? `/ ${query.maxPlayers || "?"} max` : "",
         accent: "panel",
         icon: Users,
       },
@@ -112,7 +134,7 @@ export function ServerTopbar({
         icon: Network,
       },
     ],
-    [res],
+    [liveCpu, liveDisk, livePlayers, liveRam, query, res],
   );
 
   function copyAddress() {
@@ -157,7 +179,7 @@ export function ServerTopbar({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {address && (
+            {address ? (
               <button
                 onClick={copyAddress}
                 className="ring-focus inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-3 py-1.5 font-mono text-xs text-hyper-300 transition-colors hover:border-hyper-400/40"
@@ -165,7 +187,7 @@ export function ServerTopbar({
                 {address}
                 {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
               </button>
-            )}
+            ) : null}
             <Link
               href="/dashboard"
               className="ring-focus inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm font-medium text-steel transition-colors hover:bg-white/[0.06] hover:text-white"

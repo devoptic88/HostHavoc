@@ -66,6 +66,7 @@ Handled events: `checkout.session.completed` (provision), `invoice.payment_faile
    - Run `npx prisma migrate dev --name init` locally first and commit the `prisma/migrations` folder so `migrate deploy` has migrations to apply.
 3. Set all environment variables from the table above in the service settings, with `NEXT_PUBLIC_APP_URL`/`NEXTAUTH_URL` set to your Railway domain.
 4. Point a Stripe webhook at `https://<your-domain>/api/stripe/webhook`.
+5. If you are wiring up a production domain and a separate Pterodactyl panel hostname, see [DOMAIN_SETUP.md](./DOMAIN_SETUP.md).
 
 ## Notes
 

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { pteroApp, pteroClient, PterodactylError } from "@/lib/pterodactyl";
+import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
 import { randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import type { ClientAllocation, ClientEggVariable } from "@/lib/pterodactyl";
@@ -338,7 +339,7 @@ export async function provisionOrder(orderId: string): Promise<void> {
   } catch (err) {
     const message =
       err instanceof PterodactylError
-        ? `${err.detail}${err.errors ? ` — ${JSON.stringify(err.errors).slice(0, 500)}` : ""}`
+        ? formatPterodactylError(err)
         : err instanceof Error
           ? err.message
           : "Unknown provisioning error";

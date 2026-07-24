@@ -6,6 +6,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { GAMES } from "@/content/games";
+import { normalizePterodactylMessage } from "@/lib/pterodactyl/errorMessages";
 import { formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -86,7 +87,7 @@ export default async function DashboardPage() {
                     </p>
                     {order.status === "FAILED" && order.errorMessage && (
                       <p className="mt-1 line-clamp-2 text-xs text-danger">
-                        {order.errorMessage}
+                        {normalizePterodactylMessage(order.errorMessage)}
                       </p>
                     )}
                   </div>
