@@ -15,9 +15,9 @@ interface Variable {
   is_editable: boolean;
 }
 
-type InstallProfile = "official" | "staging" | "umod";
+type InstallProfile = "vanilla" | "oxide" | "carbon" | "staging";
 
-const profiles: {
+type ProfileOption = {
   id: InstallProfile;
   title: string;
   subtitle: string;
@@ -25,59 +25,94 @@ const profiles: {
   section: string;
   badge?: string;
   image: string;
-}[] = [
-  {
-    id: "official",
-    title: "Official",
-    subtitle: "Vanilla Rust",
+};
+
+const profileCatalog: Record<InstallProfile, ProfileOption> = {
+  vanilla: {
+    id: "vanilla",
+    title: "Vanilla",
+    subtitle: "Default Rust runtime",
     description:
-      "The only aim in Rust is to survive. Overcome struggles such as hunger, thirst and cold.",
-    section: "Rust Official",
+      "Runs stock Rust with the standard autowipe egg startup flow and no extra framework enabled.",
+    section: "Rust Runtime",
     image: "/games/rust/capsule.jpg",
   },
-  {
+  staging: {
     id: "staging",
     title: "Staging",
-    subtitle: "Staging branch",
+    subtitle: "Preview branch",
     description:
-      "Run the upcoming Rust staging branch so you can test server changes before they hit stable.",
-    section: "Rust Staging",
-    badge: "Min Ram: 10 GB",
+      "Uses the staging branch when the selected egg exposes a branch variable for pre-release testing.",
+    section: "Rust Runtime",
+    badge: "Legacy egg only",
     image: "/games/rust/capsule.jpg",
   },
-  {
-    id: "umod",
-    title: "Stable",
-    subtitle: "Installs Umod/Oxide",
+  oxide: {
+    id: "oxide",
+    title: "Oxide",
+    subtitle: "uMod/Oxide framework",
     description:
-      "Installs the Umod (Oxide) plugin framework to your Rust server so mod files and hooks are ready.",
-    section: "Umod-Oxide",
-    badge: "Updated 2026-07-17",
+      "Enables the Oxide framework so plugin hooks and mod files are ready after reinstall.",
+    section: "Modding",
     image: "/games/rust/logo.png",
   },
-];
+  carbon: {
+    id: "carbon",
+    title: "Carbon",
+    subtitle: "Carbon framework",
+    description:
+      "Enables Carbon for servers that want a modern Rust modding stack on the autowipe egg.",
+    section: "Modding",
+    image: "/games/rust/logo.png",
+  },
+};
+
+function variableText(variable: Variable) {
+  return `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase();
+}
+
+function currentValue(variable?: Variable) {
+  return (variable?.server_value || variable?.default_value || "").toLowerCase();
+}
+
+function hasTruthyValue(value: string) {
+  return ["1", "true", "yes", "oxide", "carbon", "latest", "stable"].includes(value);
+}
 
 function detectProfile(vars: Variable[]): InstallProfile {
-  const joined = vars.map((variable) => `${variable.name} ${variable.description} ${variable.env_variable}`).join(" ").toLowerCase();
-  const branchVar = vars.find((variable) =>
-    `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase().includes("branch"),
-  );
+  const branchVar = vars.find((variable) => variableText(variable).includes("branch"));
+  const frameworkVar = vars.find((variable) => variableText(variable).includes("framework"));
+  const carbonVar = vars.find((variable) => variableText(variable).includes("carbon"));
   const oxideVar = vars.find((variable) => {
-    const text = `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase();
-    return text.includes("oxide") || text.includes("umod") || text.includes("framework");
+    const text = variableText(variable);
+    return text.includes("oxide") || text.includes("umod");
   });
 
-  const branch = (branchVar?.server_value || branchVar?.default_value || "").toLowerCase();
-  const oxide = (oxideVar?.server_value || oxideVar?.default_value || "").toLowerCase();
+  const framework = currentValue(frameworkVar);
+  const branch = currentValue(branchVar);
+  const carbon = currentValue(carbonVar);
+  const oxide = currentValue(oxideVar);
 
-  if (joined.includes("oxide") || joined.includes("umod")) {
-    if (["1", "true", "yes", "oxide", "latest", "stable"].includes(oxide)) {
-      return "umod";
-    }
-  }
-
+  if (framework === "carbon" || hasTruthyValue(carbon)) return "carbon";
+  if (framework === "oxide" || hasTruthyValue(oxide)) return "oxide";
   if (branch.includes("staging")) return "staging";
-  return "official";
+  return "vanilla";
+}
+
+function availableProfiles(vars: Variable[]) {
+  const hasBranch = vars.some((variable) => variableText(variable).includes("branch"));
+  const hasFramework = vars.some((variable) => variableText(variable).includes("framework"));
+  const hasOxide = vars.some((variable) => {
+    const text = variableText(variable);
+    return text.includes("oxide") || text.includes("umod");
+  });
+  const hasCarbon = vars.some((variable) => variableText(variable).includes("carbon"));
+
+  const ids: InstallProfile[] = ["vanilla"];
+  if (hasBranch) ids.push("staging");
+  if (hasFramework || hasOxide) ids.push("oxide");
+  if (hasFramework || hasCarbon) ids.push("carbon");
+  return ids.map((id) => profileCatalog[id]);
 }
 
 export function ServerInstaller({ orderId }: { orderId: string }) {
@@ -102,7 +137,8 @@ export function ServerInstaller({ orderId }: { orderId: string }) {
   }, [load]);
 
   const currentProfile = useMemo(() => detectProfile(vars), [vars]);
-  const currentItem = profiles.find((profile) => profile.id === currentProfile) ?? profiles[0];
+  const profiles = useMemo(() => availableProfiles(vars), [vars]);
+  const currentItem = profiles.find((profile) => profile.id === currentProfile) ?? profileCatalog[currentProfile];
   const filtered = profiles.filter((profile) =>
     `${profile.section} ${profile.title} ${profile.subtitle} ${profile.description}`
       .toLowerCase()
@@ -164,9 +200,12 @@ export function ServerInstaller({ orderId }: { orderId: string }) {
           />
           <div className="self-center">
             <p className="text-[2rem] font-medium text-white">{currentItem.title}</p>
-            <p className="mt-2 text-[2rem] text-steel">Build: 2026-07-17 10:58:57</p>
+            <p className="mt-2 text-[2rem] text-steel">{currentItem.subtitle}</p>
             <p className="mt-6 max-w-3xl text-2xl leading-relaxed text-steel">
               {currentItem.description}
+            </p>
+            <p className="mt-4 max-w-3xl text-sm leading-relaxed text-steel-faint">
+              For autowipe-enabled eggs, reinstalling applies the selected runtime and any wipe flags currently set in startup variables.
             </p>
           </div>
         </div>
@@ -177,7 +216,7 @@ export function ServerInstaller({ orderId }: { orderId: string }) {
           <h2 className="text-xl font-medium text-white">Catalog</h2>
         </div>
         <div className="border-b border-white/[0.08] px-5 py-5">
-          <p className="mb-4 text-xl text-white">Filter the catalog...</p>
+          <p className="mb-4 text-xl text-white">Filter the runtime catalog...</p>
           <div className="flex items-center overflow-hidden rounded-xl border border-white/20 bg-white/[0.06]">
             <div className="px-4 text-steel-faint">
               <Search className="h-6 w-6" />
@@ -185,7 +224,7 @@ export function ServerInstaller({ orderId }: { orderId: string }) {
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Filter selected installs..."
+              placeholder="Filter available runtimes..."
               className="h-14 border-0 bg-transparent text-lg focus:border-0"
             />
           </div>
@@ -203,7 +242,7 @@ export function ServerInstaller({ orderId }: { orderId: string }) {
                   <div
                     className={cn(
                       "h-28 w-32 shrink-0 rounded-xl border border-white/10 bg-cover bg-center",
-                      profile.id === "umod" && "bg-contain bg-no-repeat bg-white",
+                      (profile.id === "oxide" || profile.id === "carbon") && "bg-contain bg-no-repeat bg-white",
                     )}
                     style={{ backgroundImage: `url('${profile.image}')` }}
                   />

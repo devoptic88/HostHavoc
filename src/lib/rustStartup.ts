@@ -61,7 +61,13 @@ function toConfigEntry(variable: RustStartupVariable): ConfigEntry | null {
   if (env === "URL" || (text.includes("URL") && !text.includes("MAP") && !text.includes("HEADER"))) {
     return { key: "server.url", value };
   }
-  if (env === "HEADERIMAGE" || text.includes("HEADERIMAGE") || text.includes("HEADER IMAGE")) {
+  if (
+    env === "HEADERIMAGE" ||
+    env === "SERVER_IMG" ||
+    text.includes("HEADERIMAGE") ||
+    text.includes("HEADER IMAGE") ||
+    text.includes("SERVER IMAGE")
+  ) {
     return { key: "server.headerimage", value };
   }
 
@@ -89,8 +95,7 @@ export function buildRustServerConfig(vars: RustStartupVariable[]) {
     entries.set(entry.key, entry.value);
   }
 
-  const identity = entries.get("server.identity");
-  if (!identity) return null;
+  const identity = entries.get("server.identity") ?? "rust";
 
   if (entries.has("server.levelurl")) {
     entries.delete("server.level");

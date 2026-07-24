@@ -52,7 +52,7 @@ function handle(err: unknown) {
   return NextResponse.json({ error: "Internal error" }, { status: 500 });
 }
 
-type InstallProfile = "official" | "staging" | "umod";
+type InstallProfile = "vanilla" | "oxide" | "carbon" | "staging";
 
 function normalize(input: string) {
   return input.trim().toLowerCase();
@@ -88,22 +88,26 @@ function desiredValue(variable: ClientEggVariable, profile: InstallProfile) {
   }
 
   if (text.includes("framework")) {
-    return profile === "umod" ? "oxide" : "none";
+    if (profile === "oxide") return "oxide";
+    if (profile === "carbon") return "carbon";
+    return "vanilla";
   }
 
   if (text.includes("oxide") || text.includes("umod")) {
     if (isBooleanLike(variable)) {
-      return profile === "umod" ? truthyFor(variable) : falsyFor(variable);
+      return profile === "oxide" ? truthyFor(variable) : falsyFor(variable);
     }
     if (text.includes("version")) {
-      return profile === "umod" ? "latest" : "";
+      return profile === "oxide" ? "latest" : "";
     }
-    return profile === "umod" ? "oxide" : "";
+    return profile === "oxide" ? "oxide" : "";
   }
 
   if (text.includes("carbon")) {
-    if (isBooleanLike(variable)) return falsyFor(variable);
-    return "";
+    if (isBooleanLike(variable)) {
+      return profile === "carbon" ? truthyFor(variable) : falsyFor(variable);
+    }
+    return profile === "carbon" ? "carbon" : "";
   }
 
   return null;
@@ -308,7 +312,7 @@ export async function POST(
         break;
       case "install-profile": {
         const profile = String(body.profile ?? "").toLowerCase() as InstallProfile;
-        if (!["official", "staging", "umod"].includes(profile)) {
+        if (!["vanilla", "oxide", "carbon", "staging"].includes(profile)) {
           throw new HttpError(400, "Unknown install profile");
         }
         await applyInstallProfile(id, profile);

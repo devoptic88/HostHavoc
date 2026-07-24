@@ -34,7 +34,7 @@ const rustSections = [
     title: "Basic",
     description: "Displayed identity, quick listing info, and player-facing server details.",
     icon: Cog,
-    matchers: ["SERVER_NAME", "HOSTNAME", "DESCRIPTION", "URL", "HEADERIMAGE", "BANNER", "IDENTITY"],
+    matchers: ["SERVER_NAME", "HOSTNAME", "DESCRIPTION", "URL", "HEADERIMAGE", "SERVER_IMG", "BANNER", "IDENTITY", "FRAMEWORK"],
   },
   {
     id: "world",
@@ -55,7 +55,7 @@ const rustSections = [
     title: "Decay",
     description: "Decay, upkeep, progression, and gameplay balance controls for wipes.",
     icon: Clock3,
-    matchers: ["DECAY", "UPKEEP", "PVE", "PVP", "CRAFT", "GATHER", "XP", "PLAYER", "ANIMAL", "NPC", "BLUEPRINT", "WIPE"],
+    matchers: ["DECAY", "UPKEEP", "PVE", "PVP", "CRAFT", "GATHER", "XP", "PLAYER", "ANIMAL", "NPC", "BLUEPRINT", "WIPE", "REGEN", "REMOVE_FILES"],
   },
   {
     id: "advanced",
@@ -167,16 +167,16 @@ export function Startup({
             <div className="border-b border-white/6 bg-[#10243a] px-5 py-3">
               <div className="flex items-center gap-2 text-white">
                 <Sparkles className="h-4 w-4 text-hyper-300" />
-                <h2 className="text-base font-semibold">Rust Official</h2>
+                <h2 className="text-base font-semibold">Rust Runtime</h2>
               </div>
               <p className="mt-1 text-sm text-steel-dim">
-                Core Rust runtime and startup profile for your live server.
+                Manage the live Rust runtime, framework mode, and wipe-related startup values.
               </p>
             </div>
             <div className="grid gap-3 px-5 py-4 sm:grid-cols-3">
-              <RustInstallCard title="Official" body="Your active production runtime for players and wipes." tone="active" />
-              <RustInstallCard title="Staging" body="Keep staging values ready before a forced wipe or test cycle." />
-              <RustInstallCard title="Oxide and Carbon" body="Plugin-ready configuration with modding variables grouped below." />
+              <RustInstallCard title="Vanilla" body="Default Rust runtime with no modding layer enabled." tone="active" />
+              <RustInstallCard title="Oxide" body="Plugin-ready mode for legacy uMod/Oxide ecosystems." />
+              <RustInstallCard title="Carbon" body="Modern framework mode for Carbon-based plugin stacks." />
             </div>
           </div>
 
@@ -187,7 +187,7 @@ export function Startup({
             </div>
             <ul className="mt-3 space-y-2 text-sm text-steel-dim">
               <li>Use the settings below for map size, seed, server identity, and RCON values.</li>
-              <li>For scheduled map or blueprint resets, pair these values with the server&apos;s automated tasks page.</li>
+              <li>For scheduled map or blueprint resets, set `REGEN_SERVER` and review `REMOVE_FILES` before reinstalling the server.</li>
               <li>Locked variables come from the selected Rust egg and stay visible for reference.</li>
             </ul>
           </div>

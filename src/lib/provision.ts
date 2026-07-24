@@ -116,6 +116,26 @@ function desiredRustValue(
     return String(allocation.port);
   }
 
+  if (
+    text.includes("rcon") &&
+    text.includes("port")
+  ) {
+    // Rust can share the numeric port because game traffic is UDP while RCON
+    // is TCP. That keeps remote administration reachable on single-allocation
+    // installs without asking the plan for extra ports.
+    return String(allocation.port);
+  }
+
+  if (
+    text.includes("app") &&
+    text.includes("port")
+  ) {
+    // Rust+ requires an extra reachable port that the current provisioning
+    // model does not allocate. Disable it by default on single-allocation
+    // installs so the server can boot cleanly.
+    return "-1";
+  }
+
   if (text.includes("description") && !(variable.server_value || variable.default_value)) {
     return `Hosted on HyperNode`;
   }
