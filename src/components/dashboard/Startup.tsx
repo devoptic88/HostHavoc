@@ -53,6 +53,10 @@ function parseFrameworkOptions() {
   return ["vanilla", "oxide", "carbon"];
 }
 
+function isInstallProfile(value: string | null): value is "vanilla" | "oxide" | "carbon" {
+  return value === "vanilla" || value === "oxide" || value === "carbon";
+}
+
 const rustSections = [
   {
     id: "basic",
@@ -213,7 +217,14 @@ export function Startup({
 
     setReinstalling(true);
     setError("");
-    const res = await fetch(`/api/servers/${orderId}/reinstall`, { method: "POST" });
+    const nextProfile = isInstallProfile(pendingReinstallFramework)
+      ? pendingReinstallFramework
+      : installedFramework;
+    const res = await fetch(`/api/servers/${orderId}/install-profile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile: nextProfile }),
+    });
     const payload = await res.json().catch(() => null);
 
     if (!res.ok) {
