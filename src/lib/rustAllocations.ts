@@ -23,9 +23,9 @@ export interface RustNodeConfigInput {
 
 const ROLE_OFFSETS: Record<RustAllocationRole, number> = {
   game: 0,
-  query: -1000,
-  rcon: 1,
-  app: 2,
+  query: 2,
+  rcon: 4,
+  app: 6,
 };
 
 type RustPortVariable = Pick<ClientEggVariable, "name" | "description" | "env_variable"> | Pick<AppEggVariable, "name" | "description" | "env_variable">;

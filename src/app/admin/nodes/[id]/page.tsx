@@ -77,8 +77,8 @@ export default async function AdminNodeDetailPage({
               <Label>Rust port ranges</Label>
               <Input
                 name="portRanges"
-                defaultValue={rustConfig?.portRanges ?? "27015-27095, 28015-28095"}
-                placeholder="27015-27095, 28015-28095"
+                defaultValue={rustConfig?.portRanges ?? "28015-28195"}
+                placeholder="28015-28195"
               />
             </div>
             <div>
