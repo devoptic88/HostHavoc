@@ -23,9 +23,9 @@ export interface RustNodeConfigInput {
 
 const ROLE_OFFSETS: Record<RustAllocationRole, number> = {
   game: 0,
-  query: 2,
-  rcon: 4,
-  app: 6,
+  query: 0,
+  rcon: 2,
+  app: 4,
 };
 
 type RustPortVariable = Pick<ClientEggVariable, "name" | "description" | "env_variable"> | Pick<AppEggVariable, "name" | "description" | "env_variable">;
@@ -38,11 +38,21 @@ export function hasRustAppPort(vars: RustPortVariable[]) {
 }
 
 export function requiredRustRoles(includeAppPort: boolean): RustAllocationRole[] {
-  return includeAppPort ? ["game", "query", "rcon", "app"] : ["game", "query", "rcon"];
+  return includeAppPort ? ["game", "rcon", "app"] : ["game", "rcon"];
 }
 
 export function portForRole(gamePort: number, role: RustAllocationRole) {
   return gamePort + ROLE_OFFSETS[role];
+}
+
+function uniquePortRoles(roles: RustAllocationRole[]) {
+  const seen = new Set<number>();
+  return roles.filter((role) => {
+    const offset = ROLE_OFFSETS[role];
+    if (seen.has(offset)) return false;
+    seen.add(offset);
+    return true;
+  });
 }
 
 export function parsePortRanges(value: string) {
@@ -82,14 +92,15 @@ export function findRustPortGroup(
   const allocationByPort = new Map(eligibleAllocations.map((allocation) => [allocation.port, allocation]));
 
   const stride = Math.max(1, config.portStride || 1);
+  const distinctRoles = uniquePortRoles(roles);
   const gamePortCandidates = Array.from(allowedPorts)
-    .filter((port) => roles.every((role) => allowedPorts.has(portForRole(port, role))))
+    .filter((port) => distinctRoles.every((role) => allowedPorts.has(portForRole(port, role))))
     .sort((a, b) => a - b);
   const anchorPort = gamePortCandidates[0] ?? 28015;
   const candidateGamePorts = gamePortCandidates.filter((port) => (port - anchorPort) % stride === 0);
 
   for (const gamePort of candidateGamePorts) {
-    const group = roles.map((role) => {
+    const group = distinctRoles.map((role) => {
       const port = portForRole(gamePort, role);
       const allocation = allocationByPort.get(port) ?? null;
       return { role, port, allocation };
@@ -142,12 +153,12 @@ export function inferRustAllocationsFromServer(allocations: ClientAllocation[]):
   if (!game) return [];
 
   const ports = new Map(allocations.map((allocation) => [allocation.port, allocation]));
-  return (["game", "query", "rcon", "app"] as RustAllocationRole[])
+  return (["game", "rcon", "app"] as RustAllocationRole[])
     .flatMap((role) => {
       const port = portForRole(game.port, role);
       const allocation = role === "game" ? game : ports.get(port);
       if (!allocation) return [];
-      return [
+      const entries: RustTrackedAllocation[] = [
         {
           role,
           allocationId: allocation.id,
@@ -158,6 +169,18 @@ export function inferRustAllocationsFromServer(allocations: ClientAllocation[]):
           isDefault: role === "game",
         },
       ];
+      if (role === "game") {
+        entries.push({
+          role: "query",
+          allocationId: allocation.id,
+          port: allocation.port,
+          ip: allocation.ip,
+          alias: allocation.ip_alias,
+          createdByApp: false,
+          isDefault: false,
+        });
+      }
+      return entries;
     });
 }
 

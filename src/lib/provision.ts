@@ -3,7 +3,6 @@ import { pteroApp, pteroClient, PterodactylError } from "@/lib/pterodactyl";
 import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
 import {
   findRustPortGroup,
-  hasRustAppPort,
   inferRustAllocationsFromServer,
   parseRustAllocations,
   requiredRustRoles,
@@ -118,7 +117,7 @@ function desiredRustValue(
   }
 
   if (text.includes("query") && text.includes("port")) {
-    return query ? String(query.port) : null;
+    return query ? String(query.port) : game ? String(game.port) : null;
   }
 
   if (text.includes("rcon") && text.includes("port")) {
@@ -398,7 +397,7 @@ export async function provisionOrder(orderId: string): Promise<void> {
     }
 
     if (plan.gameSlug === "rust") {
-      reservedRustAllocations = await reserveRustAllocations(order, hasRustAppPort(eggVariables));
+      reservedRustAllocations = await reserveRustAllocations(order, false);
     }
 
     const dockerImage = egg.docker_image ?? Object.values(egg.docker_images ?? {})[0];
