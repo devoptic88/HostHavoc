@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input, Label } from "@/components/ui/Input";
+import { Input, Label, Select } from "@/components/ui/Input";
+
+type RustCheckoutProfile = "vanilla" | "staging" | "oxide";
 
 export function CheckoutForm({
   title,
@@ -12,12 +14,14 @@ export function CheckoutForm({
   locationName,
   price,
   payload,
+  rustProfileOptions,
 }: {
   title: string;
   detail: string;
   locationName?: string;
   price: number;
   payload: Record<string, unknown>;
+  rustProfileOptions?: RustCheckoutProfile[];
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -31,7 +35,11 @@ export function CheckoutForm({
     const res = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payload, serverName: form.get("serverName") }),
+      body: JSON.stringify({
+        ...payload,
+        serverName: form.get("serverName"),
+        rustProfile: form.get("rustProfile"),
+      }),
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.redirect) {
@@ -70,6 +78,18 @@ export function CheckoutForm({
             placeholder="e.g. Midnight Raiders"
           />
         </div>
+        {rustProfileOptions && rustProfileOptions.length > 0 && (
+          <div>
+            <Label htmlFor="rustProfile">Runtime</Label>
+            <Select id="rustProfile" name="rustProfile" defaultValue={rustProfileOptions[0]}>
+              {rustProfileOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option === "vanilla" ? "Vanilla" : option === "staging" ? "Staging" : "Oxide"}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
         {error && <p className="text-sm text-danger">{error}</p>}
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
           {loading ? (

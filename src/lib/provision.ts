@@ -55,6 +55,8 @@ type ProvisionableOrder = Prisma.OrderGetPayload<{
   include: { plan: true; user: true };
 }>;
 
+type RustInstallProfile = "vanilla" | "staging" | "oxide" | "carbon";
+
 function generatedEggValue(env: string, rules: string): string {
   const normalized = env.toUpperCase();
   const ruleSet = rules.toLowerCase();
@@ -80,6 +82,53 @@ function normalizeVariableText(variable: ClientEggVariable) {
 
 function normalizeEggVariableText(variable: Pick<AppEggVariable, "name" | "description" | "env_variable">) {
   return `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase();
+}
+
+function normalizeRustInstallProfile(value: string | null | undefined): RustInstallProfile {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return ["vanilla", "staging", "oxide", "carbon"].includes(normalized)
+    ? (normalized as RustInstallProfile)
+    : "vanilla";
+}
+
+function rustInstallVariableValue(
+  variable: Pick<AppEggVariable, "name" | "description" | "env_variable" | "default_value" | "rules">,
+  profile: RustInstallProfile,
+) {
+  const text = normalizeEggVariableText(variable);
+  const sample = String(variable.default_value ?? "").trim().toLowerCase();
+  const isBooleanLike = /boolean|bool|true|false|0|1/.test(String(variable.rules ?? "").toLowerCase());
+  const truthy = sample === "true" || sample === "false" ? "true" : sample === "yes" || sample === "no" ? "yes" : "1";
+  const falsy = sample === "true" || sample === "false" ? "false" : sample === "yes" || sample === "no" ? "no" : "0";
+
+  if (text.includes("branch")) {
+    return profile === "staging" ? "staging" : "public";
+  }
+
+  if (text.includes("framework")) {
+    if (profile === "oxide") return "oxide";
+    if (profile === "carbon") return "carbon";
+    return "vanilla";
+  }
+
+  if (text.includes("oxide") || text.includes("umod")) {
+    if (isBooleanLike) {
+      return profile === "oxide" ? truthy : falsy;
+    }
+    if (text.includes("version")) {
+      return profile === "oxide" ? "latest" : "";
+    }
+    return profile === "oxide" ? "oxide" : "";
+  }
+
+  if (text.includes("carbon")) {
+    if (isBooleanLike) {
+      return profile === "carbon" ? truthy : falsy;
+    }
+    return profile === "carbon" ? "carbon" : "";
+  }
+
+  return null;
 }
 
 function rustIdentity(name: string, orderId: string) {
@@ -457,6 +506,12 @@ export async function provisionOrder(orderId: string): Promise<void> {
     }
 
     if (plan.gameSlug === "rust") {
+      const rustInstallProfile = normalizeRustInstallProfile(order.rustInstallProfile);
+      for (const variable of eggVariables) {
+        const installProfileValue = rustInstallVariableValue(variable, rustInstallProfile);
+        if (installProfileValue === null) continue;
+        environment[variable.env_variable] = installProfileValue;
+      }
       const includeRustAppPort = hasRustAppPort(eggVariables);
       reservedRustAllocations = await reserveRustAllocations(order, includeRustAppPort);
       const rustAllocationsByRole = rustAllocationMap(reservedRustAllocations);

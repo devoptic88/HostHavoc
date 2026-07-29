@@ -5,6 +5,11 @@ import { stripe, stripeConfigured } from "@/lib/stripe";
 import { gameBySlug, resolveExistingGamePlan, resolveFixedPlan, resolveGamePlan } from "@/lib/plans";
 import { provisionOrder } from "@/lib/provision";
 
+function normalizeRustCheckoutProfile(value: unknown) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return ["vanilla", "staging", "oxide"].includes(normalized) ? normalized : "vanilla";
+}
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user) {
@@ -19,6 +24,7 @@ export async function POST(req: Request) {
 
   let plan;
   let locationId: number | null = null;
+  let rustInstallProfile: string | null = null;
   try {
     if (body.product === "vps" || body.product === "dedicated") {
       plan = await resolveFixedPlan(
@@ -34,6 +40,9 @@ export async function POST(req: Request) {
       locationId = Number.isFinite(Number(body.location)) && Number(body.location) > 0
         ? Number(body.location)
         : null;
+      if (game.slug === "rust") {
+        rustInstallProfile = normalizeRustCheckoutProfile(body.rustProfile);
+      }
     }
   } catch (err) {
     return NextResponse.json(
@@ -50,6 +59,7 @@ export async function POST(req: Request) {
       serverName,
       locationId,
       status: "PENDING",
+      rustInstallProfile,
     },
   });
 

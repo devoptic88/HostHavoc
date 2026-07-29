@@ -113,6 +113,7 @@ export default async function CheckoutPage({
           locationName={summary.locationName}
           price={summary.price}
           payload={summary.payload}
+          rustProfileOptions={summary.payload.game === "rust" ? ["vanilla", "staging", "oxide"] : undefined}
         />
       </div>
     </div>

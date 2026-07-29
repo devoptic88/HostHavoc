@@ -94,6 +94,7 @@ model Order {
   pteroServerIdentifier String? // client-API short uuid
   stripeSubscriptionId String? @unique
   rustAllocations Json?
+  rustInstallProfile String?
   rustPendingReinstallProfile String?
   deleteAfterAt DateTime?
   errorMessage  String?
