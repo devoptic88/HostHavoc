@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Input } from "@/components/ui/Input";
+import { Input, Select } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
 
 interface Variable {
@@ -37,6 +37,20 @@ function isRustManagedPortVariable(variable: Variable, isRust: boolean) {
     (text.includes("APP") && text.includes("PORT")) ||
     ((text.includes("SERVER") || text.includes("GAME")) && text.includes("PORT"))
   );
+}
+
+function isRustFrameworkVariable(variable: Variable, isRust: boolean) {
+  if (!isRust) return false;
+  const text = `${variable.name} ${variable.description} ${variable.env_variable}`.toUpperCase();
+  return text.includes("FRAMEWORK");
+}
+
+function frameworkValue(variable: Variable) {
+  return (variable.server_value || variable.default_value || "vanilla").trim().toLowerCase();
+}
+
+function parseFrameworkOptions() {
+  return ["vanilla", "oxide", "carbon"];
 }
 
 const rustSections = [
@@ -90,9 +104,20 @@ export function Startup({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [savingAll, setSavingAll] = useState(false);
+  const [reinstalling, setReinstalling] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [pendingReinstallFramework, setPendingReinstallFramework] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("basic");
   const isRust = gameSlug === "rust";
+
+  const frameworkVariable = useMemo(
+    () => vars.find((variable) => isRustFrameworkVariable(variable, isRust)) ?? null,
+    [isRust, vars],
+  );
+  const installedFramework = frameworkVariable ? frameworkValue(frameworkVariable) : "vanilla";
+  const selectedFramework = frameworkVariable
+    ? (edits[frameworkVariable.env_variable] ?? frameworkVariable.server_value ?? frameworkVariable.default_value ?? "vanilla").trim().toLowerCase()
+    : "vanilla";
 
   const load = useCallback(async () => {
     try {
@@ -101,12 +126,20 @@ export function Startup({
       const data = await res.json();
       setVars(data.data.map((d: { attributes: Variable }) => d.attributes));
       setStartupCmd(data.meta?.startup_command ?? "");
+      const nextVars = data.data.map((d: { attributes: Variable }) => d.attributes as Variable);
+      const nextFramework = nextVars.find((variable: Variable) =>
+        isRustFrameworkVariable(variable, gameSlug === "rust"),
+      );
+      const nextInstalledFramework = nextFramework ? frameworkValue(nextFramework) : null;
+      setPendingReinstallFramework((current) =>
+        current && current === nextInstalledFramework ? null : current,
+      );
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load startup config");
     }
     setLoading(false);
-  }, [orderId]);
+  }, [gameSlug, orderId]);
 
   useEffect(() => {
     load();
@@ -136,6 +169,10 @@ export function Startup({
     const updates = Object.fromEntries(
       dirtyKeys.map((key) => [key, edits[key] ?? currentValues.get(key) ?? ""]),
     );
+    const frameworkNeedsReinstall =
+      frameworkVariable &&
+      dirtyKeys.includes(frameworkVariable.env_variable) &&
+      (updates[frameworkVariable.env_variable] ?? "").toString().trim().toLowerCase() !== installedFramework;
 
     const res = await fetch(`/api/servers/${orderId}/save-startup`, {
       method: "POST",
@@ -151,13 +188,43 @@ export function Startup({
     }
 
     setMessage(
-      payload?.configPath
-        ? `Saved startup settings and synced ${payload.configPath}.`
-        : "Saved startup settings.",
+      frameworkNeedsReinstall
+        ? "Saved startup settings. Reinstall the server to apply the new Rust framework."
+        : payload?.configPath
+          ? `Saved startup settings and synced ${payload.configPath}.`
+          : "Saved startup settings.",
+    );
+    setPendingReinstallFramework(
+      frameworkNeedsReinstall ? String(updates[frameworkVariable!.env_variable]).trim().toLowerCase() : null,
     );
     setEdits({});
     setSavingAll(false);
     await load();
+  }
+
+  async function reinstallForFramework() {
+    if (
+      !confirm(
+        "Reinstall the server now? This applies the selected Rust framework and may replace game files. Take a backup first.",
+      )
+    ) {
+      return;
+    }
+
+    setReinstalling(true);
+    setError("");
+    const res = await fetch(`/api/servers/${orderId}/reinstall`, { method: "POST" });
+    const payload = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      setError(payload?.error ?? "Reinstall failed");
+      setReinstalling(false);
+      return;
+    }
+
+    setMessage("Reinstall started. Pterodactyl is now applying the selected Rust framework.");
+    setPendingReinstallFramework(null);
+    setReinstalling(false);
   }
 
   const grouped = useMemo(() => groupVariables(vars, isRust), [vars, isRust]);
@@ -185,9 +252,9 @@ export function Startup({
               </p>
             </div>
             <div className="grid gap-3 px-5 py-4 sm:grid-cols-3">
-              <RustInstallCard title="Vanilla" body="Default Rust runtime with no modding layer enabled." tone="active" />
-              <RustInstallCard title="Oxide" body="Plugin-ready mode for legacy uMod/Oxide ecosystems." />
-              <RustInstallCard title="Carbon" body="Modern framework mode for Carbon-based plugin stacks." />
+              <RustInstallCard title="Vanilla" body="Default Rust runtime with no modding layer enabled." tone={installedFramework === "vanilla" ? "active" : "default"} />
+              <RustInstallCard title="Oxide" body="Plugin-ready mode for legacy uMod/Oxide ecosystems." tone={installedFramework === "oxide" ? "active" : "default"} />
+              <RustInstallCard title="Carbon" body="Modern framework mode for Carbon-based plugin stacks." tone={installedFramework === "carbon" ? "active" : "default"} />
             </div>
           </div>
 
@@ -252,6 +319,28 @@ export function Startup({
           </div>
         )}
 
+        {isRust && pendingReinstallFramework && (
+          <div className="mx-5 mt-5 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-white">Server reinstall required</p>
+                <p className="mt-1 text-sm text-steel-dim">
+                  The selected framework is saved as `{pendingReinstallFramework}`, but the current install will not change until you run a reinstall.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                disabled={reinstalling}
+                onClick={reinstallForFramework}
+                className="min-w-[170px]"
+              >
+                {reinstalling ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+                Reinstall server
+              </Button>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <p className="px-5 py-10 text-center text-sm text-steel-faint">Loading...</p>
         ) : vars.length === 0 ? (
@@ -277,7 +366,9 @@ export function Startup({
                     <li key={v.env_variable} className="grid gap-3 px-4 py-4 sm:grid-cols-[1fr_320px]">
                       {(() => {
                         const managedPort = isRustManagedPortVariable(v, isRust);
+                        const frameworkField = isRustFrameworkVariable(v, isRust);
                         const canEdit = v.is_editable && !managedPort;
+                        const controlValue = edits[v.env_variable] ?? v.server_value ?? "";
 
                         return (
                           <>
@@ -296,19 +387,40 @@ export function Startup({
                             This port is assigned automatically by HyperNode during provisioning.
                           </p>
                         ) : null}
+                        {frameworkField && selectedFramework !== installedFramework ? (
+                          <p className="mt-2 text-xs text-warning">
+                            Saving this change will require a reinstall before the selected framework is actually installed.
+                          </p>
+                        ) : null}
                         <p className="mt-2 font-mono text-[11px] text-steel-dim">
                           {v.env_variable}
                         </p>
                       </div>
 
                       <div className="flex gap-2">
-                        <Input
-                          value={edits[v.env_variable] ?? v.server_value ?? ""}
-                          disabled={!canEdit}
-                          onChange={(e) =>
-                            setEdits((s) => ({ ...s, [v.env_variable]: e.target.value }))
-                          }
-                        />
+                        {frameworkField ? (
+                          <Select
+                            value={controlValue}
+                            disabled={!canEdit}
+                            onChange={(e) =>
+                              setEdits((s) => ({ ...s, [v.env_variable]: e.target.value }))
+                            }
+                          >
+                            {parseFrameworkOptions().map((option) => (
+                              <option key={option} value={option}>
+                                {option.charAt(0).toUpperCase() + option.slice(1)}
+                              </option>
+                            ))}
+                          </Select>
+                        ) : (
+                          <Input
+                            value={controlValue}
+                            disabled={!canEdit}
+                            onChange={(e) =>
+                              setEdits((s) => ({ ...s, [v.env_variable]: e.target.value }))
+                            }
+                          />
+                        )}
                         {!canEdit ? (
                           <div className="flex h-full w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-steel-faint">
                             <Lock className="h-4 w-4" />
