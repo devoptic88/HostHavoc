@@ -3,6 +3,7 @@ import { pteroApp, pteroClient, PterodactylError } from "@/lib/pterodactyl";
 import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
 import {
   findRustPortGroup,
+  hasRustAppPort,
   inferRustAllocationsFromServer,
   parseRustAllocations,
   requiredRustRoles,
@@ -161,6 +162,7 @@ function desiredRustEnvironmentValue(
   const game = allocations.get("game");
   const query = allocations.get("query");
   const rcon = allocations.get("rcon");
+  const app = allocations.get("app");
 
   if (text.includes("identity")) {
     return rustIdentity(order.serverName, order.id);
@@ -187,7 +189,7 @@ function desiredRustEnvironmentValue(
   }
 
   if (text.includes("app") && text.includes("port")) {
-    return "-1";
+    return app ? String(app.port) : "-1";
   }
 
   if (
@@ -455,7 +457,8 @@ export async function provisionOrder(orderId: string): Promise<void> {
     }
 
     if (plan.gameSlug === "rust") {
-      reservedRustAllocations = await reserveRustAllocations(order, false);
+      const includeRustAppPort = hasRustAppPort(eggVariables);
+      reservedRustAllocations = await reserveRustAllocations(order, includeRustAppPort);
       const rustAllocationsByRole = rustAllocationMap(reservedRustAllocations);
       for (const variable of eggVariables) {
         const next = desiredRustEnvironmentValue(variable, order, rustAllocationsByRole);

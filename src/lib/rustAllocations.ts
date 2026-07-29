@@ -23,9 +23,9 @@ export interface RustNodeConfigInput {
 
 const ROLE_OFFSETS: Record<RustAllocationRole, number> = {
   game: 0,
-  query: 0,
-  rcon: 2,
-  app: 4,
+  query: 2,
+  rcon: 4,
+  app: 6,
 };
 
 type RustPortVariable = Pick<ClientEggVariable, "name" | "description" | "env_variable"> | Pick<AppEggVariable, "name" | "description" | "env_variable">;
@@ -38,7 +38,7 @@ export function hasRustAppPort(vars: RustPortVariable[]) {
 }
 
 export function requiredRustRoles(includeAppPort: boolean): RustAllocationRole[] {
-  return includeAppPort ? ["game", "rcon", "app"] : ["game", "rcon"];
+  return includeAppPort ? ["game", "query", "rcon", "app"] : ["game", "query", "rcon"];
 }
 
 export function portForRole(gamePort: number, role: RustAllocationRole) {
@@ -153,13 +153,12 @@ export function inferRustAllocationsFromServer(allocations: ClientAllocation[]):
   if (!game) return [];
 
   const ports = new Map(allocations.map((allocation) => [allocation.port, allocation]));
-  const rconAllocation = ports.get(portForRole(game.port, "rcon"));
-  return (["game", "rcon", "app"] as RustAllocationRole[])
+  return (["game", "query", "rcon", "app"] as RustAllocationRole[])
     .flatMap((role) => {
       const port = portForRole(game.port, role);
       const allocation = role === "game" ? game : ports.get(port);
       if (!allocation) return [];
-      const entries: RustTrackedAllocation[] = [
+      return [
         {
           role,
           allocationId: allocation.id,
@@ -170,18 +169,6 @@ export function inferRustAllocationsFromServer(allocations: ClientAllocation[]):
           isDefault: role === "game",
         },
       ];
-      if (role === "game") {
-        entries.push({
-          role: "query",
-          allocationId: (rconAllocation ?? allocation).id,
-          port: (rconAllocation ?? allocation).port,
-          ip: (rconAllocation ?? allocation).ip,
-          alias: (rconAllocation ?? allocation).ip_alias,
-          createdByApp: false,
-          isDefault: false,
-        });
-      }
-      return entries;
     });
 }
 
