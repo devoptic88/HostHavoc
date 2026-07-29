@@ -93,94 +93,98 @@ export default async function DashboardPage() {
     .reduce((sum, order) => sum + Number(order.plan.priceMonthly), 0);
   const spotlightGames = GAMES.filter((game) => game.categories.includes("popular")).slice(0, 5);
   const firstName = session!.user.name.split(" ")[0];
-  const featuredServerCard = featuredOrder
-    ? (() => {
-        const order = featuredOrder;
-        const game = GAMES.find((entry) => entry.slug === order.plan.gameSlug);
-        const manageable = order.productType === "GAME_SERVER" && order.pteroServerIdentifier;
-        const liveStatus = liveStatuses.get(order.id);
-        const displayStatus =
-          liveStatus ??
-          (orderStatusMap[order.status] as LiveDashboardStatus | undefined) ??
-          "offline";
-        const liveMessage = liveStatusMessage(displayStatus);
+  const renderServerCard = (order: (typeof orders)[number]) => {
+    const game = GAMES.find((entry) => entry.slug === order.plan.gameSlug);
+    const manageable = order.productType === "GAME_SERVER" && order.pteroServerIdentifier;
+    const liveStatus = liveStatuses.get(order.id);
+    const displayStatus =
+      liveStatus ??
+      (orderStatusMap[order.status] as LiveDashboardStatus | undefined) ??
+      "offline";
+    const liveMessage = liveStatusMessage(displayStatus);
 
-        return (
-          <Link href={manageable ? `/dashboard/servers/${order.id}` : "/dashboard"} className="block">
-            <Card glow className="overflow-hidden border-white/10 bg-night-100/95">
-              <div className="relative min-h-[360px]">
-                {game && (
-                  <>
-                    <Image
-                      src={gameHero(game.slug)}
-                      alt={game.name}
-                      fill
-                      className="object-cover opacity-45"
-                      sizes="(min-width: 1280px) 900px, 100vw"
-                    />
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        background: `linear-gradient(120deg, ${game.accent}55 0%, rgba(5,7,13,0.25) 22%, rgba(5,7,13,0.92) 70%), linear-gradient(180deg, rgba(5,7,13,0.18) 0%, rgba(5,7,13,0.92) 100%)`,
-                      }}
-                    />
-                  </>
-                )}
-                <div className="relative flex h-full min-h-[360px] flex-col justify-between p-6 sm:p-8">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="mb-3 flex flex-wrap items-center gap-2">
-                        <Badge tone="blue">{game?.name ?? order.plan.name}</Badge>
-                        {game?.badge ? <Badge tone="violet">{game.badge}</Badge> : null}
-                      </div>
-                      <h3 className="max-w-2xl font-display text-3xl font-extrabold text-white sm:text-4xl">
-                        {order.serverName}
-                      </h3>
-                      <p className="mt-3 max-w-xl text-sm leading-6 text-steel">
-                        {game?.tagline ?? order.plan.name}
-                      </p>
-                    </div>
-                    <StatusBadge status={displayStatus} />
-                  </div>
+    const card = (
+      <Card glow className="overflow-hidden border-white/10 bg-night-100/95">
+        <div className="relative min-h-[360px]">
+          {game && (
+            <>
+              <Image
+                src={gameHero(game.slug)}
+                alt={game.name}
+                fill
+                className="object-cover opacity-45"
+                sizes="(min-width: 1280px) 900px, 100vw"
+              />
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: `linear-gradient(120deg, ${game.accent}55 0%, rgba(5,7,13,0.25) 22%, rgba(5,7,13,0.92) 70%), linear-gradient(180deg, rgba(5,7,13,0.18) 0%, rgba(5,7,13,0.92) 100%)`,
+                }}
+              />
+            </>
+          )}
+          <div className="relative flex h-full min-h-[360px] flex-col justify-between p-6 sm:p-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <Badge tone="blue">{game?.name ?? order.plan.name}</Badge>
+                  {game?.badge ? <Badge tone="violet">{game.badge}</Badge> : null}
+                </div>
+                <h3 className="max-w-2xl font-display text-3xl font-extrabold text-white sm:text-4xl">
+                  {order.serverName}
+                </h3>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-steel">
+                  {game?.tagline ?? order.plan.name}
+                </p>
+              </div>
+              <StatusBadge status={displayStatus} />
+            </div>
 
-                  <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
-                        <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Plan</p>
-                        <p className="mt-1 font-display text-xl font-bold text-white">{order.plan.name}</p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
-                        <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Billing</p>
-                        <p className="mt-1 font-display text-xl font-bold text-white">
-                          {formatMoney(Number(order.plan.priceMonthly))}/mo
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
-                        <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Provisioned</p>
-                        <p className="mt-1 text-sm font-semibold text-white">{formatDate(order.createdAt)}</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-3">
-                      <ButtonLink href={manageable ? `/dashboard/servers/${order.id}` : "/dashboard"} size="sm">
-                        Manage server <ArrowRight className="h-4 w-4" />
-                      </ButtonLink>
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-steel backdrop-blur-sm">
-                        {order.status === "GRACE_PERIOD" && order.deleteAfterAt
-                          ? `Suspended in grace period. Scheduled for deletion ${formatDate(order.deleteAfterAt)}.`
-                          : liveMessage ??
-                            (order.status === "FAILED" && order.errorMessage
-                              ? normalizePterodactylMessage(order.errorMessage)
-                              : "Open the server dashboard for console, files, backups, and settings.")}
-                      </div>
-                    </div>
-                  </div>
+            <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Plan</p>
+                  <p className="mt-1 font-display text-xl font-bold text-white">{order.plan.name}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Billing</p>
+                  <p className="mt-1 font-display text-xl font-bold text-white">
+                    {formatMoney(Number(order.plan.priceMonthly))}/mo
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Provisioned</p>
+                  <p className="mt-1 text-sm font-semibold text-white">{formatDate(order.createdAt)}</p>
                 </div>
               </div>
-            </Card>
-          </Link>
-        );
-      })()
-    : null;
+              <div className="flex flex-col gap-3">
+                <ButtonLink href={manageable ? `/dashboard/servers/${order.id}` : "/dashboard"} size="sm">
+                  Manage server <ArrowRight className="h-4 w-4" />
+                </ButtonLink>
+                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-steel backdrop-blur-sm">
+                  {order.status === "GRACE_PERIOD" && order.deleteAfterAt
+                    ? `Suspended in grace period. Scheduled for deletion ${formatDate(order.deleteAfterAt)}.`
+                    : liveMessage ??
+                      (order.status === "FAILED" && order.errorMessage
+                        ? normalizePterodactylMessage(order.errorMessage)
+                        : "Open the server dashboard for console, files, backups, and settings.")}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+
+    return manageable ? (
+      <Link key={order.id} href={`/dashboard/servers/${order.id}`} className="block">
+        {card}
+      </Link>
+    ) : (
+      <div key={order.id}>{card}</div>
+    );
+  };
+  const featuredServerCard = featuredOrder ? renderServerCard(featuredOrder) : null;
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -296,7 +300,7 @@ export default async function DashboardPage() {
             <h2 className="font-display text-2xl font-extrabold italic text-white">
               Your <span className="text-gradient-hyper">fleet</span>
             </h2>
-            <p className="mt-1 text-sm text-steel-dim">Control cards for your remaining active services.</p>
+            <p className="mt-1 text-sm text-steel-dim">Every active server stays visible here with the full control card layout.</p>
           </div>
           <ButtonLink href="/games" size="sm">
             <Plus className="h-4 w-4" /> New server
@@ -321,75 +325,7 @@ export default async function DashboardPage() {
       ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
           <div className="space-y-4">
-            {otherOrders.length > 0 && (
-              <div>
-                <p className="mb-3 text-[11px] uppercase tracking-[0.24em] text-steel-faint">More Servers</p>
-                <div className="space-y-4">
-                  {otherOrders.map((order) => {
-                    const game = GAMES.find((entry) => entry.slug === order.plan.gameSlug);
-                    const manageable = order.productType === "GAME_SERVER" && order.pteroServerIdentifier;
-                    const liveStatus = liveStatuses.get(order.id);
-                    const displayStatus =
-                      liveStatus ??
-                      (orderStatusMap[order.status] as LiveDashboardStatus | undefined) ??
-                      "offline";
-                    const liveMessage = liveStatusMessage(displayStatus);
-                    const inner = (
-                      <Card glow={Boolean(manageable)} className="overflow-hidden border-white/10 bg-[linear-gradient(180deg,rgba(12,18,32,0.96),rgba(9,13,24,0.92))]">
-                        <CardBody className="flex flex-wrap items-center gap-4 sm:flex-nowrap">
-                          <div
-                            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl font-display text-lg font-extrabold text-white shadow-card"
-                            style={{
-                              background: `linear-gradient(135deg, ${game?.accent ?? "#2F6BFF"} 0%, ${game?.accent2 ?? "#38BDF8"} 100%)`,
-                            }}
-                          >
-                            {(game?.name ?? order.plan.name).slice(0, 1)}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="truncate font-display text-lg font-bold text-white">{order.serverName}</p>
-                              {game?.badge ? <Badge tone="violet">{game.badge}</Badge> : null}
-                            </div>
-                            <p className="mt-1 text-xs text-steel-faint">
-                              {order.plan.name} | {formatMoney(Number(order.plan.priceMonthly))}/mo
-                            </p>
-                            {order.status === "GRACE_PERIOD" && order.deleteAfterAt && (
-                              <p className="mt-1 text-xs text-warning">
-                                Suspended during grace period. Final deletion is scheduled for {formatDate(order.deleteAfterAt)}.
-                              </p>
-                            )}
-                            {liveMessage ? <p className="mt-1 line-clamp-2 text-xs text-steel">{liveMessage}</p> : null}
-                            {!liveMessage && order.status === "FAILED" && order.errorMessage && (
-                              <p className="mt-1 line-clamp-2 text-xs text-danger">
-                                {normalizePterodactylMessage(order.errorMessage)}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {order.productType !== "GAME_SERVER" ? (
-                              <Badge tone="violet">
-                                {order.status === "MANUAL" ? "Being set up" : order.status}
-                              </Badge>
-                            ) : (
-                              <StatusBadge status={displayStatus} />
-                            )}
-                            {manageable && <span className="text-sm font-semibold text-hyper-300">Manage</span>}
-                          </div>
-                        </CardBody>
-                      </Card>
-                    );
-
-                    return manageable ? (
-                      <Link key={order.id} href={`/dashboard/servers/${order.id}`} className="block">
-                        {inner}
-                      </Link>
-                    ) : (
-                      <div key={order.id}>{inner}</div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            {otherOrders.map((order) => renderServerCard(order))}
           </div>
 
           <div className="space-y-4">
