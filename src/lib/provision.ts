@@ -505,7 +505,8 @@ export async function provisionOrder(orderId: string): Promise<void> {
           await applyRustProvisioningDefaults(order, recoverable.identifier, recoveredRustAllocations);
         } catch (err) {
           if (!isTransientInstallLock(err)) throw err;
-          console.warn(`Rust provisioning defaults delayed for recovered order ${order.id}: ${formatPterodactylError(err)}`);
+          const message = err instanceof PterodactylError ? formatPterodactylError(err) : String(err);
+          console.warn(`Rust provisioning defaults delayed for recovered order ${order.id}: ${message}`);
         }
       }
       return;
@@ -607,7 +608,8 @@ export async function provisionOrder(orderId: string): Promise<void> {
         await applyRustProvisioningDefaults(order, attrs.identifier, reservedRustAllocations);
       } catch (err) {
         if (!isTransientInstallLock(err)) throw err;
-        console.warn(`Rust provisioning defaults delayed for order ${order.id}: ${formatPterodactylError(err)}`);
+        const message = err instanceof PterodactylError ? formatPterodactylError(err) : String(err);
+        console.warn(`Rust provisioning defaults delayed for order ${order.id}: ${message}`);
       }
     }
 
