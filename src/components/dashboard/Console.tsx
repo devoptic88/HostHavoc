@@ -19,7 +19,8 @@ export function Console({ orderId }: { orderId: string }) {
   const announcedReady = useRef(false);
 
   const append = useCallback((line: string) => {
-    setLines((prev) => [...prev.slice(-800), line]);
+    const rewritten = line.replace(/\[Pterodactyl Daemon\]:/g, "[HyperNode Server]:");
+    setLines((prev) => [...prev.slice(-800), rewritten]);
   }, []);
 
   useEffect(() => {
