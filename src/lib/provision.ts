@@ -125,6 +125,10 @@ function desiredRustValue(
     return rcon ? String(rcon.port) : null;
   }
 
+  if (text.includes("rcon") && text.includes("pass")) {
+    return "12345678";
+  }
+
   if (text.includes("app") && text.includes("port")) {
     return app ? String(app.port) : "-1";
   }
