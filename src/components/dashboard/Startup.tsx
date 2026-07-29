@@ -53,10 +53,6 @@ function parseFrameworkOptions() {
   return ["vanilla", "oxide", "carbon"];
 }
 
-function isInstallProfile(value: string | null): value is "vanilla" | "oxide" | "carbon" {
-  return value === "vanilla" || value === "oxide" || value === "carbon";
-}
-
 const rustSections = [
   {
     id: "basic",
@@ -108,9 +104,7 @@ export function Startup({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [savingAll, setSavingAll] = useState(false);
-  const [reinstalling, setReinstalling] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
-  const [pendingReinstallFramework, setPendingReinstallFramework] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("basic");
   const isRust = gameSlug === "rust";
 
@@ -130,20 +124,12 @@ export function Startup({
       const data = await res.json();
       setVars(data.data.map((d: { attributes: Variable }) => d.attributes));
       setStartupCmd(data.meta?.startup_command ?? "");
-      const nextVars = data.data.map((d: { attributes: Variable }) => d.attributes as Variable);
-      const nextFramework = nextVars.find((variable: Variable) =>
-        isRustFrameworkVariable(variable, gameSlug === "rust"),
-      );
-      const nextInstalledFramework = nextFramework ? frameworkValue(nextFramework) : null;
-      setPendingReinstallFramework((current) =>
-        current && current === nextInstalledFramework ? null : current,
-      );
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load startup config");
     }
     setLoading(false);
-  }, [gameSlug, orderId]);
+  }, [orderId]);
 
   useEffect(() => {
     load();
@@ -193,49 +179,14 @@ export function Startup({
 
     setMessage(
       frameworkNeedsReinstall
-        ? "Saved startup settings. Reinstall the server to apply the new Rust framework."
+        ? "Saved startup settings. Use the reinstall banner at the top of the panel to apply the new Rust framework."
         : payload?.configPath
           ? `Saved startup settings and synced ${payload.configPath}.`
           : "Saved startup settings.",
     );
-    setPendingReinstallFramework(
-      frameworkNeedsReinstall ? String(updates[frameworkVariable!.env_variable]).trim().toLowerCase() : null,
-    );
     setEdits({});
     setSavingAll(false);
     await load();
-  }
-
-  async function reinstallForFramework() {
-    if (
-      !confirm(
-        "Reinstall the server now? This applies the selected Rust framework and may replace game files. Take a backup first.",
-      )
-    ) {
-      return;
-    }
-
-    setReinstalling(true);
-    setError("");
-    const nextProfile = isInstallProfile(pendingReinstallFramework)
-      ? pendingReinstallFramework
-      : installedFramework;
-    const res = await fetch(`/api/servers/${orderId}/install-profile`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profile: nextProfile }),
-    });
-    const payload = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      setError(payload?.error ?? "Reinstall failed");
-      setReinstalling(false);
-      return;
-    }
-
-    setMessage("Reinstall started. Pterodactyl is now applying the selected Rust framework.");
-    setPendingReinstallFramework(null);
-    setReinstalling(false);
   }
 
   const grouped = useMemo(() => groupVariables(vars, isRust), [vars, isRust]);
@@ -327,28 +278,6 @@ export function Startup({
           <div className="space-y-2 px-5 py-3">
             {error ? <p className="text-sm text-danger">{error}</p> : null}
             {message ? <p className="text-sm text-success">{message}</p> : null}
-          </div>
-        )}
-
-        {isRust && pendingReinstallFramework && (
-          <div className="mx-5 mt-5 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-white">Server reinstall required</p>
-                <p className="mt-1 text-sm text-steel-dim">
-                  The selected framework is saved as `{pendingReinstallFramework}`, but the current install will not change until you run a reinstall.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                disabled={reinstalling}
-                onClick={reinstallForFramework}
-                className="min-w-[170px]"
-              >
-                {reinstalling ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
-                Reinstall server
-              </Button>
-            </div>
           </div>
         )}
 

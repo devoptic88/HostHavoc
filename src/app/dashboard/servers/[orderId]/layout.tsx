@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ServerSidebar } from "@/components/dashboard/ServerSidebar";
+import { ServerReinstallBanner } from "@/components/dashboard/ServerReinstallBanner";
 import { ServerTopbar } from "@/components/dashboard/ServerTopbar";
 import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen";
 
@@ -64,6 +65,12 @@ export default async function ServerLayout({
         cpuPercent={order.plan.cpuPercent}
         diskMb={order.plan.diskMb}
       />
+      {order.plan.gameSlug === "rust" && order.rustPendingReinstallProfile && (
+        <ServerReinstallBanner
+          orderId={order.id}
+          profile={order.rustPendingReinstallProfile as "vanilla" | "oxide" | "carbon" | "staging"}
+        />
+      )}
       <div className="flex flex-col gap-6 lg:flex-row">
         <ServerSidebar orderId={order.id} gameSlug={order.plan.gameSlug} />
         <div className="min-w-0 flex-1">{children}</div>

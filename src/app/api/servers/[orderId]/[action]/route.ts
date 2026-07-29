@@ -62,6 +62,17 @@ function variableText(variable: ClientEggVariable) {
   return `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase();
 }
 
+function isRustFrameworkVariable(variable: ClientEggVariable) {
+  return variableText(variable).includes("framework");
+}
+
+function normalizeInstallProfile(value: string | null | undefined): InstallProfile | null {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return ["vanilla", "oxide", "carbon", "staging"].includes(normalized)
+    ? (normalized as InstallProfile)
+    : null;
+}
+
 function isBooleanLike(variable: ClientEggVariable) {
   return /boolean|bool|true|false|0|1/.test(variable.rules.toLowerCase());
 }
@@ -220,7 +231,7 @@ export async function POST(
   { params }: { params: { orderId: string; action: string } },
 ) {
   try {
-    const { id } = await resolveServer(params.orderId);
+    const { id, order } = await resolveServer(params.orderId);
     const body = await req.json().catch(() => ({}));
     switch (params.action) {
       case "power":
@@ -285,6 +296,7 @@ export async function POST(
             .filter((variable) => variable.is_editable)
             .map((variable) => [variable.env_variable, variable]),
         );
+        let pendingRustProfile: InstallProfile | null | undefined;
 
         for (const [key, rawValue] of Object.entries(updates)) {
           const variable = editableVars.get(key);
@@ -293,11 +305,21 @@ export async function POST(
           const nextValue = String(rawValue ?? "");
           if (nextValue === variable.server_value) continue;
 
+          if (order.planId && isRustFrameworkVariable(variable)) {
+            pendingRustProfile = normalizeInstallProfile(nextValue);
+          }
+
           await pteroClient.updateVariable(id, key, nextValue);
           variable.server_value = nextValue;
         }
 
         const configPath = await syncRustConfig(id, vars);
+        if (pendingRustProfile !== undefined) {
+          await db.order.update({
+            where: { id: params.orderId },
+            data: { rustPendingReinstallProfile: pendingRustProfile },
+          });
+        }
         return NextResponse.json({ ok: true, configPath });
       }
       case "rename":
@@ -311,11 +333,15 @@ export async function POST(
         await pteroClient.reinstall(id);
         break;
       case "install-profile": {
-        const profile = String(body.profile ?? "").toLowerCase() as InstallProfile;
-        if (!["vanilla", "oxide", "carbon", "staging"].includes(profile)) {
+        const profile = normalizeInstallProfile(body.profile);
+        if (!profile) {
           throw new HttpError(400, "Unknown install profile");
         }
         await applyInstallProfile(id, profile);
+        await db.order.update({
+          where: { id: params.orderId },
+          data: { rustPendingReinstallProfile: null },
+        });
         break;
       }
       case "create-schedule":
