@@ -22,7 +22,7 @@ export default async function DashboardLayout({
     db.ticket.count({
       where: {
         userId: session.user.id,
-        status: { in: ["OPEN", "STAFF_REPLY", "CUSTOMER_REPLY"] },
+        status: { in: ["OPEN", "ANSWERED", "CUSTOMER_REPLY"] },
       },
     }),
   ]);

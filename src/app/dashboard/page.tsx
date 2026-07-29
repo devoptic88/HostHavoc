@@ -57,7 +57,7 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
     }),
     db.ticket.count({
-      where: { userId: session!.user.id, status: { in: ["OPEN", "STAFF_REPLY", "CUSTOMER_REPLY"] } },
+      where: { userId: session!.user.id, status: { in: ["OPEN", "ANSWERED", "CUSTOMER_REPLY"] } },
     }),
   ]);
 

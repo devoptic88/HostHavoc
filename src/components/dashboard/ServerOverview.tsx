@@ -215,6 +215,41 @@ export function ServerOverview({
 
   return (
     <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,18,32,0.96),rgba(9,13,24,0.9))] px-4 py-3 shadow-card">
+          <div className="rounded-xl bg-hyper-500/10 p-2 text-hyper-300">
+            <Search className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Quick Actions</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-steel-dim">
+              <Link href={`/dashboard/servers/${orderId}/console`} className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 transition-colors hover:border-hyper-500/30 hover:text-white">
+                Console
+              </Link>
+              <Link href={`/dashboard/servers/${orderId}/files`} className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 transition-colors hover:border-hyper-500/30 hover:text-white">
+                Files
+              </Link>
+              <Link href={`/dashboard/tickets?server=${orderId}`} className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 transition-colors hover:border-hyper-500/30 hover:text-white">
+                Get help
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,18,32,0.96),rgba(9,13,24,0.9))] px-4 py-3 shadow-card">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Live Status</p>
+            <p className="truncate font-display text-lg font-bold text-white">
+              {running ? "Server online" : "Server offline"}
+            </p>
+            <p className="truncate text-xs text-steel-dim">
+              {running && res ? `Uptime ${formatUptime(res.resources.uptime)}` : "Start the server to resume metrics."}
+            </p>
+          </div>
+          <div className={cn("h-3 w-3 rounded-full", running ? "animate-pulse bg-success" : "bg-steel-faint")} />
+        </div>
+      </div>
+
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-night-100 shadow-xl" style={heroStyle}>
         <div className="bg-gradient-to-b from-transparent via-night/25 to-night/75 p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -352,9 +387,9 @@ export function ServerOverview({
 
       <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr_0.9fr]">
         <OverviewPanel icon={BookOpenText} title="Need Help?">
-          <div className="space-y-3 text-sm text-steel">
-            <p>
-              Whether you want to find information in the HyperNode knowledgebase, pick our brains, or get hands-on service, we are here to help.
+            <div className="space-y-3 text-sm text-steel">
+              <p>
+                Whether you want to find information in the HyperNode knowledgebase, pick our brains, or get hands-on service, we are here to help.
             </p>
             <ul className="space-y-2">
               {HELP_POINTS.map((point) => (
@@ -366,7 +401,7 @@ export function ServerOverview({
             </ul>
             <div className="grid gap-3 pt-2 sm:grid-cols-[1fr_auto]">
               <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-steel-faint">
-                Search Rust knowledgebase
+                Search {game?.name ?? "server"} knowledgebase
               </div>
               <Link
                 href={`/dashboard/tickets?server=${orderId}`}

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ChevronDown,
   Database,
+  Flame,
   FolderOpen,
   Gamepad2,
   Gauge,
@@ -104,14 +105,25 @@ export function ServerSidebar({
 
   return (
     <aside className="w-full shrink-0 lg:sticky lg:top-6 lg:w-[280px] lg:self-start">
-      <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-night-100">
+      <div className="overflow-hidden rounded-[24px] border border-white/[0.08] bg-[linear-gradient(180deg,rgba(12,18,32,0.96),rgba(9,13,24,0.94))] shadow-[0_24px_80px_rgba(2,6,23,0.38)]">
         <div
           className={cn(
-            "h-[3px] w-full",
+            "h-[4px] w-full",
             running ? "bg-success" : state === "starting" || state === "stopping" ? "bg-warning" : "bg-white/10",
           )}
         />
         <div className="border-b border-white/[0.06] p-4">
+          <div className="mb-3 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-steel-faint">Server Control</p>
+              <p className="mt-1 text-sm font-semibold text-white">
+                {running ? "Realtime management ready" : "Waiting for power-on"}
+              </p>
+            </div>
+            <div className={cn("rounded-xl p-2", isRust ? "bg-danger/10 text-danger" : "bg-hyper-500/10 text-hyper-300")}>
+              <Flame className="h-4 w-4" />
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <span
               className={cn(
@@ -178,13 +190,13 @@ export function ServerSidebar({
                   key={item.path}
                   href={href}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                    "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors",
                     active
                       ? cn(
-                          "bg-hyper-500/15 text-hyper-300 ring-1 ring-inset ring-hyper-400/30",
-                          isRust && "bg-danger/10 text-danger ring-danger/30",
+                          "border-hyper-400/25 bg-hyper-500/15 text-hyper-300 ring-1 ring-inset ring-hyper-400/30",
+                          isRust && "border-danger/25 bg-danger/10 text-danger ring-danger/30",
                         )
-                      : "text-steel-dim hover:bg-white/[0.05] hover:text-white",
+                      : "border-transparent text-steel-dim hover:border-white/10 hover:bg-white/[0.05] hover:text-white",
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -198,13 +210,13 @@ export function ServerSidebar({
                 <Link
                   href={href}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                    "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors",
                     expanded
                       ? cn(
-                          "bg-hyper-500/15 text-hyper-300 ring-1 ring-inset ring-hyper-400/30",
-                          isRust && "bg-danger/10 text-danger ring-danger/30",
+                          "border-hyper-400/25 bg-hyper-500/15 text-hyper-300 ring-1 ring-inset ring-hyper-400/30",
+                          isRust && "border-danger/25 bg-danger/10 text-danger ring-danger/30",
                         )
-                      : "text-steel-dim hover:bg-white/[0.05] hover:text-white",
+                      : "border-transparent text-steel-dim hover:border-white/10 hover:bg-white/[0.05] hover:text-white",
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -227,7 +239,7 @@ export function ServerSidebar({
                         className={cn(
                           "block rounded-lg px-3 py-2 text-sm transition-colors",
                           childActive
-                            ? "text-hyper-300"
+                            ? "bg-white/[0.04] text-hyper-300"
                             : "text-steel-dim hover:bg-white/[0.05] hover:text-white",
                         )}
                       >

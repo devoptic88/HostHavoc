@@ -55,7 +55,8 @@ export default async function ServerLayout({
   }
 
   return (
-    <div className="w-full">
+    <div className="relative w-full">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-40 rounded-[28px] bg-[radial-gradient(circle_at_top_left,rgba(47,107,255,0.18),transparent_40%),radial-gradient(circle_at_top_right,rgba(56,189,248,0.10),transparent_32%)]" />
       <ServerTopbar
         orderId={order.id}
         name={order.serverName}
@@ -71,7 +72,7 @@ export default async function ServerLayout({
           profile={order.rustPendingReinstallProfile as "vanilla" | "oxide" | "carbon" | "staging"}
         />
       )}
-      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="relative flex flex-col gap-6 lg:flex-row">
         <ServerSidebar orderId={order.id} gameSlug={order.plan.gameSlug} />
         <div className="min-w-0 flex-1">{children}</div>
       </div>
