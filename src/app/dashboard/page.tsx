@@ -93,6 +93,94 @@ export default async function DashboardPage() {
     .reduce((sum, order) => sum + Number(order.plan.priceMonthly), 0);
   const spotlightGames = GAMES.filter((game) => game.categories.includes("popular")).slice(0, 5);
   const firstName = session!.user.name.split(" ")[0];
+  const featuredServerCard = featuredOrder
+    ? (() => {
+        const order = featuredOrder;
+        const game = GAMES.find((entry) => entry.slug === order.plan.gameSlug);
+        const manageable = order.productType === "GAME_SERVER" && order.pteroServerIdentifier;
+        const liveStatus = liveStatuses.get(order.id);
+        const displayStatus =
+          liveStatus ??
+          (orderStatusMap[order.status] as LiveDashboardStatus | undefined) ??
+          "offline";
+        const liveMessage = liveStatusMessage(displayStatus);
+
+        return (
+          <Link href={manageable ? `/dashboard/servers/${order.id}` : "/dashboard"} className="block">
+            <Card glow className="overflow-hidden border-white/10 bg-night-100/95">
+              <div className="relative min-h-[360px]">
+                {game && (
+                  <>
+                    <Image
+                      src={gameHero(game.slug)}
+                      alt={game.name}
+                      fill
+                      className="object-cover opacity-45"
+                      sizes="(min-width: 1280px) 900px, 100vw"
+                    />
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background: `linear-gradient(120deg, ${game.accent}55 0%, rgba(5,7,13,0.25) 22%, rgba(5,7,13,0.92) 70%), linear-gradient(180deg, rgba(5,7,13,0.18) 0%, rgba(5,7,13,0.92) 100%)`,
+                      }}
+                    />
+                  </>
+                )}
+                <div className="relative flex h-full min-h-[360px] flex-col justify-between p-6 sm:p-8">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <Badge tone="blue">{game?.name ?? order.plan.name}</Badge>
+                        {game?.badge ? <Badge tone="violet">{game.badge}</Badge> : null}
+                      </div>
+                      <h3 className="max-w-2xl font-display text-3xl font-extrabold text-white sm:text-4xl">
+                        {order.serverName}
+                      </h3>
+                      <p className="mt-3 max-w-xl text-sm leading-6 text-steel">
+                        {game?.tagline ?? order.plan.name}
+                      </p>
+                    </div>
+                    <StatusBadge status={displayStatus} />
+                  </div>
+
+                  <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Plan</p>
+                        <p className="mt-1 font-display text-xl font-bold text-white">{order.plan.name}</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Billing</p>
+                        <p className="mt-1 font-display text-xl font-bold text-white">
+                          {formatMoney(Number(order.plan.priceMonthly))}/mo
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Provisioned</p>
+                        <p className="mt-1 text-sm font-semibold text-white">{formatDate(order.createdAt)}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <ButtonLink href={manageable ? `/dashboard/servers/${order.id}` : "/dashboard"} size="sm">
+                        Manage server <ArrowRight className="h-4 w-4" />
+                      </ButtonLink>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-steel backdrop-blur-sm">
+                        {order.status === "GRACE_PERIOD" && order.deleteAfterAt
+                          ? `Suspended in grace period. Scheduled for deletion ${formatDate(order.deleteAfterAt)}.`
+                          : liveMessage ??
+                            (order.status === "FAILED" && order.errorMessage
+                              ? normalizePterodactylMessage(order.errorMessage)
+                              : "Open the server dashboard for console, files, backups, and settings.")}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </Link>
+        );
+      })()
+    : null;
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -130,40 +218,42 @@ export default async function DashboardPage() {
       </div>
 
       <div className="mb-8 grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_360px]">
-        <Card className="overflow-hidden border-hyper-500/20 bg-[linear-gradient(135deg,rgba(13,19,32,0.96),rgba(9,13,24,0.92))]">
-          <CardBody className="relative overflow-hidden px-6 py-7 sm:px-8">
-            <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-hyper-500/20 blur-3xl" />
-            <div className="pointer-events-none absolute bottom-0 left-1/3 h-40 w-40 rounded-full bg-volt/10 blur-3xl" />
-            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-2xl">
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-hyper-400/20 bg-hyper-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-hyper-200">
-                  <Zap className="h-3.5 w-3.5" />
-                  Command Center
+        {featuredServerCard ?? (
+          <Card className="overflow-hidden border-hyper-500/20 bg-[linear-gradient(135deg,rgba(13,19,32,0.96),rgba(9,13,24,0.92))]">
+            <CardBody className="relative overflow-hidden px-6 py-7 sm:px-8">
+              <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-hyper-500/20 blur-3xl" />
+              <div className="pointer-events-none absolute bottom-0 left-1/3 h-40 w-40 rounded-full bg-volt/10 blur-3xl" />
+              <div className="relative flex h-full flex-col justify-between gap-6">
+                <div className="max-w-2xl">
+                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-hyper-400/20 bg-hyper-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-hyper-200">
+                    <Zap className="h-3.5 w-3.5" />
+                    Account Snapshot
+                  </div>
+                  <h1 className="font-display text-3xl font-extrabold italic text-white sm:text-4xl">
+                    Your dashboard, <span className="text-gradient-hyper">{firstName}</span>
+                  </h1>
+                  <p className="mt-3 max-w-xl text-sm leading-6 text-steel-dim sm:text-base">
+                    Servers, billing, and support stay one click away while you get your next deployment ready.
+                  </p>
                 </div>
-                <h1 className="font-display text-3xl font-extrabold italic text-white sm:text-4xl">
-                  Welcome back, <span className="text-gradient-hyper">{firstName}</span>
-                </h1>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-steel-dim sm:text-base">
-                  Your servers, billing, and support all live here. We surfaced the most important actions first so the dashboard feels faster and more alive.
-                </p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Servers</p>
+                    <p className="mt-1 font-display text-2xl font-bold text-white">{activeGameServers.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Open Tickets</p>
+                    <p className="mt-1 font-display text-2xl font-bold text-white">{openTickets}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Monthly Spend</p>
+                    <p className="mt-1 font-display text-2xl font-bold text-white">{formatMoney(activeSpend)}</p>
+                  </div>
+                </div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Servers</p>
-                  <p className="mt-1 font-display text-2xl font-bold text-white">{activeGameServers.length}</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Open Tickets</p>
-                  <p className="mt-1 font-display text-2xl font-bold text-white">{openTickets}</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Monthly Spend</p>
-                  <p className="mt-1 font-display text-2xl font-bold text-white">{formatMoney(activeSpend)}</p>
-                </div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
+            </CardBody>
+          </Card>
+        )}
 
         <Card className="border-white/10 bg-[linear-gradient(180deg,rgba(12,18,32,0.96),rgba(9,13,24,0.9))]">
           <CardBody className="flex h-full flex-col justify-between">
@@ -200,17 +290,19 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h2 className="font-display text-2xl font-extrabold italic text-white">
-            Your <span className="text-gradient-hyper">fleet</span>
-          </h2>
-          <p className="mt-1 text-sm text-steel-dim">Featured control cards for your active services.</p>
+      {otherOrders.length > 0 && (
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h2 className="font-display text-2xl font-extrabold italic text-white">
+              Your <span className="text-gradient-hyper">fleet</span>
+            </h2>
+            <p className="mt-1 text-sm text-steel-dim">Control cards for your remaining active services.</p>
+          </div>
+          <ButtonLink href="/games" size="sm">
+            <Plus className="h-4 w-4" /> New server
+          </ButtonLink>
         </div>
-        <ButtonLink href="/games" size="sm">
-          <Plus className="h-4 w-4" /> New server
-        </ButtonLink>
-      </div>
+      )}
 
       {orders.length === 0 ? (
         <Card className="overflow-hidden border-hyper-500/20 bg-[linear-gradient(180deg,rgba(12,18,32,0.96),rgba(7,10,18,0.92))]">
@@ -229,96 +321,6 @@ export default async function DashboardPage() {
       ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
           <div className="space-y-4">
-            {featuredOrder && (() => {
-              const order = featuredOrder;
-              const game = GAMES.find((entry) => entry.slug === order.plan.gameSlug);
-              const manageable = order.productType === "GAME_SERVER" && order.pteroServerIdentifier;
-              const liveStatus = liveStatuses.get(order.id);
-              const displayStatus =
-                liveStatus ??
-                (orderStatusMap[order.status] as LiveDashboardStatus | undefined) ??
-                "offline";
-              const liveMessage = liveStatusMessage(displayStatus);
-
-              return (
-                <div>
-                  <p className="mb-3 text-[11px] uppercase tracking-[0.24em] text-steel-faint">Featured Server</p>
-                  <Link href={manageable ? `/dashboard/servers/${order.id}` : "/dashboard"} className="block">
-                    <Card glow className="overflow-hidden border-white/10 bg-night-100/95">
-                      <div className="relative min-h-[360px]">
-                        {game && (
-                          <>
-                            <Image
-                              src={gameHero(game.slug)}
-                              alt={game.name}
-                              fill
-                              className="object-cover opacity-45"
-                              sizes="(min-width: 1280px) 900px, 100vw"
-                            />
-                            <div
-                              className="absolute inset-0"
-                              style={{
-                                background: `linear-gradient(120deg, ${game.accent}55 0%, rgba(5,7,13,0.25) 22%, rgba(5,7,13,0.92) 70%), linear-gradient(180deg, rgba(5,7,13,0.18) 0%, rgba(5,7,13,0.92) 100%)`,
-                              }}
-                            />
-                          </>
-                        )}
-                        <div className="relative flex h-full min-h-[360px] flex-col justify-between p-6 sm:p-8">
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="mb-3 flex flex-wrap items-center gap-2">
-                                <Badge tone="blue">{game?.name ?? order.plan.name}</Badge>
-                                {game?.badge ? <Badge tone="violet">{game.badge}</Badge> : null}
-                              </div>
-                              <h3 className="max-w-2xl font-display text-3xl font-extrabold text-white sm:text-4xl">
-                                {order.serverName}
-                              </h3>
-                              <p className="mt-3 max-w-xl text-sm leading-6 text-steel">
-                                {game?.tagline ?? order.plan.name}
-                              </p>
-                            </div>
-                            <StatusBadge status={displayStatus} />
-                          </div>
-
-                          <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
-                            <div className="grid gap-4 sm:grid-cols-3">
-                              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
-                                <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Plan</p>
-                                <p className="mt-1 font-display text-xl font-bold text-white">{order.plan.name}</p>
-                              </div>
-                              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
-                                <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Billing</p>
-                                <p className="mt-1 font-display text-xl font-bold text-white">
-                                  {formatMoney(Number(order.plan.priceMonthly))}/mo
-                                </p>
-                              </div>
-                              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
-                                <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Provisioned</p>
-                                <p className="mt-1 text-sm font-semibold text-white">{formatDate(order.createdAt)}</p>
-                              </div>
-                            </div>
-                            <div className="flex flex-col gap-3">
-                              <ButtonLink href={manageable ? `/dashboard/servers/${order.id}` : "/dashboard"} size="sm">
-                                Manage server <ArrowRight className="h-4 w-4" />
-                              </ButtonLink>
-                              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-steel backdrop-blur-sm">
-                                {order.status === "GRACE_PERIOD" && order.deleteAfterAt
-                                  ? `Suspended in grace period. Scheduled for deletion ${formatDate(order.deleteAfterAt)}.`
-                                  : liveMessage ??
-                                    (order.status === "FAILED" && order.errorMessage
-                                      ? normalizePterodactylMessage(order.errorMessage)
-                                      : "Open the server dashboard for console, files, backups, and settings.")}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  </Link>
-                </div>
-              );
-            })()}
-
             {otherOrders.length > 0 && (
               <div>
                 <p className="mb-3 text-[11px] uppercase tracking-[0.24em] text-steel-faint">More Servers</p>
