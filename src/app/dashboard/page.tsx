@@ -6,6 +6,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { GAMES } from "@/content/games";
+import { pteroClient } from "@/lib/pterodactyl";
 import { normalizePterodactylMessage } from "@/lib/pterodactyl/errorMessages";
 import { formatDate, formatMoney } from "@/lib/utils";
 
@@ -22,6 +23,23 @@ const orderStatusMap: Record<string, string> = {
   MANUAL: "installing",
 };
 
+type LiveDashboardStatus = "installing" | "starting" | "running" | "stopping" | "offline" | "suspended" | "install_failed";
+
+function liveStatusMessage(status: LiveDashboardStatus) {
+  switch (status) {
+    case "installing":
+      return "Server installing";
+    case "starting":
+      return "Server starting";
+    case "running":
+      return "Server running";
+    case "stopping":
+      return "Server stopping";
+    default:
+      return null;
+  }
+}
+
 export default async function DashboardPage() {
   const session = await auth();
   const orders = await db.order.findMany({
@@ -29,6 +47,29 @@ export default async function DashboardPage() {
     include: { plan: true },
     orderBy: { createdAt: "desc" },
   });
+  const liveStatuses = new Map<string, LiveDashboardStatus>();
+
+  await Promise.all(
+    orders
+      .filter((order) => order.productType === "GAME_SERVER" && order.pteroServerIdentifier)
+      .map(async (order) => {
+        try {
+          const server = await pteroClient.getClientServer(order.pteroServerIdentifier!);
+          if (server.attributes.is_suspended) {
+            liveStatuses.set(order.id, "suspended");
+            return;
+          }
+          if (server.attributes.is_installing) {
+            liveStatuses.set(order.id, "installing");
+            return;
+          }
+          const resources = await pteroClient.getResources(order.pteroServerIdentifier!);
+          liveStatuses.set(order.id, resources.attributes.current_state);
+        } catch {
+          if (order.status === "FAILED") liveStatuses.set(order.id, "install_failed");
+        }
+      }),
+  );
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -66,6 +107,9 @@ export default async function DashboardPage() {
           {orders.map((order) => {
             const game = GAMES.find((entry) => entry.slug === order.plan.gameSlug);
             const manageable = order.productType === "GAME_SERVER" && order.pteroServerIdentifier;
+            const liveStatus = liveStatuses.get(order.id);
+            const displayStatus = liveStatus ?? (orderStatusMap[order.status] as LiveDashboardStatus | undefined) ?? "offline";
+            const liveMessage = liveStatusMessage(displayStatus);
             const inner = (
               <Card glow={Boolean(manageable)}>
                 <CardBody className="flex flex-wrap items-center gap-4">
@@ -89,7 +133,12 @@ export default async function DashboardPage() {
                         Suspended during grace period. Final deletion is scheduled for {formatDate(order.deleteAfterAt)}.
                       </p>
                     )}
-                    {order.status === "FAILED" && order.errorMessage && (
+                    {liveMessage ? (
+                      <p className="mt-1 line-clamp-2 text-xs text-steel">
+                        {liveMessage}
+                      </p>
+                    ) : null}
+                    {!liveMessage && order.status === "FAILED" && order.errorMessage && (
                       <p className="mt-1 line-clamp-2 text-xs text-danger">
                         {normalizePterodactylMessage(order.errorMessage)}
                       </p>
@@ -101,7 +150,7 @@ export default async function DashboardPage() {
                         {order.status === "MANUAL" ? "Being set up" : order.status}
                       </Badge>
                     ) : (
-                      <StatusBadge status={orderStatusMap[order.status] ?? "offline"} />
+                      <StatusBadge status={displayStatus} />
                     )}
                     {manageable && (
                       <span className="text-sm font-semibold text-hyper-300">
