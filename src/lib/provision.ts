@@ -147,6 +147,16 @@ function plusDays(date: Date, days: number) {
   return next;
 }
 
+function shellEscapeRustText(value: string) {
+  return `'${value.replace(/'/g, `'\"'\"'`)}'`;
+}
+
+function isTransientInstallLock(err: unknown) {
+  if (!(err instanceof PterodactylError)) return false;
+  const message = formatPterodactylError(err);
+  return /still finishing an install or reinstall/i.test(message);
+}
+
 function desiredRustValue(
   variable: ClientEggVariable,
   order: ProvisionableOrder,
@@ -167,7 +177,7 @@ function desiredRustValue(
     text.includes("server title") ||
     text.includes("hostname")
   ) {
-    return order.serverName;
+    return shellEscapeRustText(order.serverName);
   }
 
   if (text.includes("query") && text.includes("port")) {
@@ -183,7 +193,7 @@ function desiredRustValue(
   }
 
   if (text.includes("app") && text.includes("port")) {
-    return app ? String(app.port) : "-1";
+    return app ? String(app.port) : game ? String(game.port) : null;
   }
 
   if (
@@ -196,7 +206,7 @@ function desiredRustValue(
   }
 
   if (text.includes("description") && !(variable.server_value || variable.default_value)) {
-    return "Hosted on HyperNode";
+    return shellEscapeRustText("Hosted on HyperNode");
   }
 
   return null;
@@ -222,7 +232,7 @@ function desiredRustEnvironmentValue(
     text.includes("server title") ||
     text.includes("hostname")
   ) {
-    return order.serverName;
+    return shellEscapeRustText(order.serverName);
   }
 
   if (text.includes("query") && text.includes("port")) {
@@ -238,7 +248,7 @@ function desiredRustEnvironmentValue(
   }
 
   if (text.includes("app") && text.includes("port")) {
-    return app ? String(app.port) : "-1";
+    return app ? String(app.port) : game ? String(game.port) : null;
   }
 
   if (
@@ -251,7 +261,7 @@ function desiredRustEnvironmentValue(
   }
 
   if (text.includes("description")) {
-    return "Hosted on HyperNode";
+    return shellEscapeRustText("Hosted on HyperNode");
   }
 
   return null;
@@ -491,7 +501,12 @@ export async function provisionOrder(orderId: string): Promise<void> {
         recoveredRustAllocations.length > 0 ? recoveredRustAllocations : undefined,
       );
       if (plan.gameSlug === "rust") {
-        await applyRustProvisioningDefaults(order, recoverable.identifier, recoveredRustAllocations);
+        try {
+          await applyRustProvisioningDefaults(order, recoverable.identifier, recoveredRustAllocations);
+        } catch (err) {
+          if (!isTransientInstallLock(err)) throw err;
+          console.warn(`Rust provisioning defaults delayed for recovered order ${order.id}: ${formatPterodactylError(err)}`);
+        }
       }
       return;
     }
@@ -588,7 +603,12 @@ export async function provisionOrder(orderId: string): Promise<void> {
     );
 
     if (plan.gameSlug === "rust") {
-      await applyRustProvisioningDefaults(order, attrs.identifier, reservedRustAllocations);
+      try {
+        await applyRustProvisioningDefaults(order, attrs.identifier, reservedRustAllocations);
+      } catch (err) {
+        if (!isTransientInstallLock(err)) throw err;
+        console.warn(`Rust provisioning defaults delayed for order ${order.id}: ${formatPterodactylError(err)}`);
+      }
     }
 
     try {

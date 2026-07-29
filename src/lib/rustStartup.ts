@@ -15,7 +15,15 @@ function variableText(variable: RustStartupVariable) {
 }
 
 function currentValue(variable: RustStartupVariable) {
-  return (variable.server_value || variable.default_value || "").trim();
+  return decodeShellQuotedValue((variable.server_value || variable.default_value || "").trim());
+}
+
+function decodeShellQuotedValue(value: string) {
+  if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
+    return value.slice(1, -1).replace(/'\"'\"'/g, "'");
+  }
+
+  return value;
 }
 
 function quoted(value: string) {
