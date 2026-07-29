@@ -1,5 +1,6 @@
 "use client";
 
+import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -7,9 +8,12 @@ import {
   Cloud,
   Clock3,
   Cog,
+  Dice5,
   Globe,
   Loader2,
   Lock,
+  Minus,
+  Plus,
   Save,
   Shield,
   SlidersHorizontal,
@@ -17,7 +21,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Input, Select } from "@/components/ui/Input";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
 
 interface Variable {
@@ -27,6 +31,7 @@ interface Variable {
   server_value: string;
   default_value: string;
   is_editable: boolean;
+  rules: string;
 }
 
 type RustRuntimeProfile = "vanilla" | "staging" | "oxide" | "carbon";
@@ -56,6 +61,378 @@ function isRustBranchVariable(variable: Variable, isRust: boolean) {
 
 function variableValue(variable: Variable) {
   return (variable.server_value || variable.default_value || "vanilla").trim().toLowerCase();
+}
+
+function variableText(variable: Variable) {
+  return `${variable.name} ${variable.description} ${variable.env_variable}`.toUpperCase();
+}
+
+function isRustMaxPlayersVariable(variable: Variable, isRust: boolean) {
+  if (!isRust) return false;
+  const text = variableText(variable);
+  return text.includes("MAXPLAYERS") || text.includes("MAX PLAYERS");
+}
+
+function rustBasicFieldMeta(variable: Variable) {
+  const text = variableText(variable);
+  const env = variable.env_variable.toUpperCase();
+
+  if (
+    env === "HOSTNAME" ||
+    text.includes("SERVER NAME") ||
+    text.includes("SERVER TITLE") ||
+    text.includes("HOSTNAME")
+  ) {
+    return {
+      order: 0,
+      label: "Server Name",
+      helper: "Displayed in the server list & when someone is joining the server",
+    };
+  }
+
+  if (env === "DESCRIPTION" || text.includes("DESCRIPTION")) {
+    return {
+      order: 1,
+      label: "Description",
+      helper: "Appears under Server Name in listing",
+    };
+  }
+
+  if (
+    env === "HEADERIMAGE" ||
+    env === "SERVER_IMG" ||
+    text.includes("HEADERIMAGE") ||
+    text.includes("HEADER IMAGE") ||
+    text.includes("SERVER IMAGE")
+  ) {
+    return {
+      order: 2,
+      label: "Server Image URL",
+      helper: "512 x 256 image displayed when joining the server",
+    };
+  }
+
+  if (isRustMaxPlayersVariable(variable, true)) {
+    return {
+      order: 3,
+      label: "Max Players",
+      helper: "Limit the number of players in the server - more players may require more resources",
+    };
+  }
+
+  if (env === "URL" || (text.includes("URL") && !text.includes("MAP") && !text.includes("HEADER"))) {
+    return {
+      order: 4,
+      label: "Webpage URL",
+      helper: "A button to this website will be displayed in the server list",
+    };
+  }
+
+  return {
+    order: 100,
+    label: variable.name,
+    helper: variable.description || variable.env_variable,
+  };
+}
+
+function maxPlayersBounds(rawValue: string) {
+  const parsed = Number.parseInt(rawValue, 10);
+  const safeValue = Number.isFinite(parsed) ? parsed : 50;
+  const clampedValue = Math.min(500, Math.max(1, safeValue));
+
+  return { min: 1, max: 500, value: clampedValue };
+}
+
+function ruleNumber(rule: string, key: "min" | "max") {
+  const match = rule.match(new RegExp(`${key}:(-?\\d+(?:\\.\\d+)?)`));
+  return match ? Number.parseFloat(match[1]) : null;
+}
+
+function currentFieldValue(variable: Variable, edits: Record<string, string>) {
+  return edits[variable.env_variable] ?? variable.server_value ?? variable.default_value ?? "";
+}
+
+function parseNumericField(variable: Variable, edits: Record<string, string>) {
+  const rawValue = currentFieldValue(variable, edits);
+  const parsed = Number.parseFloat(rawValue);
+  const ruleText = variable.rules || "";
+  const min = ruleNumber(ruleText, "min");
+  const max = ruleNumber(ruleText, "max");
+  const integerLike = /integer|numeric/.test(ruleText) && !/regex|string/.test(ruleText);
+  const step = integerLike ? 1 : 0.1;
+  const fallback = Number.parseFloat(variable.default_value || "0");
+  const safeValue = Number.isFinite(parsed) ? parsed : Number.isFinite(fallback) ? fallback : 0;
+  const clampedMin = min ?? 0;
+  const clampedMax = max ?? Math.max(clampedMin + step, safeValue || 10);
+  const clampedValue = Math.min(clampedMax, Math.max(clampedMin, safeValue));
+
+  return {
+    min: clampedMin,
+    max: clampedMax,
+    step,
+    value: clampedValue,
+    display: integerLike ? String(Math.round(clampedValue)) : String(clampedValue),
+    integerLike,
+  };
+}
+
+function isBooleanVariable(variable: Variable) {
+  return /boolean|bool|true|false|0|1|yes|no/i.test(variable.rules || "");
+}
+
+function booleanOptions(variable: Variable) {
+  const sample = currentFieldValue(variable, {});
+  if (/^(true|false)$/i.test(sample)) return { on: "true", off: "false" };
+  if (/^(yes|no)$/i.test(sample)) return { on: "yes", off: "no" };
+  return { on: "1", off: "0" };
+}
+
+function isTruthyValue(value: string) {
+  return /^(1|true|yes|on)$/i.test(value.trim());
+}
+
+function worldFieldMeta(variable: Variable) {
+  const text = variableText(variable);
+  const env = variable.env_variable.toUpperCase();
+
+  const definitions = [
+    {
+      match: () => text.includes("IDENTITY") || text.includes("DATA FOLDER"),
+      label: "Data Folder",
+      kind: "text",
+      order: 0,
+    },
+    {
+      match: () => text.includes("LEVEL") || text.includes("MAP TYPE"),
+      label: "World Type",
+      kind: "text",
+      order: 1,
+    },
+    {
+      match: () => text.includes("SEED"),
+      label: "World Seed",
+      kind: "seed",
+      order: 2,
+    },
+    {
+      match: () => text.includes("WORLDSIZE") || text.includes("WORLD SIZE"),
+      label: "World Size",
+      kind: "slider",
+      order: 3,
+    },
+    {
+      match: () => text.includes("RADIATION"),
+      label: "Radiation",
+      kind: "toggle",
+      order: 4,
+    },
+    {
+      match: () => text.includes("SAVEINTERVAL") || text.includes("SAVE INTERVAL"),
+      label: "Save Interval",
+      kind: "slider",
+      order: 5,
+    },
+    {
+      match: () => text.includes("ANIMAL") && text.includes("POPULATION"),
+      label: "Animal Populations",
+      kind: "slider",
+      order: 6,
+    },
+    {
+      match: () => text.includes("HORSE") && text.includes("POPULATION"),
+      label: "Wild Horse Population",
+      kind: "slider",
+      order: 7,
+    },
+    {
+      match: () => text.includes("WOLF") && text.includes("POPULATION"),
+      label: "Wolf Population",
+      kind: "slider",
+      order: 8,
+    },
+    {
+      match: () => text.includes("CHICKEN") && text.includes("POPULATION"),
+      label: "Chicken Population",
+      kind: "slider",
+      order: 9,
+    },
+    {
+      match: () => text.includes("BOAR") && text.includes("POPULATION"),
+      label: "Boar Population",
+      kind: "slider",
+      order: 10,
+    },
+    {
+      match: () => text.includes("STAG") && text.includes("POPULATION"),
+      label: "Stag Population",
+      kind: "slider",
+      order: 11,
+    },
+    {
+      match: () => text.includes("BEAR") && text.includes("POPULATION"),
+      label: "Bear Population",
+      kind: "slider",
+      order: 12,
+    },
+    {
+      match: () => text.includes("VEHICLE") && text.includes("POPULATION"),
+      label: "Vehicle Populations",
+      kind: "slider",
+      order: 13,
+    },
+    {
+      match: () => text.includes("HOT AIR BALLOON") && text.includes("POPULATION"),
+      label: "Hot Air Balloon Population",
+      kind: "slider",
+      order: 14,
+    },
+    {
+      match: () =>
+        (text.includes("MINI") || env.includes("MINI")) &&
+        text.includes("COPTER") &&
+        text.includes("POPULATION"),
+      label: "Mini Copter Population",
+      kind: "slider",
+      order: 15,
+    },
+    {
+      match: () => text.includes("MODULAR") && text.includes("CAR") && text.includes("POPULATION"),
+      label: "Modular Car Population",
+      kind: "slider",
+      order: 16,
+    },
+    {
+      match: () => text.includes("MOTOR") && text.includes("ROWBOAT") && text.includes("POPULATION"),
+      label: "Motor Rowboat Population",
+      kind: "slider",
+      order: 17,
+    },
+    {
+      match: () => text.includes("RHIB") && text.includes("POPULATION"),
+      label: "RHIB Population",
+      kind: "slider",
+      order: 18,
+    },
+    {
+      match: () => text.includes("SCRAP") && text.includes("TRANSPORT") && text.includes("HELICOPTER") && text.includes("POPULATION"),
+      label: "Scrap Transport Helicopter Population",
+      kind: "slider",
+      order: 19,
+    },
+  ] as const;
+
+  const found = definitions.find((definition) => definition.match());
+  return {
+    label: found?.label ?? variable.name,
+    order: found?.order ?? 100,
+    kind:
+      found?.kind ??
+      (isBooleanVariable(variable) ? "toggle" : /population|size|interval/i.test(text) ? "slider" : "text"),
+    helper: variable.description || variable.env_variable,
+  };
+}
+
+function randomRustSeed() {
+  return String(Math.floor(Math.random() * 2147483647));
+}
+
+function weatherFieldMeta(variable: Variable) {
+  const text = variableText(variable);
+
+  const definitions = [
+    { match: () => text.includes("RAIN") && text.includes("WETNESS"), label: "Rain Wetness", order: 0 },
+    { match: () => text.includes("SNOW") && text.includes("WETNESS"), label: "Snow Wetness", order: 1 },
+    { match: () => text.includes("FOG") && text.includes("CHANCE"), label: "Fog Chance", order: 2 },
+    { match: () => text.includes("OVERCAST") && text.includes("CHANCE"), label: "Overcast Chance", order: 3 },
+    { match: () => text.includes("STORM") && text.includes("CHANCE"), label: "Storm Chance", order: 4 },
+    { match: () => text.includes("RAIN") && text.includes("CHANCE"), label: "Rain Chance", order: 5 },
+    { match: () => text.includes("WIND") && text.includes("CHANCE"), label: "Wind Chance", order: 6 },
+    { match: () => text.includes("THUNDER") && text.includes("CHANCE"), label: "Thunder Chance", order: 7 },
+    { match: () => text.includes("DUST") && text.includes("CHANCE"), label: "Dust Chance", order: 8 },
+    { match: () => text.includes("TEMPERATURE"), label: "Temperature", order: 50 },
+    { match: () => text.includes("HUMIDITY"), label: "Humidity", order: 51 },
+    { match: () => text.includes("CLOUD") && text.includes("COLOR"), label: "Cloud Coloring", order: 52 },
+    { match: () => text.includes("CLOUD") && text.includes("ATTENUATION"), label: "Cloud Attenuation", order: 53 },
+    { match: () => text.includes("CLOUD") && text.includes("SCATTER"), label: "Cloud Scattering", order: 54 },
+    { match: () => text.includes("CLOUD") && text.includes("BRIGHT"), label: "Cloud Brightness", order: 55 },
+    { match: () => text.includes("CLOUD"), label: "Cloud Coverage", order: 56 },
+    { match: () => text.includes("WIND"), label: "Wind", order: 57 },
+    { match: () => text.includes("FOG"), label: "Fog", order: 58 },
+    { match: () => text.includes("RAIN"), label: "Rain", order: 59 },
+    { match: () => text.includes("THUNDER"), label: "Thunder and Lightning", order: 60 },
+    { match: () => text.includes("DUST"), label: "Dust", order: 61 },
+  ] as const;
+
+  const found = definitions.find((definition) => definition.match());
+  const kind = isBooleanVariable(variable)
+    ? "toggle"
+    : /chance|wetness|humidity|temperature|cloud|wind|fog|rain|storm|snow|dust|thunder/i.test(text)
+      ? "slider"
+      : "text";
+
+  return {
+    label: found?.label ?? variable.name,
+    order: found?.order ?? 100,
+    kind,
+    helper: variable.description || variable.env_variable,
+  };
+}
+
+function decayFieldMeta(variable: Variable) {
+  const text = variableText(variable);
+
+  const definitions = [
+    { match: () => text.includes("DECAY SCALE"), label: "Decay Scale", order: 0, group: null },
+    { match: () => text.includes("DECAY DELAY"), label: "Decay Delay", order: 10, group: "Delay for Building Decay" },
+    { match: () => text.includes("UPKEEP"), label: variable.name, order: 20, group: "Upkeep" },
+    { match: () => text.includes("BUILDING") && text.includes("DECAY"), label: variable.name, order: 30, group: "Building Decay" },
+    { match: () => text.includes("TC") || text.includes("TOOL CUPBOARD"), label: variable.name, order: 40, group: "Tool Cupboard" },
+    { match: () => text.includes("PVE") || text.includes("PVP"), label: variable.name, order: 50, group: "Gameplay" },
+    { match: () => text.includes("GATHER") || text.includes("XP") || text.includes("CRAFT"), label: variable.name, order: 60, group: "Gameplay" },
+  ] as const;
+
+  const found = definitions.find((definition) => definition.match());
+  const kind = isBooleanVariable(variable)
+    ? "toggle"
+    : /decay|upkeep|hours|time|delay|scale|multiplier|radius|cost|damage|rate/i.test(text)
+      ? "slider"
+      : "text";
+
+  return {
+    label: found?.label ?? variable.name,
+    order: found?.order ?? 100,
+    group: found?.group ?? null,
+    kind,
+    helper: variable.description || variable.env_variable,
+  };
+}
+
+function advancedFieldMeta(variable: Variable) {
+  const text = variableText(variable);
+
+  const definitions = [
+    { match: () => text.includes("TICKRATE"), label: "Tickrate", order: 0, kind: "slider", group: null },
+    { match: () => text.includes("RCON") && text.includes("PASSWORD"), label: "RCON Password", order: 1, kind: "password", group: null },
+    { match: () => text.includes("RCON") && text.includes("WEB"), label: "Enable Web RCON", order: 2, kind: "toggle", group: null },
+    { match: () => text.includes("SECURE BOOT") || text.includes("TPM"), label: "Secure Boot Enforcement", order: 3, kind: "toggle", group: null },
+    { match: () => text.includes("CONVAR") || text.includes("ARGUMENT"), label: "ConVars", order: 50, kind: "textarea", group: "Custom Server Arguments" },
+  ] as const;
+
+  const found = definitions.find((definition) => definition.match());
+  const kind = found?.kind ??
+    (isBooleanVariable(variable)
+      ? "toggle"
+      : /tick|port|rate|query|rcon|players|saveinterval|interval/i.test(text)
+        ? "slider"
+        : "text");
+
+  return {
+    label: found?.label ?? variable.name,
+    order: found?.order ?? 100,
+    group: found?.group ?? null,
+    kind,
+    helper: variable.description || variable.env_variable,
+  };
 }
 
 function parseRuntimeOptions() {
@@ -349,7 +726,13 @@ export function Startup({
         ) : (
           <div className="space-y-5 px-5 py-5">
             {visibleSections.map((section) => (
-              <section key={section.id} className="rounded-[22px] border border-white/[0.06] bg-white/[0.02]">
+              <section
+                key={section.id}
+                className={cn(
+                  "rounded-[22px] border border-white/[0.06] bg-white/[0.02]",
+                  isRust && section.id === "basic" && "bg-[#132947]",
+                )}
+              >
                 <div className="border-b border-white/[0.06] px-4 py-3">
                   <div className="flex items-center gap-2 text-white">
                     <section.icon className="h-4 w-4 text-hyper-300" />
@@ -360,86 +743,140 @@ export function Startup({
                   </p>
                 </div>
 
-                <ul className="divide-y divide-white/[0.04]">
-                  {section.variables
-                    .filter((v) => !hiddenRuntimeEnvVars.has(v.env_variable))
-                    .map((v) => (
-                    <li key={v.env_variable} className="grid gap-3 px-4 py-4 sm:grid-cols-[1fr_320px]">
-                      {(() => {
-                        const managedPort = isRustManagedPortVariable(v, isRust);
-                        const runtimeField = Boolean(
-                          isRust &&
-                          runtimeVariable &&
-                          v.env_variable === runtimeVariable.env_variable,
-                        );
-                        const canEdit = v.is_editable && !managedPort;
-                        const controlValue = runtimeField
-                          ? selectedRuntime
-                          : edits[v.env_variable] ?? v.server_value ?? "";
+                {isRust && section.id === "basic" ? (
+                  <div className="space-y-8 px-4 py-5">
+                    {section.variables
+                      .filter((v) => !hiddenRuntimeEnvVars.has(v.env_variable))
+                      .sort((a, b) => rustBasicFieldMeta(a).order - rustBasicFieldMeta(b).order)
+                      .map((v) => (
+                        <RustBasicField
+                          key={v.env_variable}
+                          variable={v}
+                          isRust={isRust}
+                          runtimeVariable={runtimeVariable}
+                          selectedRuntime={selectedRuntime}
+                          installedRuntime={installedRuntime}
+                          edits={edits}
+                          setEdits={setEdits}
+                        />
+                      ))}
+                  </div>
+                ) : isRust && section.id === "world" ? (
+                  <div className="space-y-8 px-4 py-5">
+                    {section.variables
+                      .filter((v) => !hiddenRuntimeEnvVars.has(v.env_variable))
+                      .sort((a, b) => worldFieldMeta(a).order - worldFieldMeta(b).order)
+                      .map((v) => (
+                        <RustWorldField
+                          key={v.env_variable}
+                          variable={v}
+                          edits={edits}
+                          setEdits={setEdits}
+                        />
+                      ))}
+                  </div>
+                ) : isRust && section.id === "weather" ? (
+                  <RustWeatherSection
+                    variables={section.variables.filter((v) => !hiddenRuntimeEnvVars.has(v.env_variable))}
+                    edits={edits}
+                    setEdits={setEdits}
+                  />
+                ) : isRust && section.id === "decay" ? (
+                  <RustMappedSection
+                    variables={section.variables.filter((v) => !hiddenRuntimeEnvVars.has(v.env_variable))}
+                    edits={edits}
+                    setEdits={setEdits}
+                    metaFor={decayFieldMeta}
+                  />
+                ) : isRust && section.id === "advanced" ? (
+                  <RustMappedSection
+                    variables={section.variables.filter((v) => !hiddenRuntimeEnvVars.has(v.env_variable))}
+                    edits={edits}
+                    setEdits={setEdits}
+                    metaFor={advancedFieldMeta}
+                  />
+                ) : (
+                  <ul className="divide-y divide-white/[0.04]">
+                    {section.variables
+                      .filter((v) => !hiddenRuntimeEnvVars.has(v.env_variable))
+                      .map((v) => (
+                        <li key={v.env_variable} className="grid gap-3 px-4 py-4 sm:grid-cols-[1fr_320px]">
+                          {(() => {
+                            const managedPort = isRustManagedPortVariable(v, isRust);
+                            const runtimeField = Boolean(
+                              isRust &&
+                              runtimeVariable &&
+                              v.env_variable === runtimeVariable.env_variable,
+                            );
+                            const canEdit = v.is_editable && !managedPort;
+                            const controlValue = runtimeField
+                              ? selectedRuntime
+                              : edits[v.env_variable] ?? v.server_value ?? "";
 
-                        return (
-                          <>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-white">{v.name}</p>
-                          <Badge tone={canEdit ? "blue" : "steel"}>
-                            {managedPort ? "Managed" : canEdit ? "Editable" : "Locked"}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-xs leading-relaxed text-steel-faint">
-                          {v.description || v.env_variable}
-                        </p>
-                        {managedPort ? (
-                          <p className="mt-2 text-xs text-warning">
-                            This port is assigned automatically by HyperNode during provisioning.
-                          </p>
-                        ) : null}
-                        {runtimeField && selectedRuntime !== installedRuntime ? (
-                          <p className="mt-2 text-xs text-warning">
-                            Saving this change will require a reinstall before the selected runtime profile is actually installed.
-                          </p>
-                        ) : null}
-                        <p className="mt-2 font-mono text-[11px] text-steel-dim">
-                          {v.env_variable}
-                        </p>
-                      </div>
+                            return (
+                              <>
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-sm font-semibold text-white">{v.name}</p>
+                                    <Badge tone={canEdit ? "blue" : "steel"}>
+                                      {managedPort ? "Managed" : canEdit ? "Editable" : "Locked"}
+                                    </Badge>
+                                  </div>
+                                  <p className="mt-1 text-xs leading-relaxed text-steel-faint">
+                                    {v.description || v.env_variable}
+                                  </p>
+                                  {managedPort ? (
+                                    <p className="mt-2 text-xs text-warning">
+                                      This port is assigned automatically by HyperNode during provisioning.
+                                    </p>
+                                  ) : null}
+                                  {runtimeField && selectedRuntime !== installedRuntime ? (
+                                    <p className="mt-2 text-xs text-warning">
+                                      Saving this change will require a reinstall before the selected runtime profile is actually installed.
+                                    </p>
+                                  ) : null}
+                                  <p className="mt-2 font-mono text-[11px] text-steel-dim">
+                                    {v.env_variable}
+                                  </p>
+                                </div>
 
-                      <div className="flex gap-2">
-                        {runtimeField ? (
-                          <Select
-                            value={controlValue}
-                            disabled={!canEdit}
-                            onChange={(e) =>
-                              setEdits((s) => ({ ...s, [v.env_variable]: e.target.value }))
-                            }
-                          >
-                            {parseRuntimeOptions().map((option) => (
-                              <option key={option} value={option}>
-                                {runtimeLabel(option)}
-                              </option>
-                            ))}
-                          </Select>
-                        ) : (
-                          <Input
-                            value={controlValue}
-                            disabled={!canEdit}
-                            onChange={(e) =>
-                              setEdits((s) => ({ ...s, [v.env_variable]: e.target.value }))
-                            }
-                          />
-                        )}
-                        {!canEdit ? (
-                          <div className="flex h-full w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-steel-faint">
-                            <Lock className="h-4 w-4" />
-                          </div>
-                        ) : null}
-                      </div>
-                          </>
-                        );
-                      })()}
-                    </li>
-                  ))}
-                </ul>
+                                <div className="flex gap-2">
+                                  {runtimeField ? (
+                                    <Select
+                                      value={controlValue}
+                                      disabled={!canEdit}
+                                      onChange={(e) =>
+                                        setEdits((s) => ({ ...s, [v.env_variable]: e.target.value }))
+                                      }
+                                    >
+                                      {parseRuntimeOptions().map((option) => (
+                                        <option key={option} value={option}>
+                                          {runtimeLabel(option)}
+                                        </option>
+                                      ))}
+                                    </Select>
+                                  ) : (
+                                    <Input
+                                      value={controlValue}
+                                      disabled={!canEdit}
+                                      onChange={(e) =>
+                                        setEdits((s) => ({ ...s, [v.env_variable]: e.target.value }))
+                                      }
+                                    />
+                                  )}
+                                  {!canEdit ? (
+                                    <div className="flex h-full w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-steel-faint">
+                                      <Lock className="h-4 w-4" />
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </li>
+                      ))}
+                  </ul>
+                )}
               </section>
             ))}
 
@@ -513,6 +950,597 @@ function groupVariables(vars: Variable[], isRust: boolean) {
         ]
       : []),
   ];
+}
+
+function RustBasicField({
+  variable,
+  isRust,
+  runtimeVariable,
+  selectedRuntime,
+  installedRuntime,
+  edits,
+  setEdits,
+}: {
+  variable: Variable;
+  isRust: boolean;
+  runtimeVariable: Variable | null;
+  selectedRuntime: RustRuntimeProfile;
+  installedRuntime: RustRuntimeProfile;
+  edits: Record<string, string>;
+  setEdits: Dispatch<SetStateAction<Record<string, string>>>;
+}) {
+  const managedPort = isRustManagedPortVariable(variable, isRust);
+  const runtimeField = Boolean(
+    isRust &&
+    runtimeVariable &&
+    variable.env_variable === runtimeVariable.env_variable,
+  );
+  const canEdit = variable.is_editable && !managedPort;
+  const controlValue = runtimeField
+    ? selectedRuntime
+    : edits[variable.env_variable] ?? variable.server_value ?? "";
+  const meta = rustBasicFieldMeta(variable);
+  const showSlider = isRustMaxPlayersVariable(variable, isRust) && !runtimeField;
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[15px] font-semibold text-white">{meta.label}</p>
+          <Badge tone={canEdit ? "blue" : "steel"}>
+            {managedPort ? "Managed" : canEdit ? "Editable" : "Locked"}
+          </Badge>
+        </div>
+        <p className="mt-2 text-sm text-steel">{meta.helper}</p>
+        {managedPort ? (
+          <p className="mt-2 text-xs text-warning">
+            This port is assigned automatically by HyperNode during provisioning.
+          </p>
+        ) : null}
+        {runtimeField && selectedRuntime !== installedRuntime ? (
+          <p className="mt-2 text-xs text-warning">
+            Saving this change will require a reinstall before the selected runtime profile is actually installed.
+          </p>
+        ) : null}
+      </div>
+
+      {runtimeField ? (
+        <Select
+          value={controlValue}
+          disabled={!canEdit}
+          onChange={(e) =>
+            setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
+          }
+          className="h-16 rounded-2xl border-white/15 bg-[#2a4364] px-4 text-base"
+        >
+          {parseRuntimeOptions().map((option) => (
+            <option key={option} value={option}>
+              {runtimeLabel(option)}
+            </option>
+          ))}
+        </Select>
+      ) : showSlider ? (
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_110px] md:items-center">
+          <input
+            type="range"
+            min={maxPlayersBounds(controlValue).min}
+            max={maxPlayersBounds(controlValue).max}
+            value={maxPlayersBounds(controlValue).value}
+            disabled={!canEdit}
+            onChange={(e) =>
+              setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
+            }
+            className="h-3 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-hyper-400 disabled:cursor-not-allowed"
+          />
+          <Input
+            type="number"
+            min={maxPlayersBounds(controlValue).min}
+            max={maxPlayersBounds(controlValue).max}
+            value={controlValue}
+            disabled={!canEdit}
+            onChange={(e) =>
+              setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
+            }
+            className="h-16 rounded-2xl border-white/15 bg-[#2a4364] px-4 text-center text-[1.7rem] leading-none text-white"
+          />
+        </div>
+      ) : (
+        <Input
+          value={controlValue}
+          disabled={!canEdit}
+          onChange={(e) =>
+            setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
+          }
+          className="h-16 rounded-2xl border-white/15 bg-[#2a4364] px-4 text-base"
+        />
+      )}
+
+      <p className="font-mono text-[11px] text-steel-dim">{variable.env_variable}</p>
+    </div>
+  );
+}
+
+function RustWorldField({
+  variable,
+  edits,
+  setEdits,
+}: {
+  variable: Variable;
+  edits: Record<string, string>;
+  setEdits: Dispatch<SetStateAction<Record<string, string>>>;
+}) {
+  const meta = worldFieldMeta(variable);
+  const currentValue = currentFieldValue(variable, edits);
+  const numeric = parseNumericField(variable, edits);
+  const boolOptions = booleanOptions(variable);
+  const canEdit = variable.is_editable;
+
+  function updateValue(value: string) {
+    setEdits((state) => ({ ...state, [variable.env_variable]: value }));
+  }
+
+  function incrementSlider(delta: number) {
+    const next = Math.min(numeric.max, Math.max(numeric.min, numeric.value + delta));
+    updateValue(numeric.integerLike ? String(Math.round(next)) : String(Number(next.toFixed(1))));
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-[15px] font-semibold text-white">{meta.label}</p>
+        <Badge tone={canEdit ? "blue" : "steel"}>{canEdit ? "Editable" : "Locked"}</Badge>
+      </div>
+      <p className="text-sm text-steel">{meta.helper}</p>
+
+      {meta.kind === "seed" ? (
+        <div className="flex gap-3">
+          <Input
+            value={currentValue}
+            disabled={!canEdit}
+            onChange={(e) => updateValue(e.target.value)}
+            className="h-16 rounded-2xl border-white/15 bg-[#2a4364] px-4 text-base"
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!canEdit}
+            onClick={() => updateValue(randomRustSeed())}
+            className="h-16 min-w-16 rounded-2xl border border-white/15 bg-[#10243a] px-0"
+          >
+            <Dice5 className="h-5 w-5" />
+          </Button>
+        </div>
+      ) : meta.kind === "toggle" ? (
+        <div className="inline-flex rounded-2xl border border-white/15 bg-[#10243a] p-1">
+          <button
+            type="button"
+            disabled={!canEdit}
+            onClick={() => updateValue(boolOptions.on)}
+            className={cn(
+              "ring-focus rounded-xl px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-50",
+              isTruthyValue(currentValue) ? "bg-hyper-500 text-white" : "text-steel hover:text-white",
+            )}
+          >
+            On
+          </button>
+          <button
+            type="button"
+            disabled={!canEdit}
+            onClick={() => updateValue(boolOptions.off)}
+            className={cn(
+              "ring-focus rounded-xl px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-50",
+              !isTruthyValue(currentValue) ? "bg-white/10 text-white" : "text-steel hover:text-white",
+            )}
+          >
+            Off
+          </button>
+        </div>
+      ) : meta.kind === "slider" ? (
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_255px] md:items-center">
+          <input
+            type="range"
+            min={numeric.min}
+            max={numeric.max}
+            step={numeric.step}
+            value={numeric.value}
+            disabled={!canEdit}
+            onChange={(e) => updateValue(e.target.value)}
+            className="h-3 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-hyper-400 disabled:cursor-not-allowed"
+          />
+          <div className="grid h-16 grid-cols-[70px_1fr_70px] overflow-hidden rounded-2xl border border-white/15 bg-[#10243a]">
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => incrementSlider(-numeric.step)}
+              className="ring-focus flex items-center justify-center border-r border-white/15 text-steel transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <Input
+              type="number"
+              min={numeric.min}
+              max={numeric.max}
+              step={numeric.step}
+              value={numeric.display}
+              disabled={!canEdit}
+              onChange={(e) => updateValue(e.target.value)}
+              className="h-full rounded-none border-0 bg-[#2a4364] px-4 text-center text-[1.6rem] leading-none text-white"
+            />
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => incrementSlider(numeric.step)}
+              className="ring-focus flex items-center justify-center border-l border-white/15 text-steel transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <Input
+          value={currentValue}
+          disabled={!canEdit}
+          onChange={(e) => updateValue(e.target.value)}
+          className="h-16 rounded-2xl border-white/15 bg-[#2a4364] px-4 text-base"
+        />
+      )}
+
+      <p className="font-mono text-[11px] text-steel-dim">{variable.env_variable}</p>
+    </div>
+  );
+}
+
+function RustWeatherField({
+  variable,
+  edits,
+  setEdits,
+}: {
+  variable: Variable;
+  edits: Record<string, string>;
+  setEdits: Dispatch<SetStateAction<Record<string, string>>>;
+}) {
+  const meta = weatherFieldMeta(variable);
+  const currentValue = currentFieldValue(variable, edits);
+  const numeric = parseNumericField(variable, edits);
+  const boolOptions = booleanOptions(variable);
+  const canEdit = variable.is_editable;
+
+  function updateValue(value: string) {
+    setEdits((state) => ({ ...state, [variable.env_variable]: value }));
+  }
+
+  function incrementSlider(delta: number) {
+    const next = Math.min(numeric.max, Math.max(numeric.min, numeric.value + delta));
+    updateValue(numeric.integerLike ? String(Math.round(next)) : String(Number(next.toFixed(2))));
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-[15px] font-semibold text-white">{meta.label}</p>
+        <Badge tone={canEdit ? "blue" : "steel"}>{canEdit ? "Editable" : "Locked"}</Badge>
+      </div>
+      <p className="text-sm text-steel">{meta.helper}</p>
+
+      {meta.kind === "toggle" ? (
+        <div className="inline-flex rounded-2xl border border-white/15 bg-[#10243a] p-1">
+          <button
+            type="button"
+            disabled={!canEdit}
+            onClick={() => updateValue(boolOptions.on)}
+            className={cn(
+              "ring-focus rounded-xl px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-50",
+              isTruthyValue(currentValue) ? "bg-hyper-500 text-white" : "text-steel hover:text-white",
+            )}
+          >
+            On
+          </button>
+          <button
+            type="button"
+            disabled={!canEdit}
+            onClick={() => updateValue(boolOptions.off)}
+            className={cn(
+              "ring-focus rounded-xl px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-50",
+              !isTruthyValue(currentValue) ? "bg-white/10 text-white" : "text-steel hover:text-white",
+            )}
+          >
+            Off
+          </button>
+        </div>
+      ) : meta.kind === "slider" ? (
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_255px] md:items-center">
+          <input
+            type="range"
+            min={numeric.min}
+            max={numeric.max}
+            step={numeric.step}
+            value={numeric.value}
+            disabled={!canEdit}
+            onChange={(e) => updateValue(e.target.value)}
+            className="h-3 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-hyper-400 disabled:cursor-not-allowed"
+          />
+          <div className="grid h-16 grid-cols-[70px_1fr_70px] overflow-hidden rounded-2xl border border-white/15 bg-[#10243a]">
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => incrementSlider(-numeric.step)}
+              className="ring-focus flex items-center justify-center border-r border-white/15 text-steel transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <Input
+              type="number"
+              min={numeric.min}
+              max={numeric.max}
+              step={numeric.step}
+              value={numeric.display}
+              disabled={!canEdit}
+              onChange={(e) => updateValue(e.target.value)}
+              className="h-full rounded-none border-0 bg-[#2a4364] px-4 text-center text-[1.6rem] leading-none text-white"
+            />
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => incrementSlider(numeric.step)}
+              className="ring-focus flex items-center justify-center border-l border-white/15 text-steel transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <Input
+          value={currentValue}
+          disabled={!canEdit}
+          onChange={(e) => updateValue(e.target.value)}
+          className="h-16 rounded-2xl border-white/15 bg-[#2a4364] px-4 text-base"
+        />
+      )}
+
+      <p className="font-mono text-[11px] text-steel-dim">{variable.env_variable}</p>
+    </div>
+  );
+}
+
+function RustWeatherSection({
+  variables,
+  edits,
+  setEdits,
+}: {
+  variables: Variable[];
+  edits: Record<string, string>;
+  setEdits: Dispatch<SetStateAction<Record<string, string>>>;
+}) {
+  const ordered = [...variables].sort((a, b) => weatherFieldMeta(a).order - weatherFieldMeta(b).order);
+  const primary = ordered.filter((variable) => weatherFieldMeta(variable).order < 50);
+  const manual = ordered.filter((variable) => weatherFieldMeta(variable).order >= 50);
+
+  return (
+    <div className="space-y-8 px-4 py-5">
+      {primary.map((variable) => (
+        <RustWeatherField
+          key={variable.env_variable}
+          variable={variable}
+          edits={edits}
+          setEdits={setEdits}
+        />
+      ))}
+
+      {manual.length > 0 ? (
+        <div className="rounded-[22px] border border-white/[0.08] bg-white/[0.02]">
+          <div className="border-b border-white/[0.06] px-4 py-4">
+            <h4 className="text-[1.15rem] font-semibold text-white">Manual Settings</h4>
+            <p className="mt-2 text-sm leading-relaxed text-steel">
+              Settings that can override the dynamic weather system. A setting of `-1` allows the dynamic weather system to manage that value.
+            </p>
+          </div>
+
+          <details className="group">
+            <summary className="ring-focus flex cursor-pointer list-none items-center justify-between px-4 py-4 text-left text-sm font-semibold text-steel transition-colors hover:text-white">
+              <span>Show more</span>
+              <span className="text-lg transition-transform group-open:rotate-180">⌄</span>
+            </summary>
+            <div className="space-y-8 border-t border-white/[0.06] px-4 py-5">
+              {manual.map((variable) => (
+                <RustWeatherField
+                  key={variable.env_variable}
+                  variable={variable}
+                  edits={edits}
+                  setEdits={setEdits}
+                />
+              ))}
+            </div>
+          </details>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RustMappedField({
+  variable,
+  edits,
+  setEdits,
+  meta,
+}: {
+  variable: Variable;
+  edits: Record<string, string>;
+  setEdits: Dispatch<SetStateAction<Record<string, string>>>;
+  meta: ReturnType<typeof decayFieldMeta> | ReturnType<typeof advancedFieldMeta>;
+}) {
+  const currentValue = currentFieldValue(variable, edits);
+  const numeric = parseNumericField(variable, edits);
+  const boolOptions = booleanOptions(variable);
+  const canEdit = variable.is_editable;
+
+  function updateValue(value: string) {
+    setEdits((state) => ({ ...state, [variable.env_variable]: value }));
+  }
+
+  function incrementSlider(delta: number) {
+    const next = Math.min(numeric.max, Math.max(numeric.min, numeric.value + delta));
+    updateValue(numeric.integerLike ? String(Math.round(next)) : String(Number(next.toFixed(2))));
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-[15px] font-semibold text-white">{meta.label}</p>
+        <Badge tone={canEdit ? "blue" : "steel"}>{canEdit ? "Editable" : "Locked"}</Badge>
+      </div>
+      <p className="text-sm text-steel">{meta.helper}</p>
+
+      {meta.kind === "toggle" ? (
+        <div className="inline-flex rounded-2xl border border-white/15 bg-[#10243a] p-1">
+          <button
+            type="button"
+            disabled={!canEdit}
+            onClick={() => updateValue(boolOptions.on)}
+            className={cn(
+              "ring-focus rounded-xl px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-50",
+              isTruthyValue(currentValue) ? "bg-hyper-500 text-white" : "text-steel hover:text-white",
+            )}
+          >
+            On
+          </button>
+          <button
+            type="button"
+            disabled={!canEdit}
+            onClick={() => updateValue(boolOptions.off)}
+            className={cn(
+              "ring-focus rounded-xl px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-50",
+              !isTruthyValue(currentValue) ? "bg-white/10 text-white" : "text-steel hover:text-white",
+            )}
+          >
+            Off
+          </button>
+        </div>
+      ) : meta.kind === "slider" ? (
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_255px] md:items-center">
+          <input
+            type="range"
+            min={numeric.min}
+            max={numeric.max}
+            step={numeric.step}
+            value={numeric.value}
+            disabled={!canEdit}
+            onChange={(e) => updateValue(e.target.value)}
+            className="h-3 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-hyper-400 disabled:cursor-not-allowed"
+          />
+          <div className="grid h-16 grid-cols-[70px_1fr_70px] overflow-hidden rounded-2xl border border-white/15 bg-[#10243a]">
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => incrementSlider(-numeric.step)}
+              className="ring-focus flex items-center justify-center border-r border-white/15 text-steel transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <Input
+              type="number"
+              min={numeric.min}
+              max={numeric.max}
+              step={numeric.step}
+              value={numeric.display}
+              disabled={!canEdit}
+              onChange={(e) => updateValue(e.target.value)}
+              className="h-full rounded-none border-0 bg-[#2a4364] px-4 text-center text-[1.6rem] leading-none text-white"
+            />
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => incrementSlider(numeric.step)}
+              className="ring-focus flex items-center justify-center border-l border-white/15 text-steel transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : meta.kind === "textarea" ? (
+        <Textarea
+          value={currentValue}
+          disabled={!canEdit}
+          onChange={(e) => updateValue(e.target.value)}
+          className="min-h-[130px] rounded-2xl border-white/15 bg-[#2a4364] px-4 py-4 text-base"
+        />
+      ) : (
+        <Input
+          type={meta.kind === "password" ? "password" : "text"}
+          value={currentValue}
+          disabled={!canEdit}
+          onChange={(e) => updateValue(e.target.value)}
+          className="h-16 rounded-2xl border-white/15 bg-[#2a4364] px-4 text-base"
+        />
+      )}
+
+      <p className="font-mono text-[11px] text-steel-dim">{variable.env_variable}</p>
+    </div>
+  );
+}
+
+function RustMappedSection({
+  variables,
+  edits,
+  setEdits,
+  metaFor,
+}: {
+  variables: Variable[];
+  edits: Record<string, string>;
+  setEdits: Dispatch<SetStateAction<Record<string, string>>>;
+  metaFor: (variable: Variable) => ReturnType<typeof decayFieldMeta> | ReturnType<typeof advancedFieldMeta>;
+}) {
+  const ordered = [...variables].sort((a, b) => metaFor(a).order - metaFor(b).order);
+  const groups = new Map<string, Variable[]>();
+  const ungrouped: Variable[] = [];
+
+  for (const variable of ordered) {
+    const meta = metaFor(variable);
+    if (!meta.group) {
+      ungrouped.push(variable);
+      continue;
+    }
+    const current = groups.get(meta.group) ?? [];
+    current.push(variable);
+    groups.set(meta.group, current);
+  }
+
+  return (
+    <div className="space-y-8 px-4 py-5">
+      {ungrouped.map((variable) => (
+        <RustMappedField
+          key={variable.env_variable}
+          variable={variable}
+          edits={edits}
+          setEdits={setEdits}
+          meta={metaFor(variable)}
+        />
+      ))}
+
+      {Array.from(groups.entries()).map(([group, groupVariables]) => (
+        <div key={group} className="rounded-[22px] border border-white/[0.08] bg-white/[0.02]">
+          <div className="border-b border-white/[0.06] px-4 py-4">
+            <h4 className="text-[1.15rem] font-semibold text-white">{group}</h4>
+            {group === "Custom Server Arguments" ? (
+              <p className="mt-2 text-sm leading-relaxed text-steel">
+                These values can override config files you have setup, so use them carefully.
+              </p>
+            ) : null}
+          </div>
+          <div className="space-y-8 px-4 py-5">
+            {groupVariables.map((variable) => (
+              <RustMappedField
+                key={variable.env_variable}
+                variable={variable}
+                edits={edits}
+                setEdits={setEdits}
+                meta={metaFor(variable)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function RustInstallCard({
