@@ -153,6 +153,7 @@ export function inferRustAllocationsFromServer(allocations: ClientAllocation[]):
   if (!game) return [];
 
   const ports = new Map(allocations.map((allocation) => [allocation.port, allocation]));
+  const rconAllocation = ports.get(portForRole(game.port, "rcon"));
   return (["game", "rcon", "app"] as RustAllocationRole[])
     .flatMap((role) => {
       const port = portForRole(game.port, role);
@@ -172,10 +173,10 @@ export function inferRustAllocationsFromServer(allocations: ClientAllocation[]):
       if (role === "game") {
         entries.push({
           role: "query",
-          allocationId: allocation.id,
-          port: allocation.port,
-          ip: allocation.ip,
-          alias: allocation.ip_alias,
+          allocationId: (rconAllocation ?? allocation).id,
+          port: (rconAllocation ?? allocation).port,
+          ip: (rconAllocation ?? allocation).ip,
+          alias: (rconAllocation ?? allocation).ip_alias,
           createdByApp: false,
           isDefault: false,
         });

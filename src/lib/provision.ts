@@ -121,7 +121,7 @@ function desiredRustValue(
   }
 
   if (text.includes("query") && text.includes("port")) {
-    return query ? String(query.port) : game ? String(game.port) : null;
+    return query ? String(query.port) : rcon ? String(rcon.port) : game ? String(game.port) : null;
   }
 
   if (text.includes("rcon") && text.includes("port")) {
@@ -159,6 +159,7 @@ function desiredRustEnvironmentValue(
 ) {
   const text = normalizeEggVariableText(variable);
   const game = allocations.get("game");
+  const query = allocations.get("query");
   const rcon = allocations.get("rcon");
 
   if (text.includes("identity")) {
@@ -174,7 +175,7 @@ function desiredRustEnvironmentValue(
   }
 
   if (text.includes("query") && text.includes("port")) {
-    return game ? String(game.port) : null;
+    return query ? String(query.port) : rcon ? String(rcon.port) : game ? String(game.port) : null;
   }
 
   if (text.includes("rcon") && text.includes("port")) {
