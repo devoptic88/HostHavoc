@@ -12,7 +12,7 @@ import {
 } from "@/lib/rustAllocations";
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
-import type { AppAllocation, ClientEggVariable } from "@/lib/pterodactyl";
+import type { AppAllocation, AppEggVariable, ClientEggVariable } from "@/lib/pterodactyl";
 
 const SUBUSER_PERMISSIONS = [
   "control.console",
@@ -74,6 +74,10 @@ function generatedEggValue(env: string, rules: string): string {
 }
 
 function normalizeVariableText(variable: ClientEggVariable) {
+  return `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase();
+}
+
+function normalizeEggVariableText(variable: Pick<AppEggVariable, "name" | "description" | "env_variable">) {
   return `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase();
 }
 
@@ -142,6 +146,59 @@ function desiredRustValue(
   }
 
   if (text.includes("description") && !(variable.server_value || variable.default_value)) {
+    return "Hosted on HyperNode";
+  }
+
+  return null;
+}
+
+function desiredRustEnvironmentValue(
+  variable: Pick<AppEggVariable, "name" | "description" | "env_variable">,
+  order: ProvisionableOrder,
+  allocations: Map<string, RustTrackedAllocation>,
+) {
+  const text = normalizeEggVariableText(variable);
+  const game = allocations.get("game");
+  const rcon = allocations.get("rcon");
+
+  if (text.includes("identity")) {
+    return rustIdentity(order.serverName, order.id);
+  }
+
+  if (
+    text.includes("server name") ||
+    text.includes("server title") ||
+    text.includes("hostname")
+  ) {
+    return order.serverName;
+  }
+
+  if (text.includes("query") && text.includes("port")) {
+    return game ? String(game.port) : null;
+  }
+
+  if (text.includes("rcon") && text.includes("port")) {
+    return rcon ? String(rcon.port) : null;
+  }
+
+  if (text.includes("rcon") && text.includes("pass")) {
+    return "12345678";
+  }
+
+  if (text.includes("app") && text.includes("port")) {
+    return "-1";
+  }
+
+  if (
+    (text.includes("server port") || text.includes("game port") || variable.env_variable.toLowerCase().includes("server_port")) &&
+    !text.includes("query") &&
+    !text.includes("rcon") &&
+    !text.includes("app")
+  ) {
+    return game ? String(game.port) : null;
+  }
+
+  if (text.includes("description")) {
     return "Hosted on HyperNode";
   }
 
@@ -398,6 +455,12 @@ export async function provisionOrder(orderId: string): Promise<void> {
 
     if (plan.gameSlug === "rust") {
       reservedRustAllocations = await reserveRustAllocations(order, false);
+      const rustAllocationsByRole = rustAllocationMap(reservedRustAllocations);
+      for (const variable of eggVariables) {
+        const next = desiredRustEnvironmentValue(variable, order, rustAllocationsByRole);
+        if (next === null || next === "") continue;
+        environment[variable.env_variable] = next;
+      }
     }
 
     const dockerImage = egg.docker_image ?? Object.values(egg.docker_images ?? {})[0];

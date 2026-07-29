@@ -28,6 +28,17 @@ interface Variable {
   is_editable: boolean;
 }
 
+function isRustManagedPortVariable(variable: Variable, isRust: boolean) {
+  if (!isRust) return false;
+  const text = `${variable.name} ${variable.description} ${variable.env_variable}`.toUpperCase();
+  return (
+    (text.includes("QUERY") && text.includes("PORT")) ||
+    (text.includes("RCON") && text.includes("PORT")) ||
+    (text.includes("APP") && text.includes("PORT")) ||
+    ((text.includes("SERVER") || text.includes("GAME")) && text.includes("PORT"))
+  );
+}
+
 const rustSections = [
   {
     id: "basic",
@@ -81,6 +92,7 @@ export function Startup({
   const [savingAll, setSavingAll] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState("basic");
+  const isRust = gameSlug === "rust";
 
   const load = useCallback(async () => {
     try {
@@ -103,14 +115,14 @@ export function Startup({
   const dirtyKeys = useMemo(
     () =>
       vars
-        .filter((variable) => variable.is_editable)
+        .filter((variable) => variable.is_editable && !isRustManagedPortVariable(variable, isRust))
         .filter(
           (variable) =>
             (edits[variable.env_variable] ?? variable.server_value ?? "") !==
             (variable.server_value ?? ""),
         )
         .map((variable) => variable.env_variable),
-    [edits, vars],
+    [edits, isRust, vars],
   );
 
   async function saveAll() {
@@ -148,7 +160,6 @@ export function Startup({
     await load();
   }
 
-  const isRust = gameSlug === "rust";
   const grouped = useMemo(() => groupVariables(vars, isRust), [vars, isRust]);
   const visibleSections = isRust ? grouped.filter((section) => section.id === activeTab) : grouped;
 
@@ -264,16 +275,27 @@ export function Startup({
                 <ul className="divide-y divide-white/[0.04]">
                   {section.variables.map((v) => (
                     <li key={v.env_variable} className="grid gap-3 px-4 py-4 sm:grid-cols-[1fr_320px]">
+                      {(() => {
+                        const managedPort = isRustManagedPortVariable(v, isRust);
+                        const canEdit = v.is_editable && !managedPort;
+
+                        return (
+                          <>
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm font-semibold text-white">{v.name}</p>
-                          <Badge tone={v.is_editable ? "blue" : "steel"}>
-                            {v.is_editable ? "Editable" : "Locked"}
+                          <Badge tone={canEdit ? "blue" : "steel"}>
+                            {managedPort ? "Managed" : canEdit ? "Editable" : "Locked"}
                           </Badge>
                         </div>
                         <p className="mt-1 text-xs leading-relaxed text-steel-faint">
                           {v.description || v.env_variable}
                         </p>
+                        {managedPort ? (
+                          <p className="mt-2 text-xs text-warning">
+                            This port is assigned automatically by HyperNode during provisioning.
+                          </p>
+                        ) : null}
                         <p className="mt-2 font-mono text-[11px] text-steel-dim">
                           {v.env_variable}
                         </p>
@@ -282,17 +304,20 @@ export function Startup({
                       <div className="flex gap-2">
                         <Input
                           value={edits[v.env_variable] ?? v.server_value ?? ""}
-                          disabled={!v.is_editable}
+                          disabled={!canEdit}
                           onChange={(e) =>
                             setEdits((s) => ({ ...s, [v.env_variable]: e.target.value }))
                           }
                         />
-                        {!v.is_editable ? (
+                        {!canEdit ? (
                           <div className="flex h-full w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-steel-faint">
                             <Lock className="h-4 w-4" />
                           </div>
                         ) : null}
                       </div>
+                          </>
+                        );
+                      })()}
                     </li>
                   ))}
                 </ul>
