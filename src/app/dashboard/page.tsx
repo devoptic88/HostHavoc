@@ -13,6 +13,10 @@ import { formatDate, formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+type DashboardPageProps = {
+  searchParams?: Record<string, string | string[] | undefined>;
+};
+
 const orderStatusMap: Record<string, string> = {
   PENDING: "installing",
   PROVISIONING: "installing",
@@ -48,7 +52,7 @@ function liveStatusMessage(status: LiveDashboardStatus) {
   }
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const session = await auth();
   const [orders, openTickets] = await Promise.all([
     db.order.findMany({
@@ -93,6 +97,27 @@ export default async function DashboardPage() {
     .reduce((sum, order) => sum + Number(order.plan.priceMonthly), 0);
   const spotlightGames = GAMES.filter((game) => game.categories.includes("popular")).slice(0, 5);
   const firstName = session!.user.name.split(" ")[0];
+  const serverLayoutParam = Array.isArray(searchParams?.serverLayout)
+    ? searchParams?.serverLayout[0]
+    : searchParams?.serverLayout;
+  const serverLayout = serverLayoutParam === "compact" ? "compact" : "cards";
+  const createDashboardHref = (layout: "cards" | "compact") => {
+    const params = new URLSearchParams();
+
+    Object.entries(searchParams ?? {}).forEach(([key, value]) => {
+      if (key === "serverLayout" || value == null) return;
+      if (Array.isArray(value)) {
+        value.forEach((entry) => params.append(key, entry));
+        return;
+      }
+      params.set(key, value);
+    });
+
+    if (layout === "compact") params.set("serverLayout", "compact");
+
+    const query = params.toString();
+    return query ? `/dashboard?${query}` : "/dashboard";
+  };
   const renderServerCard = (order: (typeof orders)[number]) => {
     const game = GAMES.find((entry) => entry.slug === order.plan.gameSlug);
     const manageable = order.productType === "GAME_SERVER" && order.pteroServerIdentifier;
@@ -182,6 +207,69 @@ export default async function DashboardPage() {
       </Link>
     ) : (
       <div key={order.id}>{card}</div>
+    );
+  };
+  const renderCompactServerRow = (order: (typeof orders)[number]) => {
+    const game = GAMES.find((entry) => entry.slug === order.plan.gameSlug);
+    const manageable = order.productType === "GAME_SERVER" && order.pteroServerIdentifier;
+    const liveStatus = liveStatuses.get(order.id);
+    const displayStatus =
+      liveStatus ??
+      (orderStatusMap[order.status] as LiveDashboardStatus | undefined) ??
+      "offline";
+    const liveMessage = liveStatusMessage(displayStatus);
+
+    const row = (
+      <Card glow={Boolean(manageable)} className="overflow-hidden border-white/10 bg-[linear-gradient(180deg,rgba(12,18,32,0.96),rgba(9,13,24,0.92))]">
+        <CardBody className="flex flex-wrap items-center gap-4 sm:flex-nowrap">
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl font-display text-lg font-extrabold text-white shadow-card"
+            style={{
+              background: `linear-gradient(135deg, ${game?.accent ?? "#2F6BFF"} 0%, ${game?.accent2 ?? "#38BDF8"} 100%)`,
+            }}
+          >
+            {(game?.name ?? order.plan.name).slice(0, 1)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate font-display text-lg font-bold text-white">{order.serverName}</p>
+              {game?.badge ? <Badge tone="violet">{game.badge}</Badge> : null}
+            </div>
+            <p className="mt-1 text-xs text-steel-faint">
+              {order.plan.name} | {formatMoney(Number(order.plan.priceMonthly))}/mo
+            </p>
+            {order.status === "GRACE_PERIOD" && order.deleteAfterAt && (
+              <p className="mt-1 text-xs text-warning">
+                Suspended during grace period. Final deletion is scheduled for {formatDate(order.deleteAfterAt)}.
+              </p>
+            )}
+            {liveMessage ? <p className="mt-1 line-clamp-2 text-xs text-steel">{liveMessage}</p> : null}
+            {!liveMessage && order.status === "FAILED" && order.errorMessage && (
+              <p className="mt-1 line-clamp-2 text-xs text-danger">
+                {normalizePterodactylMessage(order.errorMessage)}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {order.productType !== "GAME_SERVER" ? (
+              <Badge tone="violet">
+                {order.status === "MANUAL" ? "Being set up" : order.status}
+              </Badge>
+            ) : (
+              <StatusBadge status={displayStatus} />
+            )}
+            {manageable && <span className="text-sm font-semibold text-hyper-300">Manage</span>}
+          </div>
+        </CardBody>
+      </Card>
+    );
+
+    return manageable ? (
+      <Link key={order.id} href={`/dashboard/servers/${order.id}`} className="block">
+        {row}
+      </Link>
+    ) : (
+      <div key={order.id}>{row}</div>
     );
   };
   const featuredServerCard = featuredOrder ? renderServerCard(featuredOrder) : null;
@@ -300,11 +388,35 @@ export default async function DashboardPage() {
             <h2 className="font-display text-2xl font-extrabold italic text-white">
               Your <span className="text-gradient-hyper">fleet</span>
             </h2>
-            <p className="mt-1 text-sm text-steel-dim">Every active server stays visible here with the full control card layout.</p>
+            <p className="mt-1 text-sm text-steel-dim">Use full control cards by default, or switch to compact rows for a denser list.</p>
           </div>
-          <ButtonLink href="/games" size="sm">
-            <Plus className="h-4 w-4" /> New server
-          </ButtonLink>
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+              <Link
+                href={createDashboardHref("cards")}
+                className={`rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition-colors ${
+                  serverLayout === "cards"
+                    ? "bg-hyper-gradient text-white shadow-glow-sm"
+                    : "text-steel-dim hover:text-white"
+                }`}
+              >
+                Cards
+              </Link>
+              <Link
+                href={createDashboardHref("compact")}
+                className={`rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition-colors ${
+                  serverLayout === "compact"
+                    ? "bg-hyper-gradient text-white shadow-glow-sm"
+                    : "text-steel-dim hover:text-white"
+                }`}
+              >
+                Compact
+              </Link>
+            </div>
+            <ButtonLink href="/games" size="sm">
+              <Plus className="h-4 w-4" /> New server
+            </ButtonLink>
+          </div>
         </div>
       )}
 
@@ -324,8 +436,10 @@ export default async function DashboardPage() {
         </Card>
       ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
-          <div className="space-y-4">
-            {otherOrders.map((order) => renderServerCard(order))}
+          <div className={serverLayout === "compact" ? "space-y-3" : "space-y-4"}>
+            {otherOrders.map((order) =>
+              serverLayout === "compact" ? renderCompactServerRow(order) : renderServerCard(order),
+            )}
           </div>
 
           <div className="space-y-4">
