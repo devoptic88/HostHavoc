@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Cloud,
@@ -132,6 +133,7 @@ export function Startup({
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState("basic");
   const isRust = gameSlug === "rust";
+  const router = useRouter();
 
   const frameworkVariable = useMemo(
     () => vars.find((variable) => isRustFrameworkVariable(variable, isRust)) ?? null,
@@ -241,6 +243,7 @@ export function Startup({
     );
     setEdits({});
     setSavingAll(false);
+    router.refresh();
     await load();
   }
 
