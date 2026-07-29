@@ -3,7 +3,12 @@ import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { getSetting } from "@/lib/settings";
 import { db } from "@/lib/db";
-import { provisionOrder, suspendOrder, terminateOrder, unsuspendOrder } from "@/lib/provision";
+import {
+  provisionOrder,
+  scheduleOrderTermination,
+  suspendOrder,
+  unsuspendOrder,
+} from "@/lib/provision";
 
 export async function POST(req: Request) {
   const secret = await getSetting("STRIPE_WEBHOOK_SECRET");
@@ -63,7 +68,7 @@ export async function POST(req: Request) {
         const order = await db.order.findUnique({
           where: { stripeSubscriptionId: subId },
         });
-        if (order?.status === "SUSPENDED") {
+        if (order?.status === "SUSPENDED" || order?.status === "GRACE_PERIOD") {
           await unsuspendOrder(order.id).catch(console.error);
         }
       }
@@ -74,7 +79,7 @@ export async function POST(req: Request) {
       const order = await db.order.findUnique({
         where: { stripeSubscriptionId: sub.id },
       });
-      if (order) await terminateOrder(order.id).catch(console.error);
+      if (order) await scheduleOrderTermination(order.id).catch(console.error);
       break;
     }
   }

@@ -11,6 +11,7 @@ import type {
   CreateServerPayload,
   PteroItem,
   PteroList,
+  UpdateServerBuildPayload,
 } from "./types";
 
 const app = <T>(path: string, init?: Parameters<typeof pteroFetch>[2]) =>
@@ -69,16 +70,7 @@ export const updateServerDetails = (
 
 export const updateServerBuild = (
   id: number,
-  input: {
-    allocation: number;
-    memory: number;
-    swap: number;
-    disk: number;
-    io: number;
-    cpu: number;
-    threads?: string | null;
-    feature_limits: { databases: number; allocations: number; backups: number };
-  },
+  input: UpdateServerBuildPayload,
 ) => app<PteroItem<AppServer>>(`/servers/${id}/build`, { method: "PATCH", body: input });
 
 export const suspendServer = (id: number) =>

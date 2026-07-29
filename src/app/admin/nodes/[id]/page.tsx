@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pteroApp, pteroConfigured } from "@/lib/pterodactyl";
+import { db } from "@/lib/db";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { PanelNotConfigured } from "@/components/admin/PanelNotConfigured";
-import { createAllocations, deleteAllocation } from "../../actions";
+import { createAllocations, deleteAllocation, saveRustNodeConfig } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export default async function AdminNodeDetailPage({
 
   let node;
   let allocations;
+  const rustConfig = await db.rustNodeConfig.findUnique({ where: { nodeId } });
   try {
     node = (await pteroApp.getNode(nodeId)).attributes;
     allocations = (await pteroApp.getNodeAllocations(nodeId)).data.map(
@@ -41,6 +43,58 @@ export default async function AdminNodeDetailPage({
 
       <Card className="mb-6">
         <CardBody>
+          <h2 className="mb-4 font-display text-base font-bold text-white">
+            Rust auto-allocation
+          </h2>
+          <form action={saveRustNodeConfig} className="mb-8 grid gap-3 sm:grid-cols-2">
+            <input type="hidden" name="nodeId" value={node.id} />
+            <label className="sm:col-span-2 flex items-center gap-2 text-sm text-steel-dim">
+              <input
+                type="checkbox"
+                name="enabled"
+                defaultChecked={rustConfig?.enabled ?? false}
+                className="accent-hyper-500"
+              />
+              Enable Rust auto-allocation on this node
+            </label>
+            <div>
+              <Label>Allocation IP</Label>
+              <Input
+                name="allocationIp"
+                defaultValue={rustConfig?.allocationIp ?? ""}
+                placeholder="203.0.113.10"
+              />
+            </div>
+            <div>
+              <Label>Allocation alias</Label>
+              <Input
+                name="allocationAlias"
+                defaultValue={rustConfig?.allocationAlias ?? ""}
+                placeholder="optional"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Rust port ranges</Label>
+              <Input
+                name="portRanges"
+                defaultValue={rustConfig?.portRanges ?? "27015-27095, 28015-28095"}
+                placeholder="27015-27095, 28015-28095"
+              />
+            </div>
+            <div>
+              <Label>Port stride</Label>
+              <Input
+                name="portStride"
+                inputMode="numeric"
+                defaultValue={rustConfig?.portStride ?? 10}
+                placeholder="10"
+              />
+            </div>
+            <div className="flex items-end">
+              <Button type="submit" variant="secondary">Save Rust config</Button>
+            </div>
+          </form>
+
           <h2 className="mb-4 font-display text-base font-bold text-white">
             Add allocations
           </h2>

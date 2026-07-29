@@ -17,6 +17,7 @@ enum OrderStatus {
   PROVISIONING
   ACTIVE
   SUSPENDED
+  GRACE_PERIOD
   CANCELLED
   FAILED
   MANUAL // VPS/dedicated orders fulfilled by hand
@@ -92,6 +93,8 @@ model Order {
   pteroServerId Int? // application-API server id once provisioned
   pteroServerIdentifier String? // client-API short uuid
   stripeSubscriptionId String? @unique
+  rustAllocations Json?
+  deleteAfterAt DateTime?
   errorMessage  String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -100,6 +103,19 @@ model Order {
   plan Plan @relation(fields: [planId], references: [id])
 
   @@index([userId])
+  @@index([deleteAfterAt])
+}
+
+model RustNodeConfig {
+  id             String   @id @default(cuid())
+  nodeId         Int      @unique
+  enabled        Boolean  @default(false)
+  allocationIp   String
+  allocationAlias String?
+  portRanges     String
+  portStride     Int      @default(10)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model Ticket {

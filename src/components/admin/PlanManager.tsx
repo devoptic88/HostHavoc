@@ -129,6 +129,11 @@ function PlanForm({
             ) : (
               <Input name="nodeId" defaultValue={plan?.nodeId ?? ""} inputMode="numeric" placeholder="optional" />
             )}
+            {productType === "GAME_SERVER" && gameSlug === "rust" && (
+              <p className="mt-1 text-xs text-warning">
+                Rust plans must be pinned to one node so HyperNode can reserve the full multi-port set.
+              </p>
+            )}
           </div>
           <div>
             <Label>Nest</Label>

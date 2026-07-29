@@ -7,7 +7,7 @@ import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { GAMES } from "@/content/games";
 import { normalizePterodactylMessage } from "@/lib/pterodactyl/errorMessages";
-import { formatMoney } from "@/lib/utils";
+import { formatDate, formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,7 @@ const orderStatusMap: Record<string, string> = {
   PROVISIONING: "installing",
   ACTIVE: "running",
   SUSPENDED: "suspended",
+  GRACE_PERIOD: "suspended",
   FAILED: "install_failed",
   CANCELLED: "offline",
   MANUAL: "installing",
@@ -53,8 +54,7 @@ export default async function DashboardPage() {
               No servers yet
             </p>
             <p className="mx-auto mt-2 max-w-sm text-sm text-steel-dim">
-              Deploy your first game server and it will show up here with live
-              stats, console, and file access.
+              Deploy your first game server and it will show up here with live stats, console, and file access.
             </p>
             <div className="mt-6">
               <ButtonLink href="/games">Browse games</ButtonLink>
@@ -64,9 +64,8 @@ export default async function DashboardPage() {
       ) : (
         <div className="space-y-4">
           {orders.map((order) => {
-            const game = GAMES.find((g) => g.slug === order.plan.gameSlug);
-            const manageable =
-              order.productType === "GAME_SERVER" && order.pteroServerIdentifier;
+            const game = GAMES.find((entry) => entry.slug === order.plan.gameSlug);
+            const manageable = order.productType === "GAME_SERVER" && order.pteroServerIdentifier;
             const inner = (
               <Card glow={Boolean(manageable)}>
                 <CardBody className="flex flex-wrap items-center gap-4">
@@ -85,6 +84,11 @@ export default async function DashboardPage() {
                     <p className="text-xs text-steel-faint">
                       {order.plan.name} · {formatMoney(Number(order.plan.priceMonthly))}/mo
                     </p>
+                    {order.status === "GRACE_PERIOD" && order.deleteAfterAt && (
+                      <p className="mt-1 text-xs text-warning">
+                        Suspended during grace period. Final deletion is scheduled for {formatDate(order.deleteAfterAt)}.
+                      </p>
+                    )}
                     {order.status === "FAILED" && order.errorMessage && (
                       <p className="mt-1 line-clamp-2 text-xs text-danger">
                         {normalizePterodactylMessage(order.errorMessage)}
@@ -101,7 +105,7 @@ export default async function DashboardPage() {
                     )}
                     {manageable && (
                       <span className="text-sm font-semibold text-hyper-300">
-                        Manage →
+                        {"Manage ->"}
                       </span>
                     )}
                   </div>

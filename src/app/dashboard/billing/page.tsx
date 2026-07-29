@@ -13,6 +13,7 @@ const statusTone: Record<string, "green" | "yellow" | "red" | "steel" | "violet"
   PROVISIONING: "yellow",
   MANUAL: "violet",
   SUSPENDED: "red",
+  GRACE_PERIOD: "yellow",
   FAILED: "red",
   CANCELLED: "steel",
 };
@@ -25,7 +26,7 @@ export default async function BillingPage() {
     orderBy: { createdAt: "desc" },
   });
   const monthly = orders
-    .filter((o) => o.status === "ACTIVE")
+    .filter((o) => o.status === "ACTIVE" || o.status === "GRACE_PERIOD")
     .reduce((sum, o) => sum + Number(o.plan.priceMonthly), 0);
 
   return (
@@ -36,7 +37,7 @@ export default async function BillingPage() {
             <span className="text-gradient-hyper">Billing</span>
           </h1>
           <p className="mt-1 text-sm text-steel-dim">
-            Active monthly total: <span className="font-semibold text-white">{formatMoney(monthly)}</span>
+            Active + grace-period total: <span className="font-semibold text-white">{formatMoney(monthly)}</span>
           </p>
         </div>
         <BillingPortalButton />
@@ -69,6 +70,11 @@ export default async function BillingPage() {
                       <td className="px-5 py-3.5 text-steel-faint">{formatDate(o.createdAt)}</td>
                       <td className="px-5 py-3.5">
                         <Badge tone={statusTone[o.status] ?? "steel"}>{o.status}</Badge>
+                        {o.status === "GRACE_PERIOD" && o.deleteAfterAt && (
+                          <p className="mt-1 text-[11px] text-warning">
+                            Deletes on {formatDate(o.deleteAfterAt)}
+                          </p>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -165,10 +165,23 @@ export interface CreateServerPayload {
     dedicated_ip: boolean;
     port_range: string[];
   };
-  allocation?: { default: number };
+  allocation?: { default: number; additional?: number[] };
   external_id?: string;
   description?: string;
   start_on_completion?: boolean;
+}
+
+export interface UpdateServerBuildPayload {
+  allocation: number;
+  memory: number;
+  swap: number;
+  disk: number;
+  io: number;
+  cpu: number;
+  threads?: string | null;
+  feature_limits: { databases: number; allocations: number; backups: number };
+  add_allocations?: number[];
+  remove_allocations?: number[];
 }
 
 // ─── Client API ─────────────────────────────────────────────────────────

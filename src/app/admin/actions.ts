@@ -6,7 +6,9 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pteroApp } from "@/lib/pterodactyl";
 import {
+  cleanupExpiredOrders,
   provisionOrder,
+  scheduleOrderTermination,
   suspendOrder,
   terminateOrder,
   unsuspendOrder,
@@ -40,6 +42,13 @@ export async function adminUnsuspend(formData: FormData) {
 export async function adminTerminate(formData: FormData) {
   await requireAdmin();
   await terminateOrder(String(formData.get("orderId")));
+  revalidatePath("/admin/orders");
+  revalidatePath("/admin/servers");
+}
+
+export async function adminScheduleTermination(formData: FormData) {
+  await requireAdmin();
+  await scheduleOrderTermination(String(formData.get("orderId")));
   revalidatePath("/admin/orders");
   revalidatePath("/admin/servers");
 }
@@ -81,10 +90,17 @@ function parsePlanForm(formData: FormData) {
   };
 }
 
+function validatePlanData(data: ReturnType<typeof parsePlanForm>) {
+  if (data.productType === "GAME_SERVER" && data.gameSlug === "rust" && !data.nodeId) {
+    throw new Error("Rust plans must be pinned to a Pterodactyl node so HyperNode can reserve all required ports.");
+  }
+}
+
 export async function createPlan(formData: FormData) {
   await requireAdmin();
   const data = parsePlanForm(formData);
   if (!data.name) throw new Error("Plan name is required");
+  validatePlanData(data);
   await db.plan.create({ data });
   revalidatePath("/admin/plans");
 }
@@ -94,6 +110,7 @@ export async function updatePlan(formData: FormData) {
   const id = String(formData.get("planId"));
   const data = parsePlanForm(formData);
   if (!data.name) throw new Error("Plan name is required");
+  validatePlanData(data);
   await db.plan.update({ where: { id }, data });
 
   // Optionally propagate the deployment mapping to every plan of the same game.
@@ -150,21 +167,14 @@ export async function pteroUnsuspendServer(formData: FormData) {
 export async function pteroDeleteServer(formData: FormData) {
   await requireAdmin();
   const serverId = Number(formData.get("serverId"));
-  await pteroApp.deleteServer(serverId);
   const order = await db.order.findFirst({ where: { pteroServerId: serverId } });
   if (order) {
-    await db.order.update({
-      where: { id: order.id },
-      data: {
-        status: "CANCELLED",
-        pteroServerId: null,
-        pteroServerIdentifier: null,
-        errorMessage: null,
-      },
-    });
+    await terminateOrder(order.id);
     revalidatePath("/admin/orders");
     revalidatePath("/dashboard");
     revalidatePath(`/dashboard/servers/${order.id}`);
+  } else {
+    await pteroApp.deleteServer(serverId);
   }
   revalidatePath("/admin/servers");
 }
@@ -211,6 +221,35 @@ export async function deleteAllocation(formData: FormData) {
   const nodeId = Number(formData.get("nodeId"));
   await pteroApp.deleteAllocation(nodeId, Number(formData.get("allocationId")));
   revalidatePath(`/admin/nodes/${nodeId}`);
+}
+
+export async function saveRustNodeConfig(formData: FormData) {
+  await requireAdmin();
+  const nodeId = Number(formData.get("nodeId"));
+  const enabled = formData.get("enabled") === "on";
+  const allocationIp = String(formData.get("allocationIp") ?? "").trim();
+  const allocationAlias = String(formData.get("allocationAlias") ?? "").trim() || null;
+  const portRanges = String(formData.get("portRanges") ?? "").trim();
+  const portStride = Math.max(1, Number(formData.get("portStride") ?? 10) || 10);
+
+  if (enabled) {
+    if (!allocationIp) throw new Error("Allocation IP is required when Rust auto-allocation is enabled.");
+    if (!portRanges) throw new Error("Rust port ranges are required when Rust auto-allocation is enabled.");
+  }
+
+  await db.rustNodeConfig.upsert({
+    where: { nodeId },
+    update: { enabled, allocationIp, allocationAlias, portRanges, portStride },
+    create: { nodeId, enabled, allocationIp, allocationAlias, portRanges, portStride },
+  });
+  revalidatePath(`/admin/nodes/${nodeId}`);
+}
+
+export async function runExpiredOrderCleanup() {
+  await requireAdmin();
+  await cleanupExpiredOrders();
+  revalidatePath("/admin/orders");
+  revalidatePath("/admin/servers");
 }
 
 // ─── Content: blog ──────────────────────────────────────────────────────

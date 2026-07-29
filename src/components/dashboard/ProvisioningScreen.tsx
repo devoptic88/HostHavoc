@@ -12,6 +12,7 @@ type OrderStatus =
   | "PROVISIONING"
   | "ACTIVE"
   | "SUSPENDED"
+  | "GRACE_PERIOD"
   | "CANCELLED"
   | "FAILED"
   | "MANUAL";
