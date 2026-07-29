@@ -66,6 +66,10 @@ function isRustFrameworkVariable(variable: ClientEggVariable) {
   return variableText(variable).includes("framework");
 }
 
+function isRustBranchVariable(variable: ClientEggVariable) {
+  return variableText(variable).includes("branch");
+}
+
 function normalizeInstallProfile(value: string | null | undefined): InstallProfile | null {
   const normalized = String(value ?? "").trim().toLowerCase();
   return ["vanilla", "oxide", "carbon", "staging"].includes(normalized)
@@ -297,12 +301,20 @@ export async function POST(
             .map((variable) => [variable.env_variable, variable]),
         );
         let pendingRustProfile: InstallProfile | null | undefined;
+        const runtimeVariable = vars.find(
+          (variable) => isRustFrameworkVariable(variable) || isRustBranchVariable(variable),
+        );
 
         for (const [key, rawValue] of Object.entries(updates)) {
           const variable = editableVars.get(key);
           if (!variable) continue;
 
           const nextValue = String(rawValue ?? "");
+          if (runtimeVariable && key === runtimeVariable.env_variable) {
+            pendingRustProfile = normalizeInstallProfile(nextValue);
+            if (!pendingRustProfile) continue;
+            continue;
+          }
           if (nextValue === variable.server_value) continue;
 
           if (order.planId && isRustFrameworkVariable(variable)) {
@@ -313,11 +325,23 @@ export async function POST(
           variable.server_value = nextValue;
         }
 
+        if (pendingRustProfile) {
+          for (const variable of vars.filter((entry) => entry.is_editable)) {
+            const desired = desiredValue(variable, pendingRustProfile);
+            if (desired === null || desired === variable.server_value) continue;
+            await pteroClient.updateVariable(id, variable.env_variable, desired);
+            variable.server_value = desired;
+          }
+        }
+
         const configPath = await syncRustConfig(id, vars);
         if (pendingRustProfile !== undefined) {
           await db.order.update({
             where: { id: params.orderId },
-            data: { rustPendingReinstallProfile: pendingRustProfile },
+            data: {
+              rustInstallProfile: pendingRustProfile,
+              rustPendingReinstallProfile: pendingRustProfile,
+            },
           });
         }
         return NextResponse.json({ ok: true, configPath });
@@ -340,7 +364,7 @@ export async function POST(
         await applyInstallProfile(id, profile);
         await db.order.update({
           where: { id: params.orderId },
-          data: { rustPendingReinstallProfile: null },
+          data: { rustInstallProfile: profile, rustPendingReinstallProfile: null },
         });
         break;
       }

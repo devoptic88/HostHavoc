@@ -28,6 +28,8 @@ interface Variable {
   is_editable: boolean;
 }
 
+type RustRuntimeProfile = "vanilla" | "staging" | "oxide" | "carbon";
+
 function isRustManagedPortVariable(variable: Variable, isRust: boolean) {
   if (!isRust) return false;
   const text = `${variable.name} ${variable.description} ${variable.env_variable}`.toUpperCase();
@@ -45,12 +47,35 @@ function isRustFrameworkVariable(variable: Variable, isRust: boolean) {
   return text.includes("FRAMEWORK");
 }
 
-function frameworkValue(variable: Variable) {
+function isRustBranchVariable(variable: Variable, isRust: boolean) {
+  if (!isRust) return false;
+  const text = `${variable.name} ${variable.description} ${variable.env_variable}`.toUpperCase();
+  return text.includes("BRANCH");
+}
+
+function variableValue(variable: Variable) {
   return (variable.server_value || variable.default_value || "vanilla").trim().toLowerCase();
 }
 
-function parseFrameworkOptions() {
-  return ["vanilla", "oxide", "carbon"];
+function parseRuntimeOptions() {
+  return ["vanilla", "staging", "oxide", "carbon"] satisfies RustRuntimeProfile[];
+}
+
+function runtimeProfileFromVariables(
+  frameworkVariable: Variable | null,
+  branchVariable: Variable | null,
+  edits: Record<string, string> = {},
+) {
+  const branch = branchVariable ? (edits[branchVariable.env_variable] ?? variableValue(branchVariable)).trim().toLowerCase() : "public";
+  const framework = frameworkVariable ? (edits[frameworkVariable.env_variable] ?? variableValue(frameworkVariable)).trim().toLowerCase() : "vanilla";
+  if (branch.includes("staging")) return "staging";
+  if (framework === "oxide") return "oxide";
+  if (framework === "carbon") return "carbon";
+  return "vanilla";
+}
+
+function runtimeLabel(profile: RustRuntimeProfile) {
+  return profile.charAt(0).toUpperCase() + profile.slice(1);
 }
 
 const rustSections = [
@@ -112,10 +137,25 @@ export function Startup({
     () => vars.find((variable) => isRustFrameworkVariable(variable, isRust)) ?? null,
     [isRust, vars],
   );
-  const installedFramework = frameworkVariable ? frameworkValue(frameworkVariable) : "vanilla";
-  const selectedFramework = frameworkVariable
-    ? (edits[frameworkVariable.env_variable] ?? frameworkVariable.server_value ?? frameworkVariable.default_value ?? "vanilla").trim().toLowerCase()
-    : "vanilla";
+  const branchVariable = useMemo(
+    () => vars.find((variable) => isRustBranchVariable(variable, isRust)) ?? null,
+    [isRust, vars],
+  );
+  const runtimeVariable = frameworkVariable ?? branchVariable;
+  const hiddenRuntimeEnvVars = useMemo(
+    () =>
+      new Set(
+        [frameworkVariable, branchVariable]
+          .filter((variable): variable is Variable => Boolean(variable))
+          .filter((variable) => variable.env_variable !== runtimeVariable?.env_variable)
+          .map((variable) => variable.env_variable),
+      ),
+    [branchVariable, frameworkVariable, runtimeVariable],
+  );
+  const installedRuntime = runtimeProfileFromVariables(frameworkVariable, branchVariable);
+  const selectedRuntime = runtimeVariable && edits[runtimeVariable.env_variable] !== undefined
+    ? (edits[runtimeVariable.env_variable] as RustRuntimeProfile)
+    : runtimeProfileFromVariables(frameworkVariable, branchVariable, edits);
 
   const load = useCallback(async () => {
     try {
@@ -138,14 +178,21 @@ export function Startup({
   const dirtyKeys = useMemo(
     () =>
       vars
-        .filter((variable) => variable.is_editable && !isRustManagedPortVariable(variable, isRust))
         .filter(
           (variable) =>
-            (edits[variable.env_variable] ?? variable.server_value ?? "") !==
-            (variable.server_value ?? ""),
+            variable.is_editable &&
+            !isRustManagedPortVariable(variable, isRust) &&
+            !hiddenRuntimeEnvVars.has(variable.env_variable),
+        )
+        .filter(
+          (variable) =>
+            isRust && runtimeVariable && variable.env_variable === runtimeVariable.env_variable
+              ? selectedRuntime !== installedRuntime
+              : (edits[variable.env_variable] ?? variable.server_value ?? "") !==
+                (variable.server_value ?? ""),
         )
         .map((variable) => variable.env_variable),
-    [edits, isRust, vars],
+    [edits, hiddenRuntimeEnvVars, installedRuntime, isRust, runtimeVariable, selectedRuntime, vars],
   );
 
   async function saveAll() {
@@ -157,12 +204,20 @@ export function Startup({
 
     const currentValues = new Map(vars.map((variable) => [variable.env_variable, variable.server_value ?? ""]));
     const updates = Object.fromEntries(
-      dirtyKeys.map((key) => [key, edits[key] ?? currentValues.get(key) ?? ""]),
+      dirtyKeys.map((key) => {
+        if (isRust && runtimeVariable && key === runtimeVariable.env_variable) {
+          return [key, selectedRuntime];
+        }
+        return [key, edits[key] ?? currentValues.get(key) ?? ""];
+      }),
     );
     const frameworkNeedsReinstall =
-      frameworkVariable &&
-      dirtyKeys.includes(frameworkVariable.env_variable) &&
-      (updates[frameworkVariable.env_variable] ?? "").toString().trim().toLowerCase() !== installedFramework;
+      Boolean(
+        isRust &&
+        runtimeVariable &&
+        dirtyKeys.includes(runtimeVariable.env_variable) &&
+        selectedRuntime !== installedRuntime,
+      );
 
     const res = await fetch(`/api/servers/${orderId}/save-startup`, {
       method: "POST",
@@ -214,9 +269,10 @@ export function Startup({
               </p>
             </div>
             <div className="grid gap-3 px-5 py-4 sm:grid-cols-3">
-              <RustInstallCard title="Vanilla" body="Default Rust runtime with no modding layer enabled." tone={installedFramework === "vanilla" ? "active" : "default"} />
-              <RustInstallCard title="Oxide" body="Plugin-ready mode for legacy uMod/Oxide ecosystems." tone={installedFramework === "oxide" ? "active" : "default"} />
-              <RustInstallCard title="Carbon" body="Modern framework mode for Carbon-based plugin stacks." tone={installedFramework === "carbon" ? "active" : "default"} />
+              <RustInstallCard title="Vanilla" body="Default Rust runtime with no modding layer enabled." tone={installedRuntime === "vanilla" ? "active" : "default"} />
+              <RustInstallCard title="Staging" body="Preview Rust branch for testing upcoming updates before public release." tone={installedRuntime === "staging" ? "active" : "default"} />
+              <RustInstallCard title="Oxide" body="Plugin-ready mode for legacy uMod/Oxide ecosystems." tone={installedRuntime === "oxide" ? "active" : "default"} />
+              <RustInstallCard title="Carbon" body="Modern framework mode for Carbon-based plugin stacks." tone={installedRuntime === "carbon" ? "active" : "default"} />
             </div>
           </div>
 
@@ -302,13 +358,21 @@ export function Startup({
                 </div>
 
                 <ul className="divide-y divide-white/[0.04]">
-                  {section.variables.map((v) => (
+                  {section.variables
+                    .filter((v) => !hiddenRuntimeEnvVars.has(v.env_variable))
+                    .map((v) => (
                     <li key={v.env_variable} className="grid gap-3 px-4 py-4 sm:grid-cols-[1fr_320px]">
                       {(() => {
                         const managedPort = isRustManagedPortVariable(v, isRust);
-                        const frameworkField = isRustFrameworkVariable(v, isRust);
+                        const runtimeField = Boolean(
+                          isRust &&
+                          runtimeVariable &&
+                          v.env_variable === runtimeVariable.env_variable,
+                        );
                         const canEdit = v.is_editable && !managedPort;
-                        const controlValue = edits[v.env_variable] ?? v.server_value ?? "";
+                        const controlValue = runtimeField
+                          ? selectedRuntime
+                          : edits[v.env_variable] ?? v.server_value ?? "";
 
                         return (
                           <>
@@ -327,9 +391,9 @@ export function Startup({
                             This port is assigned automatically by HyperNode during provisioning.
                           </p>
                         ) : null}
-                        {frameworkField && selectedFramework !== installedFramework ? (
+                        {runtimeField && selectedRuntime !== installedRuntime ? (
                           <p className="mt-2 text-xs text-warning">
-                            Saving this change will require a reinstall before the selected framework is actually installed.
+                            Saving this change will require a reinstall before the selected runtime profile is actually installed.
                           </p>
                         ) : null}
                         <p className="mt-2 font-mono text-[11px] text-steel-dim">
@@ -338,7 +402,7 @@ export function Startup({
                       </div>
 
                       <div className="flex gap-2">
-                        {frameworkField ? (
+                        {runtimeField ? (
                           <Select
                             value={controlValue}
                             disabled={!canEdit}
@@ -346,9 +410,9 @@ export function Startup({
                               setEdits((s) => ({ ...s, [v.env_variable]: e.target.value }))
                             }
                           >
-                            {parseFrameworkOptions().map((option) => (
+                            {parseRuntimeOptions().map((option) => (
                               <option key={option} value={option}>
-                                {option.charAt(0).toUpperCase() + option.slice(1)}
+                                {runtimeLabel(option)}
                               </option>
                             ))}
                           </Select>
