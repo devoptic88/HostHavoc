@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  Check,
   Cloud,
   Clock3,
   Cog,
@@ -18,6 +19,7 @@ import {
   Shield,
   SlidersHorizontal,
   Sparkles,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -199,6 +201,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("IDENTITY") || text.includes("DATA FOLDER"),
       label: "Data Folder",
+      helper: "Identity folder to store map and player data in the /server folder",
       kind: "text",
       order: 0,
       group: "top",
@@ -206,6 +209,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("LEVEL") || text.includes("MAP TYPE"),
       label: "World Generator",
+      helper: "The map to start on",
       kind: "select",
       order: 1,
       group: "top",
@@ -213,6 +217,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("SEED"),
       label: "World Seed",
+      helper: "The seed used to generate the procedural level",
       kind: "seed",
       order: 2,
       group: "top",
@@ -220,6 +225,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("WORLDSIZE") || text.includes("WORLD SIZE"),
       label: "World Size",
+      helper: "Defines the size of the map generated (Min 1000, Max 8000). Default 4500",
       kind: "slider",
       order: 3,
       group: "top",
@@ -227,6 +233,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("RADIATION"),
       label: "Radiation",
+      helper: "Enable or Disable radiation across the entire world",
       kind: "toggle",
       order: 4,
       group: "top",
@@ -234,6 +241,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("SAVEINTERVAL") || text.includes("SAVE INTERVAL"),
       label: "Save Interval",
+      helper: "Amount of seconds between automatic saves",
       kind: "slider",
       order: 5,
       group: "top",
@@ -241,6 +249,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("ANIMAL") && text.includes("POPULATION"),
       label: "Animal Population",
+      helper: "Settings for the number of animals that spawn",
       kind: "slider",
       order: 6,
       group: "animals",
@@ -248,6 +257,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("RIDEABLE") && text.includes("HORSE") && text.includes("POPULATION"),
       label: "Rideable Horse Population",
+      helper: "Number of rideable horses per square km",
       kind: "slider",
       order: 7,
       group: "animals",
@@ -255,6 +265,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("HORSE") && text.includes("POPULATION"),
       label: "Wild Horse Population",
+      helper: "Number of wild horses per square km (normally disabled)",
       kind: "slider",
       order: 8,
       group: "animals",
@@ -262,6 +273,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("WOLF") && text.includes("POPULATION"),
       label: "Wolf Population",
+      helper: "Number of wolves per square km",
       kind: "slider",
       order: 9,
       group: "animals",
@@ -269,6 +281,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("CHICKEN") && text.includes("POPULATION"),
       label: "Chicken Population",
+      helper: "Number of chickens per square km",
       kind: "slider",
       order: 10,
       group: "animals",
@@ -276,6 +289,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("BOAR") && text.includes("POPULATION"),
       label: "Boar Population",
+      helper: "Number of bears per square km",
       kind: "slider",
       order: 11,
       group: "animals",
@@ -283,6 +297,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("STAG") && text.includes("POPULATION"),
       label: "Stag Population",
+      helper: "Number of stags per square km",
       kind: "slider",
       order: 12,
       group: "animals",
@@ -290,6 +305,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("BEAR") && text.includes("POPULATION"),
       label: "Bear Population",
+      helper: "Number of bears per square km",
       kind: "slider",
       order: 13,
       group: "animals",
@@ -297,6 +313,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("VEHICLE") && text.includes("POPULATION"),
       label: "Vehicle Population",
+      helper: "Settings for the number of vehicles that spawn",
       kind: "slider",
       order: 20,
       group: "vehicles",
@@ -304,6 +321,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("HOT AIR BALLOON") && text.includes("POPULATION"),
       label: "Hot Air Balloon Population",
+      helper: "Number of hot air balloons per square km",
       kind: "slider",
       order: 21,
       group: "vehicles",
@@ -314,6 +332,7 @@ function worldFieldMeta(variable: Variable) {
         text.includes("COPTER") &&
         text.includes("POPULATION"),
       label: "Mini Copter Population",
+      helper: "Number of mini copters per square km (normally disabled)",
       kind: "slider",
       order: 22,
       group: "vehicles",
@@ -321,6 +340,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("MODULAR") && text.includes("CAR") && text.includes("POPULATION"),
       label: "Modular Car Population",
+      helper: "Number of modular cars per square km",
       kind: "slider",
       order: 23,
       group: "vehicles",
@@ -328,6 +348,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("MOTOR") && text.includes("ROWBOAT") && text.includes("POPULATION"),
       label: "Motor Rowboat Population",
+      helper: "Number of motor rowboats per square km",
       kind: "slider",
       order: 24,
       group: "vehicles",
@@ -335,6 +356,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("RHIB") && text.includes("POPULATION"),
       label: "RHIB Population",
+      helper: "Number of rigged hulled inflatable boats per square km (normally disabled)",
       kind: "slider",
       order: 25,
       group: "vehicles",
@@ -342,6 +364,7 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () => text.includes("SCRAP") && text.includes("TRANSPORT") && text.includes("HELICOPTER") && text.includes("POPULATION"),
       label: "Scrap Transport Helicopter Population",
+      helper: "Number of scrap transport helicopters per square km (normally disabled)",
       kind: "slider",
       order: 26,
       group: "vehicles",
@@ -356,12 +379,21 @@ function worldFieldMeta(variable: Variable) {
     kind:
       found?.kind ??
       (isBooleanVariable(variable) ? "toggle" : /population|size|interval/i.test(text) ? "slider" : "text"),
-    helper: variable.description || variable.env_variable,
+    helper: found?.helper ?? (variable.description || variable.env_variable),
   };
 }
 
 function randomRustSeed() {
   return String(Math.floor(Math.random() * 2147483647));
+}
+
+function rangeFillStyle(value: number, min: number, max: number) {
+  const percent = max <= min ? 0 : ((value - min) / (max - min)) * 100;
+  const safePercent = Math.min(100, Math.max(0, percent));
+
+  return {
+    background: `linear-gradient(to right, #18aee6 0%, #18aee6 ${safePercent}%, #343a40 ${safePercent}%, #343a40 100%)`,
+  };
 }
 
 function weatherFieldMeta(variable: Variable) {
@@ -752,24 +784,27 @@ export function Startup({
             This server exposes no editable variables.
           </p>
         ) : (
-          <div className="space-y-5 px-5 py-5">
+          <div className={cn("space-y-5", isRust ? "bg-[#171d21]" : "px-5 py-5")}>
             {visibleSections.map((section) => (
               <section
                 key={section.id}
                 className={cn(
                   "rounded-[22px] border border-white/[0.06] bg-white/[0.02]",
-                  isRust && section.id === "basic" && "border-[#20262d] bg-[#171d21]",
+                  isRust && "rounded-none border-0 bg-[#171d21]",
+                  isRust && section.id === "basic" && "bg-[#171d21]",
                 )}
               >
-                <div className="border-b border-white/[0.06] px-4 py-3">
-                  <div className="flex items-center gap-2 text-white">
-                    <section.icon className="h-4 w-4 text-hyper-300" />
-                    <h3 className="text-sm font-semibold">{section.title}</h3>
+                {!isRust ? (
+                  <div className="border-b border-white/[0.06] px-4 py-3">
+                    <div className="flex items-center gap-2 text-white">
+                      <section.icon className="h-4 w-4 text-hyper-300" />
+                      <h3 className="text-sm font-semibold">{section.title}</h3>
+                    </div>
+                    <p className="mt-1 text-xs leading-relaxed text-steel-dim">
+                      {section.description}
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-steel-dim">
-                    {section.description}
-                  </p>
-                </div>
+                ) : null}
 
                 {isRust && section.id === "basic" ? (
                   <div className="space-y-14 px-5 py-8 md:px-8">
@@ -1104,27 +1139,27 @@ function RustWorldField({
   const generatorOptions = ["Procedural Map", "Barren", "HapisIsland", "CraggyIsland", "SavasIsland"];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       <div>
-        <p className="text-[1.05rem] font-medium text-white">{meta.label}</p>
-        <p className="mt-3 text-[0.95rem] text-[#dbe4ef]">{meta.helper}</p>
+        <p className="text-[13px] font-semibold leading-5 text-[#e7ebef]">{meta.label}</p>
+        <p className="mt-1.5 text-[11px] leading-5 text-[#c7ced6]">{meta.helper}</p>
       </div>
 
       {meta.kind === "seed" ? (
-        <div className="flex max-w-[420px] gap-0 overflow-hidden rounded-[18px] border border-[#676e78] bg-[#31363c]">
+        <div className="flex h-10 w-[196px] overflow-hidden rounded-md border border-[#65707a] bg-[#30363c]">
           <button
             type="button"
             disabled={!canEdit}
             onClick={() => updateValue(randomRustSeed())}
-            className="ring-focus flex h-[5rem] min-w-[5.5rem] items-center justify-center border-r border-[#676e78] bg-[#10243a] text-[#28aef3] transition-colors hover:bg-[#15314f] disabled:opacity-50"
+            className="ring-focus flex w-10 items-center justify-center border-r border-[#18aee6] bg-[#071521] text-[#18aee6] transition-colors hover:bg-[#102338] disabled:opacity-50"
           >
-            <Dice5 className="h-5 w-5" />
+            <Dice5 className="h-4 w-4" />
           </button>
           <Input
             value={currentValue}
             disabled={!canEdit}
             onChange={(e) => updateValue(e.target.value)}
-            className="h-[5rem] rounded-none border-0 bg-[#31363c] px-5 text-[1.05rem] text-white"
+            className="h-full rounded-none border-0 bg-[#30363c] px-3 text-[13px] text-[#eef3f8]"
           />
         </div>
       ) : meta.kind === "select" ? (
@@ -1132,7 +1167,7 @@ function RustWorldField({
           value={currentValue}
           disabled={!canEdit}
           onChange={(e) => updateValue(e.target.value)}
-          className="h-[5.25rem] max-w-[700px] rounded-[18px] border-[#676e78] bg-[#31363c] px-5 text-[1.05rem] text-white"
+          className="h-10 max-w-[533px] rounded-md border-[#65707a] bg-[#30363c] px-3 text-[13px] text-[#eef3f8]"
         >
           {[currentValue, ...generatorOptions]
             .filter((value, index, items) => value && items.indexOf(value) === index)
@@ -1143,7 +1178,7 @@ function RustWorldField({
             ))}
         </Select>
       ) : meta.kind === "toggle" ? (
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-5 pt-1">
           <button
             type="button"
             role="switch"
@@ -1151,26 +1186,27 @@ function RustWorldField({
             disabled={!canEdit}
             onClick={() => updateValue(isTruthyValue(currentValue) ? boolOptions.off : boolOptions.on)}
             className={cn(
-              "ring-focus relative h-11 w-[92px] rounded-full transition-colors disabled:opacity-50",
-              isTruthyValue(currentValue) ? "bg-[#26aeef]" : "bg-[#2e343b]",
+              "ring-focus relative h-6 w-10 rounded-full transition-colors disabled:opacity-50",
+              isTruthyValue(currentValue) ? "bg-[#18aee6]" : "bg-[#30363c]",
             )}
           >
             <span
               className={cn(
-                "absolute top-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#4b545d] transition-all",
-                isTruthyValue(currentValue) ? "left-[52px]" : "left-1.5",
+                "absolute top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-transparent transition-all [&_svg]:text-[#4b545d]",
+                isTruthyValue(currentValue) ? "left-[18px]" : "left-0.5",
               )}
             >
+              {isTruthyValue(currentValue) ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
               {isTruthyValue(currentValue) ? "✓" : "✕"}
             </span>
           </button>
           <div>
-            <p className="text-[1.05rem] font-medium text-white">{meta.label}</p>
-            <p className="mt-2 text-[0.95rem] text-[#dbe4ef]">{meta.helper}</p>
+            <p className="text-[13px] font-semibold leading-5 text-[#e7ebef]">{meta.label}</p>
+            <p className="mt-1.5 text-[11px] leading-5 text-[#c7ced6]">{meta.helper}</p>
           </div>
         </div>
       ) : meta.kind === "slider" ? (
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_300px] md:items-center">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,367px)_154px] md:items-center">
           <input
             type="range"
             min={numeric.min}
@@ -1179,14 +1215,15 @@ function RustWorldField({
             value={numeric.value}
             disabled={!canEdit}
             onChange={(e) => updateValue(e.target.value)}
-            className="h-6 w-full cursor-pointer appearance-none rounded-full bg-transparent accent-[#28aef3] disabled:cursor-not-allowed"
+            style={rangeFillStyle(numeric.value, numeric.min, numeric.max)}
+            className="h-2.5 w-full cursor-pointer appearance-none rounded-full accent-[#18aee6] disabled:cursor-not-allowed"
           />
-          <div className="grid h-[4.75rem] grid-cols-[92px_1fr_92px] overflow-hidden rounded-[18px] border border-[#4b4b4b] bg-[#101010]">
+          <div className="grid h-10 grid-cols-[44px_66px_44px] overflow-hidden rounded-md border border-[#3e3e3e] bg-[#0b0b0c]">
             <button
               type="button"
               disabled={!canEdit}
               onClick={() => incrementSlider(-numeric.step)}
-              className="ring-focus flex items-center justify-center border-r border-[#4b4b4b] text-[#d0d0d0] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+              className="ring-focus flex items-center justify-center border-r border-[#3e3e3e] text-[#cfd3d7] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
             >
               <Minus className="h-4 w-4" />
             </button>
@@ -1198,13 +1235,13 @@ function RustWorldField({
               value={numeric.display}
               disabled={!canEdit}
               onChange={(e) => updateValue(e.target.value)}
-              className="h-full rounded-none border-x border-[#676e78] border-y-0 bg-[#31363c] px-4 text-center text-[1.05rem] leading-none text-white"
+              className="h-full rounded-none border-x border-[#65707a] border-y-0 bg-[#30363c] px-2 text-center text-[13px] leading-none text-[#eef3f8]"
             />
             <button
               type="button"
               disabled={!canEdit}
               onClick={() => incrementSlider(numeric.step)}
-              className="ring-focus flex items-center justify-center border-l border-[#4b4b4b] text-[#d0d0d0] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+              className="ring-focus flex items-center justify-center border-l border-[#3e3e3e] text-[#cfd3d7] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -1215,7 +1252,7 @@ function RustWorldField({
           value={currentValue}
           disabled={!canEdit}
           onChange={(e) => updateValue(e.target.value)}
-          className="h-[5.25rem] max-w-[700px] rounded-[18px] border-[#676e78] bg-[#31363c] px-5 text-[1.05rem] text-white"
+          className="h-10 max-w-[533px] rounded-md border-[#65707a] bg-[#30363c] px-3 text-[13px] text-[#eef3f8]"
         />
       )}
     </div>
@@ -1416,8 +1453,8 @@ function RustWorldSection({
   const [vehicleLeft, vehicleRight] = splitColumns(vehicles);
 
   return (
-    <div className="space-y-12 px-5 py-8 md:px-8">
-      <div className="space-y-12">
+    <div className="max-w-[800px] space-y-8 px-7 py-8">
+      <div className="space-y-7">
         {top.map((variable) => (
           <RustWorldField
             key={variable.env_variable}
@@ -1429,15 +1466,15 @@ function RustWorldSection({
       </div>
 
       {animals.length > 0 ? (
-        <div className="space-y-8">
-          <div className="border-b border-white/20 pb-7">
-            <h4 className="text-[1.15rem] font-semibold text-white">Animal Populations</h4>
-            <p className="mt-4 text-[0.95rem] text-[#aeb8c3]">
+        <div className="space-y-5 pt-2">
+          <div className="border-b border-white/20 pb-4">
+            <h4 className="text-[18px] font-bold leading-6 text-white">Animal Populations</h4>
+            <p className="mt-3 text-[13px] leading-5 text-[#aeb8c3]">
               Settings for the number of animals that spawn
             </p>
           </div>
-          <div className="grid gap-x-12 gap-y-12 lg:grid-cols-2">
-            <div className="space-y-12">
+          <div className="grid gap-x-12 gap-y-7 lg:grid-cols-2">
+            <div className="space-y-7">
               {animalLeft.map((variable) => (
                 <RustWorldField
                   key={variable.env_variable}
@@ -1447,7 +1484,7 @@ function RustWorldSection({
                 />
               ))}
             </div>
-            <div className="space-y-12">
+            <div className="space-y-7">
               {animalRight.map((variable) => (
                 <RustWorldField
                   key={variable.env_variable}
@@ -1462,15 +1499,15 @@ function RustWorldSection({
       ) : null}
 
       {vehicles.length > 0 ? (
-        <div className="space-y-8">
-          <div className="border-b border-white/20 pb-7">
-            <h4 className="text-[1.15rem] font-semibold text-white">Vehicle Populations</h4>
-            <p className="mt-4 text-[0.95rem] text-[#aeb8c3]">
+        <div className="space-y-5 pt-2">
+          <div className="border-b border-white/20 pb-4">
+            <h4 className="text-[18px] font-bold leading-6 text-white">Vehicle Populations</h4>
+            <p className="mt-3 text-[13px] leading-5 text-[#aeb8c3]">
               Settings for the number of vehicles that spawn
             </p>
           </div>
-          <div className="grid gap-x-12 gap-y-12 lg:grid-cols-2">
-            <div className="space-y-12">
+          <div className="grid gap-x-12 gap-y-7 lg:grid-cols-2">
+            <div className="space-y-7">
               {vehicleLeft.map((variable) => (
                 <RustWorldField
                   key={variable.env_variable}
@@ -1480,7 +1517,7 @@ function RustWorldSection({
                 />
               ))}
             </div>
-            <div className="space-y-12">
+            <div className="space-y-7">
               {vehicleRight.map((variable) => (
                 <RustWorldField
                   key={variable.env_variable}
