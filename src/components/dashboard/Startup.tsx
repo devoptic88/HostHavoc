@@ -454,7 +454,6 @@ function rangeFillStyle(value: number, min: number, max: number) {
 }
 
 function weatherFieldMeta(variable: Variable) {
-  const text = variableText(variable);
   const compact = compactVariableText(variable);
 
   const definitions = [
@@ -527,18 +526,34 @@ function weatherFieldMeta(variable: Variable) {
   ] as const;
 
   const found = definitions.find((definition) => definition.match());
-  const kind = isBooleanVariable(variable)
-    ? "toggle"
-    : /chance|wetness|humidity|temperature|cloud|wind|fog|rain|storm|snow|dust|thunder/i.test(text)
-      ? "slider"
-      : "text";
-
   return {
     label: found?.label ?? variable.name,
     order: found?.order ?? 100,
     group: found?.group ?? "manual",
-    kind,
+    kind: "slider",
     helper: found?.helper ?? variable.description ?? variable.env_variable,
+  };
+}
+
+function formatWeatherDisplay(value: number) {
+  return String(Number(value.toFixed(2)));
+}
+
+function boundedWeatherNumericField(
+  numeric: ReturnType<typeof parseNumericField>,
+  min: number,
+  max: number,
+) {
+  const value = Math.min(max, Math.max(min, numeric.value));
+
+  return {
+    ...numeric,
+    min,
+    max,
+    step: 0.01,
+    value,
+    display: formatWeatherDisplay(value),
+    integerLike: false,
   };
 }
 
@@ -550,10 +565,10 @@ function weatherNumericField(
   const numeric = parseNumericField(variable, edits);
 
   if (meta.group === "manual") {
-    return boundedNumericField(numeric, -1, 1);
+    return boundedWeatherNumericField(numeric, -1, 1);
   }
 
-  return boundedNumericField(numeric, 0, 1);
+  return boundedWeatherNumericField(numeric, 0, 1);
 }
 
 function decayFieldMeta(variable: Variable) {
@@ -1501,8 +1516,9 @@ function RustWeatherField({
   const meta = weatherFieldMeta(variable);
   const currentValue = currentFieldValue(variable, edits);
   const numeric = weatherNumericField(variable, edits, meta);
-  const boolOptions = booleanOptions(variable);
   const canEdit = variable.is_editable;
+  const manualOverride = meta.group === "manual";
+  const manualEnabled = numeric.value !== -1;
 
   function updateValue(value: string) {
     setEdits((state) => ({ ...state, [variable.env_variable]: value }));
@@ -1510,7 +1526,7 @@ function RustWeatherField({
 
   function incrementSlider(delta: number) {
     const next = Math.min(numeric.max, Math.max(numeric.min, numeric.value + delta));
-    updateValue(numeric.integerLike ? String(Math.round(next)) : String(Number(next.toFixed(2))));
+    updateValue(formatWeatherDisplay(next));
   }
 
   return (
@@ -1520,31 +1536,37 @@ function RustWeatherField({
         <p className="mt-1.5 text-[11px] leading-5 text-[#c7ced6]">{meta.helper}</p>
       </div>
 
-      {meta.kind === "toggle" ? (
-        <div className="flex items-center gap-5 pt-1">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isTruthyValue(currentValue)}
-            disabled={!canEdit}
-            onClick={() => updateValue(isTruthyValue(currentValue) ? boolOptions.off : boolOptions.on)}
-            className={cn(
-              "ring-focus relative h-6 w-10 rounded-full transition-colors disabled:opacity-50",
-              isTruthyValue(currentValue) ? "bg-[#18aee6]" : "bg-[#30363c]",
-            )}
-          >
-            <span
+      {meta.kind === "slider" ? (
+        <div
+          className={cn(
+            "grid gap-3 md:items-center",
+            manualOverride
+              ? "md:grid-cols-[40px_minmax(0,367px)_154px]"
+              : "md:grid-cols-[minmax(0,367px)_154px]",
+          )}
+        >
+          {manualOverride ? (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={manualEnabled}
+              disabled={!canEdit}
+              onClick={() => updateValue(manualEnabled ? "-1" : "1")}
               className={cn(
-                "absolute top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white transition-all [&_svg]:text-[#4b545d]",
-                isTruthyValue(currentValue) ? "left-[18px]" : "left-0.5",
+                "ring-focus relative h-6 w-10 rounded-full transition-colors disabled:opacity-50",
+                manualEnabled ? "bg-[#18aee6]" : "bg-[#30363c]",
               )}
             >
-              {isTruthyValue(currentValue) ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
-            </span>
-          </button>
-        </div>
-      ) : meta.kind === "slider" ? (
-        <div className="grid gap-3 md:grid-cols-[minmax(0,367px)_154px] md:items-center">
+              <span
+                className={cn(
+                  "absolute top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white transition-all [&_svg]:text-[#4b545d]",
+                  manualEnabled ? "left-[18px]" : "left-0.5",
+                )}
+              >
+                {manualEnabled ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+              </span>
+            </button>
+          ) : null}
           <input
             type="range"
             min={numeric.min}
