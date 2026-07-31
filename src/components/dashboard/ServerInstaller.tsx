@@ -71,6 +71,14 @@ function variableText(variable: Variable) {
   return `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase();
 }
 
+function variableLabel(variable: Pick<Variable, "name" | "env_variable">) {
+  return `${variable.name} ${variable.env_variable}`.toLowerCase();
+}
+
+function variableDescription(variable: Pick<Variable, "description">) {
+  return `${variable.description}`.toLowerCase();
+}
+
 function currentValue(variable?: Variable) {
   return (variable?.server_value || variable?.default_value || "").toLowerCase();
 }
@@ -84,12 +92,18 @@ function isBranchVariable(variable: Variable) {
 }
 
 function isOxideSignalVariable(variable: Variable) {
-  const text = variableText(variable);
-  return !isFrameworkVariable(variable) && (text.includes("oxide") || text.includes("umod"));
+  if (isFrameworkVariable(variable) || isCarbonSignalVariable(variable)) return false;
+  const label = variableLabel(variable);
+  if (label.includes("oxide") || label.includes("umod")) return true;
+  return variableDescription(variable).includes("oxide") || variableDescription(variable).includes("umod");
 }
 
 function isCarbonSignalVariable(variable: Variable) {
-  return !isFrameworkVariable(variable) && variableText(variable).includes("carbon");
+  if (isFrameworkVariable(variable) || isBranchVariable(variable)) return false;
+  const label = variableLabel(variable);
+  if (label.includes("carbon")) return true;
+  if (label.includes("oxide") || label.includes("umod")) return false;
+  return variableDescription(variable).includes("carbon");
 }
 
 function hasEnabledValue(value: string) {

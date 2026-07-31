@@ -112,6 +112,37 @@ function normalizeEggVariableText(variable: Pick<AppEggVariable, "name" | "descr
   return `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase();
 }
 
+function rustVariableLabel(variable: Pick<AppEggVariable, "name" | "env_variable">) {
+  return `${variable.name} ${variable.env_variable}`.toLowerCase();
+}
+
+function rustVariableDescription(variable: Pick<AppEggVariable, "description">) {
+  return `${variable.description}`.toLowerCase();
+}
+
+function isRustBranchVariable(variable: Pick<AppEggVariable, "name" | "description" | "env_variable">) {
+  return normalizeEggVariableText(variable).includes("branch");
+}
+
+function isRustFrameworkVariable(variable: Pick<AppEggVariable, "name" | "description" | "env_variable">) {
+  return normalizeEggVariableText(variable).includes("framework");
+}
+
+function isRustCarbonVariable(variable: Pick<AppEggVariable, "name" | "description" | "env_variable">) {
+  if (isRustBranchVariable(variable) || isRustFrameworkVariable(variable)) return false;
+  const label = rustVariableLabel(variable);
+  if (label.includes("carbon")) return true;
+  if (label.includes("oxide") || label.includes("umod")) return false;
+  return rustVariableDescription(variable).includes("carbon");
+}
+
+function isRustOxideVariable(variable: Pick<AppEggVariable, "name" | "description" | "env_variable">) {
+  if (isRustBranchVariable(variable) || isRustFrameworkVariable(variable) || isRustCarbonVariable(variable)) return false;
+  const label = rustVariableLabel(variable);
+  if (label.includes("oxide") || label.includes("umod")) return true;
+  return rustVariableDescription(variable).includes("oxide") || rustVariableDescription(variable).includes("umod");
+}
+
 function normalizeRustInstallProfile(value: string | null | undefined): RustInstallProfile {
   const normalized = String(value ?? "").trim().toLowerCase();
   return ["vanilla", "staging", "oxide", "carbon"].includes(normalized)
@@ -129,17 +160,17 @@ function rustInstallVariableValue(
   const truthy = sample === "true" || sample === "false" ? "true" : sample === "yes" || sample === "no" ? "yes" : "1";
   const falsy = sample === "true" || sample === "false" ? "false" : sample === "yes" || sample === "no" ? "no" : "0";
 
-  if (text.includes("branch")) {
+  if (isRustBranchVariable(variable)) {
     return profile === "staging" ? "staging" : "public";
   }
 
-  if (text.includes("framework")) {
+  if (isRustFrameworkVariable(variable)) {
     if (profile === "oxide") return "oxide";
     if (profile === "carbon") return "carbon";
     return "vanilla";
   }
 
-  if (text.includes("oxide") || text.includes("umod")) {
+  if (isRustOxideVariable(variable)) {
     if (isBooleanLike) {
       return profile === "oxide" ? truthy : falsy;
     }
@@ -149,7 +180,7 @@ function rustInstallVariableValue(
     return profile === "oxide" ? "oxide" : "";
   }
 
-  if (text.includes("carbon")) {
+  if (isRustCarbonVariable(variable)) {
     if (isBooleanLike) {
       return profile === "carbon" ? truthy : falsy;
     }

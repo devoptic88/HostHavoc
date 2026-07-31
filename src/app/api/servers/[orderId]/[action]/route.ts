@@ -66,12 +66,35 @@ function variableText(variable: ClientEggVariable) {
   return `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase();
 }
 
+function variableLabel(variable: Pick<ClientEggVariable, "name" | "env_variable">) {
+  return `${variable.name} ${variable.env_variable}`.toLowerCase();
+}
+
+function variableDescription(variable: Pick<ClientEggVariable, "description">) {
+  return `${variable.description}`.toLowerCase();
+}
+
 function isRustFrameworkVariable(variable: ClientEggVariable) {
   return variableText(variable).includes("framework");
 }
 
 function isRustBranchVariable(variable: ClientEggVariable) {
   return variableText(variable).includes("branch");
+}
+
+function isRustCarbonVariable(variable: ClientEggVariable) {
+  if (isRustBranchVariable(variable) || isRustFrameworkVariable(variable)) return false;
+  const label = variableLabel(variable);
+  if (label.includes("carbon")) return true;
+  if (label.includes("oxide") || label.includes("umod")) return false;
+  return variableDescription(variable).includes("carbon");
+}
+
+function isRustOxideVariable(variable: ClientEggVariable) {
+  if (isRustBranchVariable(variable) || isRustFrameworkVariable(variable) || isRustCarbonVariable(variable)) return false;
+  const label = variableLabel(variable);
+  if (label.includes("oxide") || label.includes("umod")) return true;
+  return variableDescription(variable).includes("oxide") || variableDescription(variable).includes("umod");
 }
 
 function normalizeInstallProfile(value: string | null | undefined): InstallProfile | null {
@@ -102,17 +125,17 @@ function falsyFor(variable: ClientEggVariable) {
 function desiredValue(variable: ClientEggVariable, profile: InstallProfile) {
   const text = variableText(variable);
 
-  if (text.includes("branch")) {
+  if (isRustBranchVariable(variable)) {
     return profile === "staging" ? "staging" : "public";
   }
 
-  if (text.includes("framework")) {
+  if (isRustFrameworkVariable(variable)) {
     if (profile === "oxide") return "oxide";
     if (profile === "carbon") return "carbon";
     return "vanilla";
   }
 
-  if (text.includes("oxide") || text.includes("umod")) {
+  if (isRustOxideVariable(variable)) {
     if (isBooleanLike(variable)) {
       return profile === "oxide" ? truthyFor(variable) : falsyFor(variable);
     }
@@ -122,7 +145,7 @@ function desiredValue(variable: ClientEggVariable, profile: InstallProfile) {
     return profile === "oxide" ? "oxide" : "";
   }
 
-  if (text.includes("carbon")) {
+  if (isRustCarbonVariable(variable)) {
     if (isBooleanLike(variable)) {
       return profile === "carbon" ? truthyFor(variable) : falsyFor(variable);
     }
