@@ -9,6 +9,7 @@ import {
   Clock3,
   Cog,
   Dice5,
+  Eye,
   Globe,
   Loader2,
   Lock,
@@ -904,11 +905,46 @@ function advancedFieldMeta(variable: Variable) {
   const compact = compactVariableText(variable);
 
   const definitions = [
-    { match: () => compact.includes("TICKRATE"), label: "Tickrate", order: 0, kind: "slider", group: null },
-    { match: () => compact.includes("RCON") && compact.includes("PASSWORD"), label: "RCON Password", order: 1, kind: "password", group: null },
-    { match: () => compact.includes("RCON") && compact.includes("WEB"), label: "Enable Web RCON", order: 2, kind: "toggle", group: null },
-    { match: () => compact.includes("SECUREBOOT") || compact.includes("TPM"), label: "Secure Boot Enforcement", order: 3, kind: "toggle", group: null },
-    { match: () => compact.includes("CONVAR") || compact.includes("ARGUMENT"), label: "ConVars", order: 50, kind: "textarea", group: "Custom Server Arguments" },
+    {
+      match: () => compact.includes("TICKRATE"),
+      label: "Tickrate",
+      order: 0,
+      kind: "slider",
+      group: null,
+      helper: "Amount of ticks to tick per second. Lower = Better Performance, but weird stuff can happen",
+    },
+    {
+      match: () => compact.includes("RCON") && compact.includes("PASSWORD"),
+      label: "RCON Password",
+      order: 1,
+      kind: "password",
+      group: null,
+      helper: "Password use to gain Admin Commands ingame",
+    },
+    {
+      match: () => compact.includes("RCON") && compact.includes("WEB"),
+      label: "Enable Web RCON",
+      order: 2,
+      kind: "toggle",
+      group: null,
+      helper: "",
+    },
+    {
+      match: () => compact.includes("SECUREBOOT") || compact.includes("TPM"),
+      label: "Secure Boot Enforcement",
+      order: 3,
+      kind: "toggle",
+      group: null,
+      helper: "Enable to require TPM and Secure Boot for all players and get the Secure tag in the server browser.",
+    },
+    {
+      match: () => compact.includes("CONVAR") || compact.includes("ARGUMENT"),
+      label: "ConVars",
+      order: 50,
+      kind: "textarea",
+      group: "Custom Server Arguments",
+      helper: "",
+    },
   ] as const;
 
   const found = definitions.find((definition) => definition.match());
@@ -924,7 +960,7 @@ function advancedFieldMeta(variable: Variable) {
     order: found?.order ?? 100,
     group: found?.group ?? null,
     kind,
-    helper: variable.description || variable.env_variable,
+    helper: found?.helper ?? (variable.description || variable.env_variable),
   };
 }
 
@@ -1393,11 +1429,10 @@ export function Startup({
                     metaFor={decayFieldMeta}
                   />
                 ) : isRust && section.id === "advanced" ? (
-                  <RustMappedSection
+                  <RustAdvancedSection
                     variables={section.variables.filter((v) => !hiddenRuntimeEnvVars.has(v.env_variable))}
                     edits={edits}
                     setEdits={setEdits}
-                    metaFor={advancedFieldMeta}
                   />
                 ) : (
                   <ul className="divide-y divide-white/[0.04]">
@@ -2140,6 +2175,210 @@ function RustWorldSection({
               ))}
             </div>
           </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function advancedNumericField(variable: Variable, edits: Record<string, string>, meta: ReturnType<typeof advancedFieldMeta>) {
+  const numeric = parseNumericField(variable, edits);
+
+  if (meta.label === "Tickrate") {
+    return boundedMappedNumericField(numeric, 1, 60, 1);
+  }
+
+  return numeric;
+}
+
+function randomRconPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*";
+  return Array.from({ length: 28 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+}
+
+function RustAdvancedSection({
+  variables,
+  edits,
+  setEdits,
+}: {
+  variables: Variable[];
+  edits: Record<string, string>;
+  setEdits: Dispatch<SetStateAction<Record<string, string>>>;
+}) {
+  const [showRconPassword, setShowRconPassword] = useState(false);
+  const ordered = [...variables].sort((a, b) => advancedFieldMeta(a).order - advancedFieldMeta(b).order);
+  const topVariables = ordered.filter((variable) => !advancedFieldMeta(variable).group);
+  const convarVariables = ordered.filter((variable) => advancedFieldMeta(variable).group === "Custom Server Arguments");
+
+  function updateValue(variable: Variable, value: string) {
+    setEdits((state) => ({ ...state, [variable.env_variable]: value }));
+  }
+
+  return (
+    <div className="max-w-[900px] space-y-8 px-7 py-8">
+      {topVariables.map((variable) => {
+        const meta = advancedFieldMeta(variable);
+        const currentValue = currentFieldValue(variable, edits);
+        const numeric = advancedNumericField(variable, edits, meta);
+        const boolOptions = booleanOptions(variable);
+        const canEdit = variable.is_editable;
+
+        if (meta.kind === "slider") {
+          return (
+            <div key={variable.env_variable} className="space-y-2.5">
+              <div>
+                <p className="text-[13px] font-semibold leading-5 text-[#e7ebef]">{meta.label}</p>
+                <p className="mt-1.5 text-[11px] leading-5 text-[#c7ced6]">{meta.helper}</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-[minmax(0,533px)_110px] md:items-center">
+                <input
+                  type="range"
+                  min={numeric.min}
+                  max={numeric.max}
+                  step={numeric.step}
+                  value={numeric.value}
+                  disabled={!canEdit}
+                  onChange={(event) => updateValue(variable, event.target.value)}
+                  style={rangeFillStyle(numeric.value, numeric.min, numeric.max)}
+                  className="h-2.5 w-full cursor-pointer appearance-none rounded-full accent-[#18aee6] disabled:cursor-not-allowed"
+                />
+                <Input
+                  type="number"
+                  min={numeric.min}
+                  max={numeric.max}
+                  step={numeric.step}
+                  value={numeric.display}
+                  disabled={!canEdit}
+                  onChange={(event) => updateValue(variable, event.target.value)}
+                  className={cn(
+                    "h-10 rounded-md border-[#65707a] bg-[#30363c] px-2 text-center text-[13px] leading-none text-[#eef3f8]",
+                    numberInputNoSpinnerClass,
+                  )}
+                />
+              </div>
+            </div>
+          );
+        }
+
+        if (meta.kind === "password") {
+          return (
+            <div key={variable.env_variable} className="space-y-2.5">
+              <div>
+                <p className="text-[13px] font-semibold leading-5 text-[#e7ebef]">{meta.label}</p>
+                <p className="mt-1.5 text-[11px] leading-5 text-[#c7ced6]">{meta.helper}</p>
+              </div>
+              <div className="flex h-11 max-w-[730px] overflow-hidden rounded-md border border-[#65707a] bg-[#30363c]">
+                <button
+                  type="button"
+                  disabled={!canEdit}
+                  onClick={() => updateValue(variable, randomRconPassword())}
+                  className="ring-focus flex w-12 items-center justify-center border-r border-[#18aee6] bg-[#071521] text-[#18aee6] transition-colors hover:bg-[#102338] disabled:opacity-50"
+                >
+                  <Dice5 className="h-4 w-4" />
+                </button>
+                <Input
+                  type={showRconPassword ? "text" : "password"}
+                  value={currentValue}
+                  disabled={!canEdit}
+                  onChange={(event) => updateValue(variable, event.target.value)}
+                  className="h-full flex-1 rounded-none border-0 bg-[#30363c] px-3 text-[13px] text-[#eef3f8]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowRconPassword((value) => !value)}
+                  className="ring-focus flex w-12 items-center justify-center border-l border-[#65707a] bg-[#0c0c0c] text-[#aeb8c3] transition-colors hover:text-white"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          );
+        }
+
+        if (meta.kind === "toggle") {
+          return (
+            <div key={variable.env_variable} className="flex items-start gap-5 pt-1">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isTruthyValue(currentValue)}
+                disabled={!canEdit}
+                onClick={() => updateValue(variable, isTruthyValue(currentValue) ? boolOptions.off : boolOptions.on)}
+                className={cn(
+                  "ring-focus relative mt-0.5 h-6 w-10 rounded-full transition-colors disabled:opacity-50",
+                  isTruthyValue(currentValue) ? "bg-[#18aee6]" : "bg-[#30363c]",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white transition-all [&_svg]:text-[#4b545d]",
+                    isTruthyValue(currentValue) ? "left-[18px]" : "left-0.5",
+                  )}
+                >
+                  {isTruthyValue(currentValue) ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                </span>
+              </button>
+              <div>
+                <p className="text-[13px] font-semibold leading-5 text-[#e7ebef]">{meta.label}</p>
+                <p className="mt-1.5 text-[11px] leading-5 text-[#c7ced6]">{meta.helper}</p>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={variable.env_variable} className="space-y-2.5">
+            <div>
+              <p className="text-[13px] font-semibold leading-5 text-[#e7ebef]">{meta.label}</p>
+              <p className="mt-1.5 text-[11px] leading-5 text-[#c7ced6]">{meta.helper}</p>
+            </div>
+            <Input
+              value={currentValue}
+              disabled={!canEdit}
+              onChange={(event) => updateValue(variable, event.target.value)}
+              className="h-10 max-w-[533px] rounded-md border-[#65707a] bg-[#30363c] px-3 text-[13px] text-[#eef3f8]"
+            />
+          </div>
+        );
+      })}
+
+      {convarVariables.length > 0 ? (
+        <div className="space-y-5 pt-2">
+          <div className="border-b border-white/20 pb-4">
+            <h4 className="text-[18px] font-bold leading-6 text-white">Custom Server Arguments</h4>
+            <p className="mt-3 text-[13px] leading-5 text-[#aeb8c3]">
+              These will override any config files you have setup, so be careful when using this. Misuse may cause the server to crash, or not startup at all.
+            </p>
+          </div>
+          {convarVariables.map((variable) => {
+            const meta = advancedFieldMeta(variable);
+            const currentValue = currentFieldValue(variable, edits);
+            const canEdit = variable.is_editable;
+
+            return (
+              <div key={variable.env_variable} className="space-y-2.5">
+                <p className="text-[13px] font-semibold leading-5 text-[#e7ebef]">{meta.label}</p>
+                <div className="grid max-w-[533px] grid-cols-2 gap-0 overflow-hidden rounded-md bg-[#07111d] p-2">
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => updateValue(variable, "")}
+                    className="ring-focus h-10 rounded-md text-[13px] text-[#aeb8c3] transition-colors hover:bg-white/5 disabled:opacity-50"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => updateValue(variable, currentValue ? `${currentValue} ` : "")}
+                    className="ring-focus h-10 rounded-md border border-[#31c451] bg-[#0a2811] text-[13px] text-[#31e45f] transition-colors hover:bg-[#103b1a] disabled:opacity-50"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : null}
     </div>
