@@ -1,7 +1,13 @@
 import { db } from "@/lib/db";
 import { pteroApp, pteroClient, PterodactylError } from "@/lib/pterodactyl";
 import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
-import { encodeRustStartupVariableValue } from "@/lib/rustStartup";
+import {
+  encodeRustStartupVariableValue,
+  hasRequiredRule,
+  isRustMapUrlVariable,
+  normalizeRustMapUrlValue,
+  patchRustStartupCommand,
+} from "@/lib/rustStartup";
 import {
   findRustPortGroup,
   hasRustAppPort,
@@ -75,6 +81,27 @@ function generatedEggValue(env: string, rules: string): string {
   }
 
   return "";
+}
+
+function redactValue(key: string, value: unknown) {
+  if (Array.isArray(value)) return value.map((entry) => redactValue(key, entry));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([nestedKey, nestedValue]) => [nestedKey, redactValue(nestedKey, nestedValue)]),
+    );
+  }
+
+  if (/(pass|password|secret|token|key)/i.test(key)) {
+    return value ? "[REDACTED]" : value;
+  }
+
+  return value;
+}
+
+function logCreateServerPayload(orderId: string, payload: Record<string, unknown>) {
+  console.info(
+    `[provision] createServer payload for order ${orderId}: ${JSON.stringify(redactValue("payload", payload))}`,
+  );
 }
 
 function normalizeVariableText(variable: ClientEggVariable) {
@@ -268,6 +295,10 @@ function desiredRustEnvironmentValue(
 
   if (text.includes("description")) {
     return shellEscapeRustText("Hosted on HyperNode");
+  }
+
+  if (isRustMapUrlVariable(variable)) {
+    return normalizeRustMapUrlValue(variable.default_value);
   }
 
   if (text.includes("level") && !text.includes("url") && !text.includes("custom map")) {
@@ -528,9 +559,15 @@ export async function provisionOrder(orderId: string): Promise<void> {
     const environment: Record<string, string> = {};
     const eggVariables = (egg.relationships?.variables?.data ?? []).map((item) => item.attributes);
     for (const variable of eggVariables) {
-      environment[variable.env_variable] =
-        variable.default_value ||
-        generatedEggValue(variable.env_variable, variable.rules);
+      if (plan.gameSlug === "rust" && isRustMapUrlVariable(variable)) {
+        const mapUrl = normalizeRustMapUrlValue("");
+        if (mapUrl || hasRequiredRule(variable.rules)) {
+          environment[variable.env_variable] = mapUrl;
+        }
+        continue;
+      }
+
+      environment[variable.env_variable] = variable.default_value || generatedEggValue(variable.env_variable, variable.rules);
     }
 
     if (plan.gameSlug === "rust") {
@@ -581,12 +618,13 @@ export async function provisionOrder(orderId: string): Promise<void> {
       };
     }
 
-    const created = await pteroApp.createServer({
+    const startupCommand = plan.gameSlug === "rust" ? patchRustStartupCommand(egg.startup) : egg.startup;
+    const createPayload = {
       name: order.serverName,
       user: await getServiceUserId(),
       egg: plan.eggId,
       docker_image: dockerImage,
-      startup: egg.startup,
+      startup: startupCommand,
       environment,
       limits: {
         memory: plan.ramMb,
@@ -605,7 +643,11 @@ export async function provisionOrder(orderId: string): Promise<void> {
       external_id: order.id,
       description: `HyperNode order ${order.id} - ${order.user.email}`,
       start_on_completion: false,
-    });
+    };
+
+    logCreateServerPayload(order.id, createPayload);
+
+    const created = await pteroApp.createServer(createPayload);
 
     const attrs = created.attributes;
     await attachProvisionedServer(

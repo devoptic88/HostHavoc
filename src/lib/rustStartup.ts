@@ -10,12 +10,67 @@ type ConfigEntry = {
   value: string;
 };
 
+const RUST_MAP_URL_PLACEHOLDERS = new Set([
+  "",
+  "0",
+  "1",
+  "false",
+  "true",
+  "no",
+  "yes",
+  "off",
+  "on",
+  "null",
+  "undefined",
+]);
+
 function variableText(variable: RustStartupVariable) {
   return `${variable.name} ${variable.description} ${variable.env_variable}`.toUpperCase();
 }
 
 function currentValue(variable: RustStartupVariable) {
   return decodeShellQuotedValue((variable.server_value || variable.default_value || "").trim());
+}
+
+function variableEnv(variable: Pick<RustStartupVariable, "env_variable">) {
+  return variable.env_variable.toUpperCase();
+}
+
+export function hasRequiredRule(rules: string | null | undefined) {
+  return String(rules ?? "")
+    .toLowerCase()
+    .split("|")
+    .includes("required");
+}
+
+export function normalizeRustMapUrlValue(rawValue: string | null | undefined) {
+  const value = decodeShellQuotedValue(String(rawValue ?? "").trim());
+  if (!value) return "";
+
+  const normalized = value.toLowerCase();
+  if (RUST_MAP_URL_PLACEHOLDERS.has(normalized)) return "";
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+export function isRustMapUrlVariable(variable: Pick<RustStartupVariable, "name" | "description" | "env_variable">) {
+  const env = variableEnv(variable);
+  const text = variableText({ ...variable, server_value: "", default_value: "" });
+  return env === "MAP_URL" || text.includes("LEVELURL") || text.includes("CUSTOM MAP");
+}
+
+export function patchRustStartupCommand(startup: string) {
+  if (!startup) return startup;
+  return startup.replaceAll(
+    '+server.levelurl "{{MAP_URL}}"',
+    '${MAP_URL:+ +server.levelurl "$MAP_URL"}',
+  );
 }
 
 export function decodeShellQuotedValue(value: string) {
@@ -47,6 +102,10 @@ function needsShellQuoting(value: string) {
 }
 
 export function encodeRustStartupVariableValue(variable: RustStartupVariable, rawValue: string) {
+  if (isRustMapUrlVariable(variable)) {
+    return normalizeRustMapUrlValue(rawValue);
+  }
+
   const entry = toConfigEntry(variable);
   const value = decodeShellQuotedValue(rawValue.trim());
 
@@ -68,9 +127,9 @@ export function encodeRustStartupVariableValue(variable: RustStartupVariable, ra
 }
 
 function toConfigEntry(variable: RustStartupVariable): ConfigEntry | null {
-  const env = variable.env_variable.toUpperCase();
+  const env = variableEnv(variable);
   const text = variableText(variable);
-  const value = currentValue(variable);
+  const value = isRustMapUrlVariable(variable) ? normalizeRustMapUrlValue(currentValue(variable)) : currentValue(variable);
 
   if (!value) return null;
 

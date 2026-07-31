@@ -8,7 +8,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { GAMES, gameCapsule, gameHero } from "@/content/games";
 import { normalizePterodactylMessage } from "@/lib/pterodactyl/errorMessages";
-import { pteroClient } from "@/lib/pterodactyl";
+import { pteroApp, pteroClient } from "@/lib/pterodactyl";
 import { formatDate, formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -72,13 +72,22 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       .filter((order) => order.productType === "GAME_SERVER" && order.pteroServerIdentifier)
       .map(async (order) => {
         try {
+          if (order.pteroServerId) {
+            const panelServer = await pteroApp.getServer(order.pteroServerId);
+            const installStatus = panelServer.attributes.status;
+            if (installStatus === "installing") {
+              liveStatuses.set(order.id, "installing");
+              return;
+            }
+            if (installStatus === "install_failed") {
+              liveStatuses.set(order.id, "install_failed");
+              return;
+            }
+          }
+
           const server = await pteroClient.getClientServer(order.pteroServerIdentifier!);
           if (server.attributes.is_suspended) {
             liveStatuses.set(order.id, "suspended");
-            return;
-          }
-          if (server.attributes.is_installing) {
-            liveStatuses.set(order.id, "installing");
             return;
           }
           const resources = await pteroClient.getResources(order.pteroServerIdentifier!);
