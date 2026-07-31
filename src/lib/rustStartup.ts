@@ -18,9 +18,13 @@ function currentValue(variable: RustStartupVariable) {
   return decodeShellQuotedValue((variable.server_value || variable.default_value || "").trim());
 }
 
-function decodeShellQuotedValue(value: string) {
+export function decodeShellQuotedValue(value: string) {
   if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
     return value.slice(1, -1).replace(/'\"'\"'/g, "'");
+  }
+
+  if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+    return value.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
   }
 
   return value;
@@ -32,6 +36,35 @@ function quoted(value: string) {
   }
 
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function shellQuoted(value: string) {
+  return `'${value.replace(/'/g, `'\"'\"'`)}'`;
+}
+
+function needsShellQuoting(value: string) {
+  return /[\s"'\\$`;&|<>(){}[\]*?~!]/.test(value);
+}
+
+export function encodeRustStartupVariableValue(variable: RustStartupVariable, rawValue: string) {
+  const entry = toConfigEntry(variable);
+  const value = decodeShellQuotedValue(rawValue.trim());
+
+  if (!entry || !value || /^-?\d+(\.\d+)?$/.test(value) || /^(true|false)$/i.test(value)) {
+    return value;
+  }
+
+  const shellSensitiveKeys = new Set([
+    "server.hostname",
+    "server.description",
+    "server.url",
+    "server.headerimage",
+    "server.levelurl",
+    "server.level",
+    "rcon.password",
+  ]);
+
+  return shellSensitiveKeys.has(entry.key) && needsShellQuoting(value) ? shellQuoted(value) : value;
 }
 
 function toConfigEntry(variable: RustStartupVariable): ConfigEntry | null {

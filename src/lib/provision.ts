@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { pteroApp, pteroClient, PterodactylError } from "@/lib/pterodactyl";
 import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
+import { encodeRustStartupVariableValue } from "@/lib/rustStartup";
 import {
   findRustPortGroup,
   hasRustAppPort,
@@ -209,11 +210,16 @@ function desiredRustValue(
     return shellEscapeRustText("Hosted on HyperNode");
   }
 
+  if (text.includes("level") && !text.includes("url") && !text.includes("custom map")) {
+    const value = variable.server_value || variable.default_value;
+    return value ? encodeRustStartupVariableValue(variable, value) : null;
+  }
+
   return null;
 }
 
 function desiredRustEnvironmentValue(
-  variable: Pick<AppEggVariable, "name" | "description" | "env_variable">,
+  variable: Pick<AppEggVariable, "name" | "description" | "env_variable" | "default_value">,
   order: ProvisionableOrder,
   allocations: Map<string, RustTrackedAllocation>,
 ) {
@@ -262,6 +268,12 @@ function desiredRustEnvironmentValue(
 
   if (text.includes("description")) {
     return shellEscapeRustText("Hosted on HyperNode");
+  }
+
+  if (text.includes("level") && !text.includes("url") && !text.includes("custom map")) {
+    return variable.default_value
+      ? encodeRustStartupVariableValue({ ...variable, server_value: "" }, variable.default_value)
+      : null;
   }
 
   return null;

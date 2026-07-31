@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input, Select, Textarea } from "@/components/ui/Input";
+import { decodeShellQuotedValue } from "@/lib/rustStartup";
 import { cn } from "@/lib/utils";
 
 interface Variable {
@@ -59,7 +60,7 @@ function isRustBranchVariable(variable: Variable, isRust: boolean) {
 }
 
 function variableValue(variable: Variable) {
-  return (variable.server_value || variable.default_value || "vanilla").trim().toLowerCase();
+  return decodeShellQuotedValue(variable.server_value || variable.default_value || "vanilla").trim().toLowerCase();
 }
 
 function variableText(variable: Variable) {
@@ -153,7 +154,7 @@ function ruleNumber(rule: string, key: "min" | "max") {
 }
 
 function currentFieldValue(variable: Variable, edits: Record<string, string>) {
-  return edits[variable.env_variable] ?? variable.server_value ?? variable.default_value ?? "";
+  return edits[variable.env_variable] ?? decodeShellQuotedValue(variable.server_value ?? variable.default_value ?? "");
 }
 
 function parseNumericField(variable: Variable, edits: Record<string, string>) {
@@ -1251,8 +1252,8 @@ export function Startup({
           (variable) =>
             isRust && runtimeVariable && variable.env_variable === runtimeVariable.env_variable
               ? selectedRuntime !== installedRuntime
-              : (edits[variable.env_variable] ?? variable.server_value ?? "") !==
-                (variable.server_value ?? ""),
+              : (edits[variable.env_variable] ?? decodeShellQuotedValue(variable.server_value ?? "")) !==
+                decodeShellQuotedValue(variable.server_value ?? ""),
         )
         .map((variable) => variable.env_variable),
     [edits, hiddenRuntimeEnvVars, installedRuntime, isRust, runtimeVariable, selectedRuntime, vars],
@@ -1265,7 +1266,9 @@ export function Startup({
     setError("");
     setMessage("");
 
-    const currentValues = new Map(vars.map((variable) => [variable.env_variable, variable.server_value ?? ""]));
+    const currentValues = new Map(
+      vars.map((variable) => [variable.env_variable, decodeShellQuotedValue(variable.server_value ?? "")]),
+    );
     const updates = Object.fromEntries(
       dirtyKeys.map((key) => {
         if (isRust && runtimeVariable && key === runtimeVariable.env_variable) {
@@ -1460,7 +1463,7 @@ export function Startup({
                             const canEdit = v.is_editable && !managedPort;
                             const controlValue = runtimeField
                               ? selectedRuntime
-                              : edits[v.env_variable] ?? v.server_value ?? "";
+                              : currentFieldValue(v, edits);
 
                             return (
                               <>
@@ -1634,7 +1637,7 @@ function RustBasicField({
   const canEdit = variable.is_editable && !managedPort;
   const controlValue = runtimeField
     ? selectedRuntime
-    : edits[variable.env_variable] ?? variable.server_value ?? "";
+    : currentFieldValue(variable, edits);
   const meta = rustBasicFieldMeta(variable);
   const showSlider = isRustMaxPlayersVariable(variable, isRust) && !runtimeField;
   const maxPlayerRange = maxPlayersBounds(controlValue);

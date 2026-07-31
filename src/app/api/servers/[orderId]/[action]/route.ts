@@ -4,7 +4,11 @@ import { db } from "@/lib/db";
 import { pteroClient, PterodactylError } from "@/lib/pterodactyl";
 import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
 import { provisionOrder } from "@/lib/provision";
-import { buildRustServerConfig, isRustStartupProfile } from "@/lib/rustStartup";
+import {
+  buildRustServerConfig,
+  encodeRustStartupVariableValue,
+  isRustStartupProfile,
+} from "@/lib/rustStartup";
 import { queryRustServer } from "@/lib/serverQuery";
 import type { ClientEggVariable } from "@/lib/pterodactyl";
 
@@ -309,7 +313,7 @@ export async function POST(
           const variable = editableVars.get(key);
           if (!variable) continue;
 
-          const nextValue = String(rawValue ?? "");
+          const nextValue = encodeRustStartupVariableValue(variable, String(rawValue ?? ""));
           if (runtimeVariable && key === runtimeVariable.env_variable) {
             pendingRustProfile = normalizeInstallProfile(nextValue);
             if (!pendingRustProfile) continue;
