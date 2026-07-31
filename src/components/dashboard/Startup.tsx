@@ -81,10 +81,10 @@ function isRustMaxPlayersVariable(variable: Variable, isRust: boolean) {
 }
 
 function rustBasicFieldMeta(variable: Variable) {
-  const text = variableText(variable);
+  const compact = compactVariableText(variable);
   const env = variable.env_variable.toUpperCase();
 
-  if (env === "DESCRIPTION" || text.includes("DESCRIPTION")) {
+  if (env === "DESCRIPTION" || compact.includes("DESCRIPTION")) {
     return {
       order: 1,
       label: "Server Description",
@@ -94,9 +94,9 @@ function rustBasicFieldMeta(variable: Variable) {
 
   if (
     env === "HOSTNAME" ||
-    text.includes("SERVER NAME") ||
-    text.includes("SERVER TITLE") ||
-    text.includes("HOSTNAME")
+    compact.includes("SERVERNAME") ||
+    compact.includes("SERVERTITLE") ||
+    compact.includes("HOSTNAME")
   ) {
     return {
       order: 0,
@@ -108,9 +108,9 @@ function rustBasicFieldMeta(variable: Variable) {
   if (
     env === "HEADERIMAGE" ||
     env === "SERVER_IMG" ||
-    text.includes("HEADERIMAGE") ||
-    text.includes("HEADER IMAGE") ||
-    text.includes("SERVER IMAGE")
+    compact.includes("HEADERIMAGE") ||
+    compact.includes("SERVERIMAGE") ||
+    compact.includes("BANNER")
   ) {
     return {
       order: 2,
@@ -127,7 +127,7 @@ function rustBasicFieldMeta(variable: Variable) {
     };
   }
 
-  if (env === "URL" || (text.includes("URL") && !text.includes("MAP") && !text.includes("HEADER"))) {
+  if (env === "URL" || (compact.includes("URL") && !compact.includes("MAP") && !compact.includes("HEADER"))) {
     return {
       order: 4,
       label: "Webpage URL",
@@ -455,29 +455,75 @@ function rangeFillStyle(value: number, min: number, max: number) {
 
 function weatherFieldMeta(variable: Variable) {
   const text = variableText(variable);
+  const compact = compactVariableText(variable);
 
   const definitions = [
-    { match: () => text.includes("RAIN") && text.includes("WETNESS"), label: "Rain Wetness", order: 0 },
-    { match: () => text.includes("SNOW") && text.includes("WETNESS"), label: "Snow Wetness", order: 1 },
-    { match: () => text.includes("FOG") && text.includes("CHANCE"), label: "Fog Chance", order: 2 },
-    { match: () => text.includes("OVERCAST") && text.includes("CHANCE"), label: "Overcast Chance", order: 3 },
-    { match: () => text.includes("STORM") && text.includes("CHANCE"), label: "Storm Chance", order: 4 },
-    { match: () => text.includes("RAIN") && text.includes("CHANCE"), label: "Rain Chance", order: 5 },
-    { match: () => text.includes("WIND") && text.includes("CHANCE"), label: "Wind Chance", order: 6 },
-    { match: () => text.includes("THUNDER") && text.includes("CHANCE"), label: "Thunder Chance", order: 7 },
-    { match: () => text.includes("DUST") && text.includes("CHANCE"), label: "Dust Chance", order: 8 },
-    { match: () => text.includes("TEMPERATURE"), label: "Temperature", order: 50 },
-    { match: () => text.includes("HUMIDITY"), label: "Humidity", order: 51 },
-    { match: () => text.includes("CLOUD") && text.includes("COLOR"), label: "Cloud Coloring", order: 52 },
-    { match: () => text.includes("CLOUD") && text.includes("ATTENUATION"), label: "Cloud Attenuation", order: 53 },
-    { match: () => text.includes("CLOUD") && text.includes("SCATTER"), label: "Cloud Scattering", order: 54 },
-    { match: () => text.includes("CLOUD") && text.includes("BRIGHT"), label: "Cloud Brightness", order: 55 },
-    { match: () => text.includes("CLOUD"), label: "Cloud Coverage", order: 56 },
-    { match: () => text.includes("WIND"), label: "Wind", order: 57 },
-    { match: () => text.includes("FOG"), label: "Fog", order: 58 },
-    { match: () => text.includes("RAIN"), label: "Rain", order: 59 },
-    { match: () => text.includes("THUNDER"), label: "Thunder and Lightning", order: 60 },
-    { match: () => text.includes("DUST"), label: "Dust", order: 61 },
+    {
+      match: () => compact.includes("RAINWETNESS"),
+      label: "Rain Wetness",
+      helper: "How wet players get when standing in rain",
+      order: 0,
+      group: "top",
+    },
+    {
+      match: () => compact.includes("SNOWWETNESS"),
+      label: "Snow Wetness",
+      helper: "How wet players get when standing in snow",
+      order: 1,
+      group: "top",
+    },
+    {
+      match: () => compact.includes("CLEARCHANCE"),
+      label: "Clear Chance",
+      helper: "How often clear weather is picked by the dynamic weather system",
+      order: 10,
+      group: "weights",
+    },
+    {
+      match: () => compact.includes("DUSTCHANCE"),
+      label: "Dust Chance",
+      helper: "How often dust weather is picked by the dynamic weather system",
+      order: 11,
+      group: "weights",
+    },
+    {
+      match: () => compact.includes("FOGCHANCE"),
+      label: "Fog Chance",
+      helper: "How often fog weather is picked by the dynamic weather system",
+      order: 12,
+      group: "weights",
+    },
+    {
+      match: () => compact.includes("OVERCASTCHANCE"),
+      label: "Overcast Chance",
+      helper: "How often overcast weather is picked by the dynamic weather system",
+      order: 13,
+      group: "weights",
+    },
+    {
+      match: () => compact.includes("STORMCHANCE"),
+      label: "Storm Chance",
+      helper: "How often storm weather is picked by the dynamic weather system",
+      order: 14,
+      group: "weights",
+    },
+    {
+      match: () => compact.includes("RAINCHANCE"),
+      label: "Rain Chance",
+      helper: "How often rain weather is picked by the dynamic weather system",
+      order: 15,
+      group: "weights",
+    },
+    { match: () => compact.includes("WEATHERRAIN") || compact === "RAIN", label: "Rain", helper: "How much it should rain", order: 50, group: "manual" },
+    { match: () => compact.includes("WEATHERWIND") || compact === "WIND", label: "Wind", helper: "How much wind there is", order: 51, group: "manual" },
+    { match: () => compact.includes("WEATHERTHUNDER") || compact === "THUNDER", label: "Thunder and Lightning", helper: "How much thunder and lightning there is", order: 52, group: "manual" },
+    { match: () => compact.includes("WEATHERFOG") || compact === "FOG", label: "Fog", helper: "How much fog there should be", order: 53, group: "manual" },
+    { match: () => compact.includes("WEATHERDUST") || compact === "DUST", label: "Dust", helper: "How much dust there should be", order: 54, group: "manual" },
+    { match: () => compact.includes("WEATHERCLOUDS") || compact === "CLOUDS", label: "Clouds", helper: "How cloudy it should be", order: 55, group: "manual" },
+    { match: () => compact.includes("CLOUDCOLOR"), label: "Cloud Coloring", helper: "Affects how much color clouds gets from the sky and sun", order: 56, group: "manual" },
+    { match: () => compact.includes("CLOUDATTENUATION"), label: "Cloud Attenuation", helper: "Affects how dark clouds should be as they get thicker", order: 57, group: "manual" },
+    { match: () => compact.includes("CLOUDSCATTER"), label: "Cloud Scattering", helper: "Affects how much light clouds scatter (which causes bloom)", order: 58, group: "manual" },
+    { match: () => compact.includes("CLOUDBRIGHT"), label: "Cloud Brightness", helper: "Affects the brightness of clouds", order: 59, group: "manual" },
   ] as const;
 
   const found = definitions.find((definition) => definition.match());
@@ -490,22 +536,38 @@ function weatherFieldMeta(variable: Variable) {
   return {
     label: found?.label ?? variable.name,
     order: found?.order ?? 100,
+    group: found?.group ?? "manual",
     kind,
-    helper: variable.description || variable.env_variable,
+    helper: found?.helper ?? variable.description ?? variable.env_variable,
   };
+}
+
+function weatherNumericField(
+  variable: Variable,
+  edits: Record<string, string>,
+  meta: ReturnType<typeof weatherFieldMeta>,
+) {
+  const numeric = parseNumericField(variable, edits);
+
+  if (meta.group === "manual") {
+    return boundedNumericField(numeric, -1, 1);
+  }
+
+  return boundedNumericField(numeric, 0, 1);
 }
 
 function decayFieldMeta(variable: Variable) {
   const text = variableText(variable);
+  const compact = compactVariableText(variable);
 
   const definitions = [
-    { match: () => text.includes("DECAY SCALE"), label: "Decay Scale", order: 0, group: null },
-    { match: () => text.includes("DECAY DELAY"), label: "Decay Delay", order: 10, group: "Delay for Building Decay" },
-    { match: () => text.includes("UPKEEP"), label: variable.name, order: 20, group: "Upkeep" },
-    { match: () => text.includes("BUILDING") && text.includes("DECAY"), label: variable.name, order: 30, group: "Building Decay" },
-    { match: () => text.includes("TC") || text.includes("TOOL CUPBOARD"), label: variable.name, order: 40, group: "Tool Cupboard" },
-    { match: () => text.includes("PVE") || text.includes("PVP"), label: variable.name, order: 50, group: "Gameplay" },
-    { match: () => text.includes("GATHER") || text.includes("XP") || text.includes("CRAFT"), label: variable.name, order: 60, group: "Gameplay" },
+    { match: () => compact.includes("DECAYSCALE"), label: "Decay Scale", order: 0, group: null },
+    { match: () => compact.includes("DECAYDELAY"), label: "Decay Delay", order: 10, group: "Delay for Building Decay" },
+    { match: () => compact.includes("UPKEEP"), label: variable.name, order: 20, group: "Upkeep" },
+    { match: () => compact.includes("BUILDING") && compact.includes("DECAY"), label: variable.name, order: 30, group: "Building Decay" },
+    { match: () => compact.includes("TC") || compact.includes("TOOLCUPBOARD"), label: variable.name, order: 40, group: "Tool Cupboard" },
+    { match: () => compact.includes("PVE") || compact.includes("PVP"), label: variable.name, order: 50, group: "Gameplay" },
+    { match: () => compact.includes("GATHER") || compact.includes("XP") || compact.includes("CRAFT"), label: variable.name, order: 60, group: "Gameplay" },
   ] as const;
 
   const found = definitions.find((definition) => definition.match());
@@ -526,13 +588,14 @@ function decayFieldMeta(variable: Variable) {
 
 function advancedFieldMeta(variable: Variable) {
   const text = variableText(variable);
+  const compact = compactVariableText(variable);
 
   const definitions = [
-    { match: () => text.includes("TICKRATE"), label: "Tickrate", order: 0, kind: "slider", group: null },
-    { match: () => text.includes("RCON") && text.includes("PASSWORD"), label: "RCON Password", order: 1, kind: "password", group: null },
-    { match: () => text.includes("RCON") && text.includes("WEB"), label: "Enable Web RCON", order: 2, kind: "toggle", group: null },
-    { match: () => text.includes("SECURE BOOT") || text.includes("TPM"), label: "Secure Boot Enforcement", order: 3, kind: "toggle", group: null },
-    { match: () => text.includes("CONVAR") || text.includes("ARGUMENT"), label: "ConVars", order: 50, kind: "textarea", group: "Custom Server Arguments" },
+    { match: () => compact.includes("TICKRATE"), label: "Tickrate", order: 0, kind: "slider", group: null },
+    { match: () => compact.includes("RCON") && compact.includes("PASSWORD"), label: "RCON Password", order: 1, kind: "password", group: null },
+    { match: () => compact.includes("RCON") && compact.includes("WEB"), label: "Enable Web RCON", order: 2, kind: "toggle", group: null },
+    { match: () => compact.includes("SECUREBOOT") || compact.includes("TPM"), label: "Secure Boot Enforcement", order: 3, kind: "toggle", group: null },
+    { match: () => compact.includes("CONVAR") || compact.includes("ARGUMENT"), label: "ConVars", order: 50, kind: "textarea", group: "Custom Server Arguments" },
   ] as const;
 
   const found = definitions.find((definition) => definition.match());
@@ -578,7 +641,17 @@ function rustSectionIdForVariable(variable: Variable) {
   const compact = compactVariableText(variable);
   const env = variable.env_variable.toUpperCase();
 
-  if (env === "URL" || (text.includes("URL") && !text.includes("MAP") && !text.includes("LEVEL"))) {
+  if (
+    env === "URL" ||
+    compact.includes("SERVERNAME") ||
+    compact.includes("SERVERTITLE") ||
+    compact.includes("HOSTNAME") ||
+    compact.includes("DESCRIPTION") ||
+    compact.includes("HEADERIMAGE") ||
+    compact.includes("SERVERIMAGE") ||
+    compact.includes("MAXPLAYERS") ||
+    (compact.includes("URL") && !compact.includes("MAP") && !compact.includes("LEVEL"))
+  ) {
     return "basic";
   }
 
@@ -611,6 +684,60 @@ function rustSectionIdForVariable(variable: Variable) {
     return "world";
   }
 
+  if (
+    compact.includes("RAINWETNESS") ||
+    compact.includes("SNOWWETNESS") ||
+    compact.includes("CLEARCHANCE") ||
+    compact.includes("DUSTCHANCE") ||
+    compact.includes("FOGCHANCE") ||
+    compact.includes("OVERCASTCHANCE") ||
+    compact.includes("STORMCHANCE") ||
+    compact.includes("RAINCHANCE") ||
+    compact.includes("WEATHERRAIN") ||
+    compact.includes("WEATHERWIND") ||
+    compact.includes("WEATHERTHUNDER") ||
+    compact.includes("WEATHERFOG") ||
+    compact.includes("WEATHERDUST") ||
+    compact.includes("WEATHERCLOUDS") ||
+    compact.includes("CLOUDCOLOR") ||
+    compact.includes("CLOUDATTENUATION") ||
+    compact.includes("CLOUDSCATTER") ||
+    compact.includes("CLOUDBRIGHT")
+  ) {
+    return "weather";
+  }
+
+  if (
+    compact.includes("DECAYSCALE") ||
+    compact.includes("DECAYDELAY") ||
+    compact.includes("UPKEEP") ||
+    (compact.includes("BUILDING") && compact.includes("DECAY")) ||
+    compact.includes("TOOLCUPBOARD") ||
+    compact.includes("PVE") ||
+    compact.includes("PVP") ||
+    compact.includes("GATHER") ||
+    compact.includes("CRAFT") ||
+    compact.includes("XP")
+  ) {
+    return "decay";
+  }
+
+  if (
+    compact.includes("TICKRATE") ||
+    (compact.includes("RCON") && compact.includes("PASSWORD")) ||
+    (compact.includes("RCON") && compact.includes("WEB")) ||
+    compact.includes("SECUREBOOT") ||
+    compact.includes("TPM") ||
+    compact.includes("CONVAR") ||
+    compact.includes("ARGUMENT") ||
+    compact.includes("QUERYPORT") ||
+    compact.includes("APPPORT") ||
+    compact.includes("SERVERPORT") ||
+    compact.includes("STEAM")
+  ) {
+    return "advanced";
+  }
+
   return null;
 }
 
@@ -634,7 +761,7 @@ const rustSections = [
     title: "Weather",
     description: "Weather cycles, environment behaviors, and world ambience toggles.",
     icon: Cloud,
-    matchers: ["WEATHER", "RAIN", "FOG", "WIND", "SNOW", "CLIMATE", "TIME"],
+    matchers: ["WEATHER", "RAIN", "FOG", "WIND", "SNOW", "DUST", "STORM", "OVERCAST", "CLOUD", "CLIMATE", "TIME"],
   },
   {
     id: "decay",
@@ -1073,11 +1200,15 @@ function groupVariables(vars: Variable[], isRust: boolean) {
 
   for (const variable of vars) {
     const haystack = `${variable.name} ${variable.description} ${variable.env_variable}`.toUpperCase();
+    const compactHaystack = haystack.replace(/[^A-Z0-9]/g, "");
     const explicitSectionId = rustSectionIdForVariable(variable);
     const bucket = explicitSectionId
       ? buckets.find((section) => section.id === explicitSectionId)
       : buckets.find((section) =>
-          section.matchers.some((matcher) => haystack.includes(matcher)),
+          section.matchers.some((matcher) => {
+            const compactMatcher = matcher.replace(/[^A-Z0-9]/g, "");
+            return haystack.includes(matcher) || compactHaystack.includes(compactMatcher);
+          }),
         );
 
     if (bucket) bucket.variables.push(variable);
@@ -1369,7 +1500,7 @@ function RustWeatherField({
 }) {
   const meta = weatherFieldMeta(variable);
   const currentValue = currentFieldValue(variable, edits);
-  const numeric = parseNumericField(variable, edits);
+  const numeric = weatherNumericField(variable, edits, meta);
   const boolOptions = booleanOptions(variable);
   const canEdit = variable.is_editable;
 
@@ -1459,11 +1590,9 @@ function RustWeatherField({
           value={currentValue}
           disabled={!canEdit}
           onChange={(e) => updateValue(e.target.value)}
-          className="h-16 rounded-2xl border-white/15 bg-[#2a4364] px-4 text-base"
+          className="h-10 max-w-[533px] rounded-md border-[#65707a] bg-[#30363c] px-3 text-[13px] text-[#eef3f8]"
         />
       )}
-
-      <p className="font-mono text-[11px] text-steel-dim">{variable.env_variable}</p>
     </div>
   );
 }
@@ -1478,36 +1607,61 @@ function RustWeatherSection({
   setEdits: Dispatch<SetStateAction<Record<string, string>>>;
 }) {
   const ordered = [...variables].sort((a, b) => weatherFieldMeta(a).order - weatherFieldMeta(b).order);
-  const primary = ordered.filter((variable) => weatherFieldMeta(variable).order < 50);
-  const manual = ordered.filter((variable) => weatherFieldMeta(variable).order >= 50);
+  const top = ordered.filter((variable) => weatherFieldMeta(variable).group === "top");
+  const weights = ordered.filter((variable) => weatherFieldMeta(variable).group === "weights");
+  const manual = ordered.filter((variable) => weatherFieldMeta(variable).group === "manual");
+
+  function splitColumns(items: Variable[]) {
+    const left: Variable[] = [];
+    const right: Variable[] = [];
+    items.forEach((item, index) => {
+      (index % 2 === 0 ? left : right).push(item);
+    });
+    return [left, right] as const;
+  }
+
+  const [topLeft, topRight] = splitColumns(top);
+  const [weightsLeft, weightsRight] = splitColumns(weights);
+  const [manualLeft, manualRight] = splitColumns(manual);
 
   return (
-    <div className="space-y-8 px-4 py-5">
-      {primary.map((variable) => (
-        <RustWeatherField
-          key={variable.env_variable}
-          variable={variable}
-          edits={edits}
-          setEdits={setEdits}
-        />
-      ))}
+    <div className="max-w-[800px] space-y-8 px-7 py-8">
+      {top.length > 0 ? (
+        <div className="grid gap-x-12 gap-y-7 lg:grid-cols-2">
+          <div className="space-y-7">
+            {topLeft.map((variable) => (
+              <RustWeatherField
+                key={variable.env_variable}
+                variable={variable}
+                edits={edits}
+                setEdits={setEdits}
+              />
+            ))}
+          </div>
+          <div className="space-y-7">
+            {topRight.map((variable) => (
+              <RustWeatherField
+                key={variable.env_variable}
+                variable={variable}
+                edits={edits}
+                setEdits={setEdits}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
 
-      {manual.length > 0 ? (
-        <div className="rounded-[22px] border border-white/[0.08] bg-white/[0.02]">
-          <div className="border-b border-white/[0.06] px-4 py-4">
-            <h4 className="text-[1.15rem] font-semibold text-white">Manual Settings</h4>
-            <p className="mt-2 text-sm leading-relaxed text-steel">
-              Settings that can override the dynamic weather system. A setting of `-1` allows the dynamic weather system to manage that value.
+      {weights.length > 0 ? (
+        <div className="space-y-5 pt-2">
+          <div className="border-b border-white/20 pb-4">
+            <h4 className="text-[18px] font-bold leading-6 text-white">Dynamic Weather System Weights</h4>
+            <p className="mt-3 text-[13px] leading-5 text-[#aeb8c3]">
+              Settings for how often a weather type is chosen by the dynamic weather system
             </p>
           </div>
-
-          <details className="group">
-            <summary className="ring-focus flex cursor-pointer list-none items-center justify-between px-4 py-4 text-left text-sm font-semibold text-steel transition-colors hover:text-white">
-              <span>Show more</span>
-              <span className="text-lg transition-transform group-open:rotate-180">⌄</span>
-            </summary>
-            <div className="space-y-8 border-t border-white/[0.06] px-4 py-5">
-              {manual.map((variable) => (
+          <div className="grid gap-x-12 gap-y-7 lg:grid-cols-2">
+            <div className="space-y-7">
+              {weightsLeft.map((variable) => (
                 <RustWeatherField
                   key={variable.env_variable}
                   variable={variable}
@@ -1515,6 +1669,56 @@ function RustWeatherSection({
                   setEdits={setEdits}
                 />
               ))}
+            </div>
+            <div className="space-y-7">
+              {weightsRight.map((variable) => (
+                <RustWeatherField
+                  key={variable.env_variable}
+                  variable={variable}
+                  edits={edits}
+                  setEdits={setEdits}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {manual.length > 0 ? (
+        <div className="space-y-5 pt-2">
+          <div className="border-b border-white/20 pb-4">
+            <h4 className="text-[18px] font-bold leading-6 text-white">Manual Settings</h4>
+            <p className="mt-3 text-[13px] leading-5 text-[#aeb8c3]">
+              Settings that can override the dynamic weather system. A setting of `-1` allows the dynamic weather system to manage that value.
+            </p>
+          </div>
+
+          <details className="group">
+            <summary className="ring-focus inline-flex h-10 cursor-pointer list-none items-center gap-4 rounded-md border border-[#334964] bg-[#10243a] px-4 text-[13px] font-semibold text-[#aeb8c3] transition-colors hover:text-white">
+              <span>Show more</span>
+              <span className="text-lg transition-transform group-open:rotate-180">⌄</span>
+            </summary>
+            <div className="mt-7 grid gap-x-12 gap-y-7 lg:grid-cols-2">
+              <div className="space-y-7">
+                {manualLeft.map((variable) => (
+                  <RustWeatherField
+                    key={variable.env_variable}
+                    variable={variable}
+                    edits={edits}
+                    setEdits={setEdits}
+                  />
+                ))}
+              </div>
+              <div className="space-y-7">
+                {manualRight.map((variable) => (
+                  <RustWeatherField
+                    key={variable.env_variable}
+                    variable={variable}
+                    edits={edits}
+                    setEdits={setEdits}
+                  />
+                ))}
+              </div>
             </div>
           </details>
         </div>
