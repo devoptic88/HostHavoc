@@ -905,7 +905,7 @@ export function Startup({
                 ) : null}
 
                 {isRust && section.id === "basic" ? (
-                  <div className="space-y-8 px-5 py-8 md:px-8">
+                  <div className="max-w-[800px] space-y-7 px-7 py-8">
                     {section.variables
                       .filter((v) => !hiddenRuntimeEnvVars.has(v.env_variable))
                       .sort((a, b) => rustBasicFieldMeta(a).order - rustBasicFieldMeta(b).order)
@@ -1140,10 +1140,10 @@ function RustBasicField({
   const maxPlayerRange = maxPlayersBounds(controlValue);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       <div>
-        <p className="text-base font-semibold text-white">{meta.label}</p>
-        <p className="mt-2 text-sm text-[#dbe4ef]">{meta.helper}</p>
+        <p className="text-[13px] font-semibold leading-5 text-[#e7ebef]">{meta.label}</p>
+        <p className="mt-1.5 text-[11px] leading-5 text-[#c7ced6]">{meta.helper}</p>
         {managedPort ? (
           <p className="mt-2 text-xs text-warning">
             This port is assigned automatically by HyperNode during provisioning.
@@ -1163,7 +1163,7 @@ function RustBasicField({
           onChange={(e) =>
             setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
           }
-          className="h-14 rounded-lg border-[#4f5964] bg-[#111827] px-4 text-sm text-white"
+          className="h-10 max-w-[533px] rounded-md border-[#65707a] bg-[#30363c] px-3 text-[13px] text-[#eef3f8]"
         >
           {parseRuntimeOptions().map((option) => (
             <option key={option} value={option}>
@@ -1172,7 +1172,7 @@ function RustBasicField({
           ))}
         </Select>
       ) : showSlider ? (
-        <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_150px] md:items-center">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,367px)_154px] md:items-center">
           <input
             type="range"
             min={maxPlayerRange.min}
@@ -1182,7 +1182,7 @@ function RustBasicField({
             onChange={(e) =>
               setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
             }
-            className="h-3 w-full cursor-pointer appearance-none rounded-full bg-transparent accent-[#28aef3] disabled:cursor-not-allowed"
+            className="h-2.5 w-full cursor-pointer appearance-none rounded-full accent-[#18aee6] disabled:cursor-not-allowed"
             style={rangeFillStyle(maxPlayerRange.value, maxPlayerRange.min, maxPlayerRange.max)}
           />
           <Input
@@ -1194,7 +1194,7 @@ function RustBasicField({
             onChange={(e) =>
               setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
             }
-            className="h-14 rounded-lg border-[#4f5964] bg-[#111827] px-4 text-sm text-white"
+            className="h-10 rounded-md border-[#65707a] bg-[#30363c] px-3 text-[13px] text-[#eef3f8]"
           />
         </div>
       ) : (
@@ -1204,7 +1204,7 @@ function RustBasicField({
           onChange={(e) =>
             setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
           }
-          className="h-14 rounded-lg border-[#4f5964] bg-[#111827] px-4 text-sm text-white placeholder:text-[#8d949d]"
+          className="h-10 max-w-[533px] rounded-md border-[#65707a] bg-[#30363c] px-3 text-[13px] text-[#eef3f8] placeholder:text-[#8d949d]"
         />
       )}
     </div>
@@ -1383,40 +1383,37 @@ function RustWeatherField({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="text-[15px] font-semibold text-white">{meta.label}</p>
-        <Badge tone={canEdit ? "blue" : "steel"}>{canEdit ? "Editable" : "Locked"}</Badge>
+    <div className="space-y-2.5">
+      <div>
+        <p className="text-[13px] font-semibold leading-5 text-[#e7ebef]">{meta.label}</p>
+        <p className="mt-1.5 text-[11px] leading-5 text-[#c7ced6]">{meta.helper}</p>
       </div>
-      <p className="text-sm text-steel">{meta.helper}</p>
 
       {meta.kind === "toggle" ? (
-        <div className="inline-flex rounded-2xl border border-white/15 bg-[#10243a] p-1">
+        <div className="flex items-center gap-5 pt-1">
           <button
             type="button"
+            role="switch"
+            aria-checked={isTruthyValue(currentValue)}
             disabled={!canEdit}
-            onClick={() => updateValue(boolOptions.on)}
+            onClick={() => updateValue(isTruthyValue(currentValue) ? boolOptions.off : boolOptions.on)}
             className={cn(
-              "ring-focus rounded-xl px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-50",
-              isTruthyValue(currentValue) ? "bg-hyper-500 text-white" : "text-steel hover:text-white",
+              "ring-focus relative h-6 w-10 rounded-full transition-colors disabled:opacity-50",
+              isTruthyValue(currentValue) ? "bg-[#18aee6]" : "bg-[#30363c]",
             )}
           >
-            On
-          </button>
-          <button
-            type="button"
-            disabled={!canEdit}
-            onClick={() => updateValue(boolOptions.off)}
-            className={cn(
-              "ring-focus rounded-xl px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-50",
-              !isTruthyValue(currentValue) ? "bg-white/10 text-white" : "text-steel hover:text-white",
-            )}
-          >
-            Off
+            <span
+              className={cn(
+                "absolute top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white transition-all [&_svg]:text-[#4b545d]",
+                isTruthyValue(currentValue) ? "left-[18px]" : "left-0.5",
+              )}
+            >
+              {isTruthyValue(currentValue) ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+            </span>
           </button>
         </div>
       ) : meta.kind === "slider" ? (
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_255px] md:items-center">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,367px)_154px] md:items-center">
           <input
             type="range"
             min={numeric.min}
@@ -1425,14 +1422,15 @@ function RustWeatherField({
             value={numeric.value}
             disabled={!canEdit}
             onChange={(e) => updateValue(e.target.value)}
-            className="h-3 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-hyper-400 disabled:cursor-not-allowed"
+            style={rangeFillStyle(numeric.value, numeric.min, numeric.max)}
+            className="h-2.5 w-full cursor-pointer appearance-none rounded-full accent-[#18aee6] disabled:cursor-not-allowed"
           />
-          <div className="grid h-16 grid-cols-[70px_1fr_70px] overflow-hidden rounded-2xl border border-white/15 bg-[#10243a]">
+          <div className="grid h-10 grid-cols-[44px_66px_44px] overflow-hidden rounded-md border border-[#3e3e3e] bg-[#0b0b0c]">
             <button
               type="button"
               disabled={!canEdit}
               onClick={() => incrementSlider(-numeric.step)}
-              className="ring-focus flex items-center justify-center border-r border-white/15 text-steel transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+              className="ring-focus flex items-center justify-center border-r border-[#3e3e3e] text-[#cfd3d7] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
             >
               <Minus className="h-4 w-4" />
             </button>
@@ -1444,13 +1442,13 @@ function RustWeatherField({
               value={numeric.display}
               disabled={!canEdit}
               onChange={(e) => updateValue(e.target.value)}
-              className="h-full rounded-none border-0 bg-[#2a4364] px-4 text-center text-[1.6rem] leading-none text-white"
+              className="h-full rounded-none border-x border-[#65707a] border-y-0 bg-[#30363c] px-2 text-center text-[13px] leading-none text-[#eef3f8]"
             />
             <button
               type="button"
               disabled={!canEdit}
               onClick={() => incrementSlider(numeric.step)}
-              className="ring-focus flex items-center justify-center border-l border-white/15 text-steel transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+              className="ring-focus flex items-center justify-center border-l border-[#3e3e3e] text-[#cfd3d7] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -1676,40 +1674,37 @@ function RustMappedField({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="text-[15px] font-semibold text-white">{meta.label}</p>
-        <Badge tone={canEdit ? "blue" : "steel"}>{canEdit ? "Editable" : "Locked"}</Badge>
+    <div className="space-y-2.5">
+      <div>
+        <p className="text-[13px] font-semibold leading-5 text-[#e7ebef]">{meta.label}</p>
+        <p className="mt-1.5 text-[11px] leading-5 text-[#c7ced6]">{meta.helper}</p>
       </div>
-      <p className="text-sm text-steel">{meta.helper}</p>
 
       {meta.kind === "toggle" ? (
-        <div className="inline-flex rounded-2xl border border-white/15 bg-[#10243a] p-1">
+        <div className="flex items-center gap-5 pt-1">
           <button
             type="button"
+            role="switch"
+            aria-checked={isTruthyValue(currentValue)}
             disabled={!canEdit}
-            onClick={() => updateValue(boolOptions.on)}
+            onClick={() => updateValue(isTruthyValue(currentValue) ? boolOptions.off : boolOptions.on)}
             className={cn(
-              "ring-focus rounded-xl px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-50",
-              isTruthyValue(currentValue) ? "bg-hyper-500 text-white" : "text-steel hover:text-white",
+              "ring-focus relative h-6 w-10 rounded-full transition-colors disabled:opacity-50",
+              isTruthyValue(currentValue) ? "bg-[#18aee6]" : "bg-[#30363c]",
             )}
           >
-            On
-          </button>
-          <button
-            type="button"
-            disabled={!canEdit}
-            onClick={() => updateValue(boolOptions.off)}
-            className={cn(
-              "ring-focus rounded-xl px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-50",
-              !isTruthyValue(currentValue) ? "bg-white/10 text-white" : "text-steel hover:text-white",
-            )}
-          >
-            Off
+            <span
+              className={cn(
+                "absolute top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white transition-all [&_svg]:text-[#4b545d]",
+                isTruthyValue(currentValue) ? "left-[18px]" : "left-0.5",
+              )}
+            >
+              {isTruthyValue(currentValue) ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+            </span>
           </button>
         </div>
       ) : meta.kind === "slider" ? (
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_255px] md:items-center">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,367px)_154px] md:items-center">
           <input
             type="range"
             min={numeric.min}
@@ -1718,14 +1713,15 @@ function RustMappedField({
             value={numeric.value}
             disabled={!canEdit}
             onChange={(e) => updateValue(e.target.value)}
-            className="h-3 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-hyper-400 disabled:cursor-not-allowed"
+            style={rangeFillStyle(numeric.value, numeric.min, numeric.max)}
+            className="h-2.5 w-full cursor-pointer appearance-none rounded-full accent-[#18aee6] disabled:cursor-not-allowed"
           />
-          <div className="grid h-16 grid-cols-[70px_1fr_70px] overflow-hidden rounded-2xl border border-white/15 bg-[#10243a]">
+          <div className="grid h-10 grid-cols-[44px_66px_44px] overflow-hidden rounded-md border border-[#3e3e3e] bg-[#0b0b0c]">
             <button
               type="button"
               disabled={!canEdit}
               onClick={() => incrementSlider(-numeric.step)}
-              className="ring-focus flex items-center justify-center border-r border-white/15 text-steel transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+              className="ring-focus flex items-center justify-center border-r border-[#3e3e3e] text-[#cfd3d7] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
             >
               <Minus className="h-4 w-4" />
             </button>
@@ -1737,13 +1733,13 @@ function RustMappedField({
               value={numeric.display}
               disabled={!canEdit}
               onChange={(e) => updateValue(e.target.value)}
-              className="h-full rounded-none border-0 bg-[#2a4364] px-4 text-center text-[1.6rem] leading-none text-white"
+              className="h-full rounded-none border-x border-[#65707a] border-y-0 bg-[#30363c] px-2 text-center text-[13px] leading-none text-[#eef3f8]"
             />
             <button
               type="button"
               disabled={!canEdit}
               onClick={() => incrementSlider(numeric.step)}
-              className="ring-focus flex items-center justify-center border-l border-white/15 text-steel transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
+              className="ring-focus flex items-center justify-center border-l border-[#3e3e3e] text-[#cfd3d7] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -1754,7 +1750,7 @@ function RustMappedField({
           value={currentValue}
           disabled={!canEdit}
           onChange={(e) => updateValue(e.target.value)}
-          className="min-h-[130px] rounded-2xl border-white/15 bg-[#2a4364] px-4 py-4 text-base"
+          className="min-h-[88px] max-w-[533px] rounded-md border-[#65707a] bg-[#30363c] px-3 py-3 text-[13px] text-[#eef3f8]"
         />
       ) : (
         <Input
@@ -1762,11 +1758,9 @@ function RustMappedField({
           value={currentValue}
           disabled={!canEdit}
           onChange={(e) => updateValue(e.target.value)}
-          className="h-16 rounded-2xl border-white/15 bg-[#2a4364] px-4 text-base"
+          className="h-10 max-w-[533px] rounded-md border-[#65707a] bg-[#30363c] px-3 text-[13px] text-[#eef3f8]"
         />
       )}
-
-      <p className="font-mono text-[11px] text-steel-dim">{variable.env_variable}</p>
     </div>
   );
 }
@@ -1798,7 +1792,7 @@ function RustMappedSection({
   }
 
   return (
-    <div className="space-y-8 px-4 py-5">
+    <div className="max-w-[800px] space-y-8 px-7 py-8">
       {ungrouped.map((variable) => (
         <RustMappedField
           key={variable.env_variable}
@@ -1810,16 +1804,16 @@ function RustMappedSection({
       ))}
 
       {Array.from(groups.entries()).map(([group, groupVariables]) => (
-        <div key={group} className="rounded-[22px] border border-white/[0.08] bg-white/[0.02]">
-          <div className="border-b border-white/[0.06] px-4 py-4">
-            <h4 className="text-[1.15rem] font-semibold text-white">{group}</h4>
+        <div key={group} className="space-y-5 pt-2">
+          <div className="border-b border-white/20 pb-4">
+            <h4 className="text-[18px] font-bold leading-6 text-white">{group}</h4>
             {group === "Custom Server Arguments" ? (
-              <p className="mt-2 text-sm leading-relaxed text-steel">
+              <p className="mt-3 text-[13px] leading-5 text-[#aeb8c3]">
                 These values can override config files you have setup, so use them carefully.
               </p>
             ) : null}
           </div>
-          <div className="space-y-8 px-4 py-5">
+          <div className="space-y-7">
             {groupVariables.map((variable) => (
               <RustMappedField
                 key={variable.env_variable}
