@@ -223,11 +223,23 @@ function worldFieldMeta(variable: Variable) {
       group: "top",
     },
     {
+      match: () =>
+        env === "MAP_URL" ||
+        text.includes("LEVELURL") ||
+        text.includes("CUSTOM MAP") ||
+        (text.includes("MAP") && text.includes("URL")),
+      label: "Custom Map URL",
+      helper: "Overwrites the map with the one from the direct download URL. Invalid URLs will cause the server to crash.",
+      kind: "text",
+      order: 3,
+      group: "top",
+    },
+    {
       match: () => text.includes("WORLDSIZE") || text.includes("WORLD SIZE"),
       label: "World Size",
       helper: "Defines the size of the map generated (Min 1000, Max 8000). Default 4500",
       kind: "slider",
-      order: 3,
+      order: 4,
       group: "top",
     },
     {
@@ -235,7 +247,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Radiation",
       helper: "Enable or Disable radiation across the entire world",
       kind: "toggle",
-      order: 4,
+      order: 5,
       group: "top",
     },
     {
@@ -243,7 +255,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Save Interval",
       helper: "Amount of seconds between automatic saves",
       kind: "slider",
-      order: 5,
+      order: 6,
       group: "top",
     },
     {
@@ -516,20 +528,40 @@ function runtimeLabel(profile: RustRuntimeProfile) {
   return profile.charAt(0).toUpperCase() + profile.slice(1);
 }
 
+function rustSectionIdForVariable(variable: Variable) {
+  const text = variableText(variable);
+  const env = variable.env_variable.toUpperCase();
+
+  if (env === "URL" || (text.includes("URL") && !text.includes("MAP") && !text.includes("LEVEL"))) {
+    return "basic";
+  }
+
+  if (
+    env === "MAP_URL" ||
+    text.includes("LEVELURL") ||
+    text.includes("CUSTOM MAP") ||
+    (text.includes("MAP") && text.includes("URL"))
+  ) {
+    return "world";
+  }
+
+  return null;
+}
+
 const rustSections = [
   {
     id: "basic",
     title: "Basic",
     description: "Displayed identity, quick listing info, and player-facing server details.",
     icon: Cog,
-    matchers: ["SERVER_NAME", "HOSTNAME", "DESCRIPTION", "URL", "HEADERIMAGE", "SERVER_IMG", "BANNER", "MAXPLAYERS", "MAX PLAYERS"],
+    matchers: ["SERVER_NAME", "HOSTNAME", "DESCRIPTION", "HEADERIMAGE", "SERVER_IMG", "BANNER", "MAXPLAYERS", "MAX PLAYERS"],
   },
   {
     id: "world",
     title: "World",
     description: "Map generation, save identity, level, seed, and world size controls.",
     icon: Globe,
-    matchers: ["LEVEL", "WORLD", "SEED", "MAP", "SAVE", "WORLD_SIZE", "IDENTITY"],
+    matchers: ["LEVEL", "WORLD", "SEED", "MAP", "SAVE", "WORLD_SIZE", "IDENTITY", "LEVELURL", "CUSTOM MAP", "MAP_URL"],
   },
   {
     id: "weather",
@@ -807,7 +839,7 @@ export function Startup({
                 ) : null}
 
                 {isRust && section.id === "basic" ? (
-                  <div className="space-y-14 px-5 py-8 md:px-8">
+                  <div className="space-y-8 px-5 py-8 md:px-8">
                     {section.variables
                       .filter((v) => !hiddenRuntimeEnvVars.has(v.env_variable))
                       .sort((a, b) => rustBasicFieldMeta(a).order - rustBasicFieldMeta(b).order)
@@ -975,9 +1007,12 @@ function groupVariables(vars: Variable[], isRust: boolean) {
 
   for (const variable of vars) {
     const haystack = `${variable.name} ${variable.description} ${variable.env_variable}`.toUpperCase();
-    const bucket = buckets.find((section) =>
-      section.matchers.some((matcher) => haystack.includes(matcher)),
-    );
+    const explicitSectionId = rustSectionIdForVariable(variable);
+    const bucket = explicitSectionId
+      ? buckets.find((section) => section.id === explicitSectionId)
+      : buckets.find((section) =>
+          section.matchers.some((matcher) => haystack.includes(matcher)),
+        );
 
     if (bucket) bucket.variables.push(variable);
     else misc.push(variable);
@@ -1038,10 +1073,10 @@ function RustBasicField({
   const showSlider = isRustMaxPlayersVariable(variable, isRust) && !runtimeField;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div>
-        <p className="text-[1.05rem] font-medium text-white">{meta.label}</p>
-        <p className="mt-3 text-[0.95rem] text-[#dbe4ef]">{meta.helper}</p>
+        <p className="text-base font-semibold text-white">{meta.label}</p>
+        <p className="mt-2 text-sm text-[#dbe4ef]">{meta.helper}</p>
         {managedPort ? (
           <p className="mt-2 text-xs text-warning">
             This port is assigned automatically by HyperNode during provisioning.
@@ -1061,7 +1096,7 @@ function RustBasicField({
           onChange={(e) =>
             setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
           }
-          className="h-[6.25rem] rounded-[18px] border-[#676e78] bg-[#31363c] px-5 text-[1.05rem] text-white"
+          className="h-14 rounded-lg border-[#4f5964] bg-[#111827] px-4 text-sm text-white"
         >
           {parseRuntimeOptions().map((option) => (
             <option key={option} value={option}>
@@ -1070,7 +1105,7 @@ function RustBasicField({
           ))}
         </Select>
       ) : showSlider ? (
-        <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_152px] md:items-center">
+        <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_150px] md:items-center">
           <input
             type="range"
             min={maxPlayersBounds(controlValue).min}
@@ -1080,7 +1115,7 @@ function RustBasicField({
             onChange={(e) =>
               setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
             }
-            className="h-6 w-full cursor-pointer appearance-none rounded-full bg-transparent accent-[#28aef3] disabled:cursor-not-allowed"
+            className="h-3 w-full cursor-pointer appearance-none rounded-full bg-transparent accent-[#28aef3] disabled:cursor-not-allowed"
             style={{
               background:
                 "linear-gradient(to right, #28aef3 0%, #28aef3 50%, #343a42 50%, #343a42 100%)",
@@ -1095,7 +1130,7 @@ function RustBasicField({
             onChange={(e) =>
               setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
             }
-            className="h-[6.75rem] rounded-[18px] border-[#676e78] bg-[#31363c] px-5 text-left text-[1.05rem] text-white"
+            className="h-14 rounded-lg border-[#4f5964] bg-[#111827] px-4 text-sm text-white"
           />
         </div>
       ) : (
@@ -1105,7 +1140,7 @@ function RustBasicField({
           onChange={(e) =>
             setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
           }
-          className="h-[6.75rem] rounded-[18px] border-[#676e78] bg-[#31363c] px-5 text-[1.05rem] text-white placeholder:text-[#8d949d]"
+          className="h-14 rounded-lg border-[#4f5964] bg-[#111827] px-4 text-sm text-white placeholder:text-[#8d949d]"
         />
       )}
     </div>
