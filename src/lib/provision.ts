@@ -83,7 +83,7 @@ function generatedEggValue(env: string, rules: string): string {
   return "";
 }
 
-function redactValue(key: string, value: unknown) {
+function redactValue(key: string, value: unknown): unknown {
   if (Array.isArray(value)) return value.map((entry) => redactValue(key, entry));
   if (value && typeof value === "object") {
     return Object.fromEntries(
