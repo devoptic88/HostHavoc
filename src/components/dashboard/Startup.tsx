@@ -4,7 +4,6 @@ import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle,
   Check,
   Cloud,
   Clock3,
@@ -18,7 +17,6 @@ import {
   Save,
   Shield,
   SlidersHorizontal,
-  Sparkles,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -957,47 +955,18 @@ export function Startup({
 
   return (
     <div className="space-y-5">
-      {isRust && (
-        <div className="grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
-          <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[#0b1018]">
-            <div className="border-b border-white/6 bg-[#10243a] px-5 py-3">
-              <div className="flex items-center gap-2 text-white">
-                <Sparkles className="h-4 w-4 text-hyper-300" />
-                <h2 className="text-base font-semibold">Rust Runtime</h2>
-              </div>
-              <p className="mt-1 text-sm text-steel-dim">
-                Manage the live Rust runtime, framework mode, and wipe-related startup values.
-              </p>
-            </div>
-            <div className="grid gap-3 px-5 py-4 sm:grid-cols-3">
-              <RustInstallCard title="Vanilla" body="Default Rust runtime with no modding layer enabled." tone={installedRuntime === "vanilla" ? "active" : "default"} />
-              <RustInstallCard title="Staging" body="Preview Rust branch for testing upcoming updates before public release." tone={installedRuntime === "staging" ? "active" : "default"} />
-              <RustInstallCard title="Oxide" body="Plugin-ready mode for legacy uMod/Oxide ecosystems." tone={installedRuntime === "oxide" ? "active" : "default"} />
-              <RustInstallCard title="Carbon" body="Modern framework mode for Carbon-based plugin stacks." tone={installedRuntime === "carbon" ? "active" : "default"} />
-            </div>
-          </div>
-
-          <div className="glass rounded-[24px] p-5">
-            <div className="flex items-center gap-2 text-white">
-              <AlertTriangle className="h-4 w-4 text-warning" />
-              <h2 className="text-base font-semibold">Wipe-Day Notes</h2>
-            </div>
-            <ul className="mt-3 space-y-2 text-sm text-steel-dim">
-              <li>Use the settings below for map size, seed, server identity, and RCON values.</li>
-              <li>For scheduled map or blueprint resets, set `REGEN_SERVER` and review `REMOVE_FILES` before reinstalling the server.</li>
-              <li>Locked variables come from the selected Rust egg and stay visible for reference.</li>
-            </ul>
-          </div>
-        </div>
-      )}
-
       {startupCmd && (
-        <div className={cn("glass rounded-2xl px-5 py-4", isRust && "border-white/10 bg-[#091019]")}>
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-steel-faint">
-            Startup command
-          </p>
-          <code className="block break-all font-mono text-xs text-steel">{startupCmd}</code>
-        </div>
+        <details className={cn("glass group rounded-2xl", isRust && "border-white/10 bg-[#091019]")}>
+          <summary className="ring-focus flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-steel-faint">
+              Startup command
+            </span>
+            <span className="text-sm text-steel transition-transform group-open:rotate-180">v</span>
+          </summary>
+          <div className="border-t border-white/[0.06] px-5 py-4">
+            <code className="block break-all font-mono text-xs text-steel">{startupCmd}</code>
+          </div>
+        </details>
       )}
 
       <div className={cn("glass overflow-hidden rounded-2xl", isRust && "border-white/10 bg-[#091019]")}>
@@ -2073,33 +2042,6 @@ function RustMappedSection({
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function RustInstallCard({
-  title,
-  body,
-  tone = "default",
-}: {
-  title: string;
-  body: string;
-  tone?: "default" | "active";
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border border-white/10 bg-white/[0.03] p-4",
-        tone === "active" && "border-hyper-400/35 bg-hyper-500/10 shadow-glow-sm",
-      )}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <p className="font-semibold text-white">{title}</p>
-        <Badge tone={tone === "active" ? "green" : "steel"}>
-          {tone === "active" ? "Installed" : "Available"}
-        </Badge>
-      </div>
-      <p className="mt-2 text-sm leading-relaxed text-steel-dim">{body}</p>
     </div>
   );
 }
