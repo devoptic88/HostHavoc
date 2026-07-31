@@ -75,38 +75,54 @@ function currentValue(variable?: Variable) {
   return (variable?.server_value || variable?.default_value || "").toLowerCase();
 }
 
-function hasTruthyValue(value: string) {
-  return ["1", "true", "yes", "oxide", "carbon", "latest", "stable"].includes(value);
+function isFrameworkVariable(variable: Variable) {
+  return variableText(variable).includes("framework");
+}
+
+function isBranchVariable(variable: Variable) {
+  return variableText(variable).includes("branch");
+}
+
+function isOxideSignalVariable(variable: Variable) {
+  const text = variableText(variable);
+  return !isFrameworkVariable(variable) && (text.includes("oxide") || text.includes("umod"));
+}
+
+function isCarbonSignalVariable(variable: Variable) {
+  return !isFrameworkVariable(variable) && variableText(variable).includes("carbon");
+}
+
+function hasEnabledValue(value: string) {
+  return ["1", "true", "yes", "on", "oxide", "carbon", "latest", "stable"].includes(value.trim().toLowerCase());
 }
 
 function detectProfile(vars: Variable[]): InstallProfile {
-  const branchVar = vars.find((variable) => variableText(variable).includes("branch"));
-  const frameworkVar = vars.find((variable) => variableText(variable).includes("framework"));
-  const carbonVar = vars.find((variable) => variableText(variable).includes("carbon"));
-  const oxideVar = vars.find((variable) => {
-    const text = variableText(variable);
-    return text.includes("oxide") || text.includes("umod");
-  });
+  const branchVar = vars.find(isBranchVariable);
+  const frameworkVar = vars.find(isFrameworkVariable);
 
   const framework = currentValue(frameworkVar);
   const branch = currentValue(branchVar);
-  const carbon = currentValue(carbonVar);
-  const oxide = currentValue(oxideVar);
 
-  if (framework === "carbon" || hasTruthyValue(carbon)) return "carbon";
-  if (framework === "oxide" || hasTruthyValue(oxide)) return "oxide";
   if (branch.includes("staging")) return "staging";
+  if (framework === "oxide") return "oxide";
+  if (framework === "carbon") return "carbon";
+
+  const oxideEnabled = vars.some((variable) => isOxideSignalVariable(variable) && hasEnabledValue(currentValue(variable)));
+  const carbonEnabled = vars.some((variable) => isCarbonSignalVariable(variable) && hasEnabledValue(currentValue(variable)));
+
+  if (oxideEnabled && !carbonEnabled) return "oxide";
+  if (carbonEnabled && !oxideEnabled) return "carbon";
+  if (oxideEnabled) return "oxide";
+  if (carbonEnabled) return "carbon";
+
   return "vanilla";
 }
 
 function availableProfiles(vars: Variable[]) {
-  const hasBranch = vars.some((variable) => variableText(variable).includes("branch"));
-  const hasFramework = vars.some((variable) => variableText(variable).includes("framework"));
-  const hasOxide = vars.some((variable) => {
-    const text = variableText(variable);
-    return text.includes("oxide") || text.includes("umod");
-  });
-  const hasCarbon = vars.some((variable) => variableText(variable).includes("carbon"));
+  const hasBranch = vars.some(isBranchVariable);
+  const hasFramework = vars.some(isFrameworkVariable);
+  const hasOxide = vars.some(isOxideSignalVariable);
+  const hasCarbon = vars.some(isCarbonSignalVariable);
 
   const ids: InstallProfile[] = ["vanilla"];
   if (hasBranch) ids.push("staging");
