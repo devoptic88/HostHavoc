@@ -585,28 +585,257 @@ function decayFieldMeta(variable: Variable) {
   const compact = compactVariableText(variable);
 
   const definitions = [
-    { match: () => compact.includes("DECAYSCALE"), label: "Decay Scale", order: 0, group: null },
-    { match: () => compact.includes("DECAYDELAY"), label: "Decay Delay", order: 10, group: "Delay for Building Decay" },
-    { match: () => compact.includes("UPKEEP"), label: variable.name, order: 20, group: "Upkeep" },
-    { match: () => compact.includes("BUILDING") && compact.includes("DECAY"), label: variable.name, order: 30, group: "Building Decay" },
-    { match: () => compact.includes("TC") || compact.includes("TOOLCUPBOARD"), label: variable.name, order: 40, group: "Tool Cupboard" },
-    { match: () => compact.includes("PVE") || compact.includes("PVP"), label: variable.name, order: 50, group: "Gameplay" },
-    { match: () => compact.includes("GATHER") || compact.includes("XP") || compact.includes("CRAFT"), label: variable.name, order: 60, group: "Gameplay" },
+    {
+      match: () => compact.includes("DECAYSCALE"),
+      label: "Decay Scale",
+      order: 0,
+      group: null,
+      kind: "slider",
+      helper: "How fast player made deployables or player built buildings will decay (0 will disable decay)",
+    },
+    {
+      match: () => compact.includes("DECAYTICK"),
+      label: "Decay Tick",
+      order: 1,
+      group: null,
+      kind: "slider",
+      helper: "How often decay calculations are processed",
+    },
+    {
+      match: () => compact.includes("DECAYDEBUG"),
+      label: "Decay Debug",
+      order: 2,
+      group: null,
+      kind: "toggle",
+      helper: "Enable extra decay debugging output",
+    },
+    {
+      match: () => compact.includes("DECAYDELAYOVERRIDE") || compact === "DECAYDELAY",
+      label: "Decay Delay",
+      order: 10,
+      group: "Delay for Building Decay",
+      kind: "slider",
+      helper: "How many hours all building decay will be delayed after upkeep expires",
+    },
+    {
+      match: () => compact.includes("TWIGDECAYDELAY") || (compact.includes("DELAYTWIG") && compact.includes("DECAY")),
+      label: "Twig Decay Delay",
+      order: 11,
+      group: "Delay for Building Decay",
+      kind: "slider",
+      helper: "How many hours twig building decay will be delayed after upkeep expires",
+    },
+    {
+      match: () => compact.includes("WOODDECAYDELAY") || (compact.includes("DELAYWOOD") && compact.includes("DECAY")),
+      label: "Wood Decay Delay",
+      order: 12,
+      group: "Delay for Building Decay",
+      kind: "slider",
+      helper: "How many hours wood building decay will be delayed after upkeep expires",
+    },
+    {
+      match: () => compact.includes("STONEDECAYDELAY") || (compact.includes("DELAYSTONE") && compact.includes("DECAY")),
+      label: "Stone Decay Delay",
+      order: 13,
+      group: "Delay for Building Decay",
+      kind: "slider",
+      helper: "How many hours stone building decay will be delayed after upkeep expires",
+    },
+    {
+      match: () => compact.includes("METALDECAYDELAY") || (compact.includes("DELAYMETAL") && compact.includes("DECAY")),
+      label: "Sheet Metal Decay Delay",
+      order: 14,
+      group: "Delay for Building Decay",
+      kind: "slider",
+      helper: "How many hours sheet metal building decay will be delayed after upkeep expires",
+    },
+    {
+      match: () => compact.includes("ARMOREDDECAYDELAY") || compact.includes("TOPTIERDECAYDELAY") || (compact.includes("DELAYTOPTIER") && compact.includes("DECAY")),
+      label: "Armored Decay Delay",
+      order: 15,
+      group: "Delay for Building Decay",
+      kind: "slider",
+      helper: "How many hours armored building decay will be delayed after upkeep expires",
+    },
+    {
+      match: () => compact.includes("DECAYDURATIONOVERRIDE") || compact === "DECAYDURATION",
+      label: "Decay Duration",
+      order: 20,
+      group: "Building Decay Duration",
+      kind: "slider",
+      helper: "How many hours it takes buildings to decay once decay starts",
+    },
+    {
+      match: () => compact.includes("TWIGDECAYDURATION") || (compact.includes("DURATIONTWIG") && compact.includes("DECAY")),
+      label: "Twig Decay Duration",
+      order: 21,
+      group: "Building Decay Duration",
+      kind: "slider",
+      helper: "How many hours it takes twig buildings to decay",
+    },
+    {
+      match: () => compact.includes("WOODDECAYDURATION") || (compact.includes("DURATIONWOOD") && compact.includes("DECAY")),
+      label: "Wood Decay Duration",
+      order: 22,
+      group: "Building Decay Duration",
+      kind: "slider",
+      helper: "How many hours it takes wood buildings to decay",
+    },
+    {
+      match: () => compact.includes("STONEDECAYDURATION") || (compact.includes("DURATIONSTONE") && compact.includes("DECAY")),
+      label: "Stone Decay Duration",
+      order: 23,
+      group: "Building Decay Duration",
+      kind: "slider",
+      helper: "How many hours it takes stone buildings to decay",
+    },
+    {
+      match: () => compact.includes("METALDECAYDURATION") || (compact.includes("DURATIONMETAL") && compact.includes("DECAY")),
+      label: "Sheet Metal Decay Duration",
+      order: 24,
+      group: "Building Decay Duration",
+      kind: "slider",
+      helper: "How many hours it takes sheet metal buildings to decay",
+    },
+    {
+      match: () => compact.includes("ARMOREDDECAYDURATION") || compact.includes("TOPTIERDECAYDURATION") || (compact.includes("DURATIONTOPTIER") && compact.includes("DECAY")),
+      label: "Armored Decay Duration",
+      order: 25,
+      group: "Building Decay Duration",
+      kind: "slider",
+      helper: "How many hours it takes armored buildings to decay",
+    },
+    {
+      match: () => compact.includes("OUTSIDETESTRANGE"),
+      label: "Outside Test Range",
+      order: 30,
+      group: "Building Decay",
+      kind: "slider",
+      helper: "Range used when checking whether a building is considered outside",
+    },
+    {
+      match: () => compact === "UPKEEP" || compact.includes("DECAYUPKEEP"),
+      label: "Upkeep",
+      order: 40,
+      group: "Upkeep",
+      kind: "toggle",
+      helper: "Enable upkeep for player built buildings",
+    },
+    {
+      match: () => compact.includes("UPKEEPGRIEFPROTECTION"),
+      label: "Upkeep Grief Protection",
+      order: 41,
+      group: "Upkeep",
+      kind: "slider",
+      helper: "How long upkeep protection remains after a tool cupboard is destroyed",
+    },
+    {
+      match: () => compact.includes("UPKEEPHEALSCALING") || compact.includes("UPKEEPHEALSCALE"),
+      label: "Upkeep Heal Scaling",
+      order: 42,
+      group: "Upkeep",
+      kind: "slider",
+      helper: "How fast an object heals when upkeep is met. 1 Equals the same rate as the object would decay",
+    },
+    {
+      match: () => compact.includes("PROTECTEDUPKEEPSCALING") || compact.includes("PROTECTEDUPKEEPSCALE") || compact.includes("UPKEEPINSIDEDECAYSCALE"),
+      label: "Protected Upkeep Scaling",
+      order: 43,
+      group: "Upkeep",
+      kind: "slider",
+      helper: "Changes the speed of an object's decay if it is inside. 1 Equals the same rate of decay as being outside",
+    },
+    {
+      match: () => compact.includes("UPKEEPPERIOD"),
+      label: "Upkeep Period",
+      order: 44,
+      group: "Upkeep",
+      kind: "text",
+      helper: "How many minutes a single payment of the upkeep cost lasts",
+    },
+    {
+      match: () => compact.includes("BRACKET0BLOCKCOUNT") || compact.includes("BRACKET0BLOCK"),
+      label: "Upkeep Bracket 0 Block Count",
+      order: 50,
+      group: "Upkeep Brackets",
+      kind: "slider",
+      helper: "Block count threshold for the first upkeep bracket",
+    },
+    {
+      match: () => compact.includes("BRACKET0COSTFRACTION") || compact.includes("BRACKET0COST"),
+      label: "Upkeep Bracket 0 Cost Fraction",
+      order: 51,
+      group: "Upkeep Brackets",
+      kind: "slider",
+      helper: "Cost fraction for the first upkeep bracket",
+    },
+    {
+      match: () => compact.includes("BRACKET1BLOCKCOUNT") || compact.includes("BRACKET1BLOCK"),
+      label: "Upkeep Bracket 1 Block Count",
+      order: 52,
+      group: "Upkeep Brackets",
+      kind: "slider",
+      helper: "Block count threshold for the second upkeep bracket",
+    },
+    {
+      match: () => compact.includes("BRACKET1COSTFRACTION") || compact.includes("BRACKET1COST"),
+      label: "Upkeep Bracket 1 Cost Fraction",
+      order: 53,
+      group: "Upkeep Brackets",
+      kind: "slider",
+      helper: "Cost fraction for the second upkeep bracket",
+    },
+    {
+      match: () => compact.includes("BRACKET2BLOCKCOUNT") || compact.includes("BRACKET2BLOCK"),
+      label: "Upkeep Bracket 2 Block Count",
+      order: 54,
+      group: "Upkeep Brackets",
+      kind: "slider",
+      helper: "Block count threshold for the third upkeep bracket",
+    },
+    {
+      match: () => compact.includes("BRACKET2COSTFRACTION") || compact.includes("BRACKET2COST"),
+      label: "Upkeep Bracket 2 Cost Fraction",
+      order: 55,
+      group: "Upkeep Brackets",
+      kind: "slider",
+      helper: "Cost fraction for the third upkeep bracket",
+    },
+    {
+      match: () => compact.includes("BRACKET3BLOCKCOUNT") || compact.includes("BRACKET3BLOCK"),
+      label: "Upkeep Bracket 3 Block Count",
+      order: 56,
+      group: "Upkeep Brackets",
+      kind: "slider",
+      helper: "Block count threshold for the fourth upkeep bracket",
+    },
+    {
+      match: () => compact.includes("BRACKET3COSTFRACTION") || compact.includes("BRACKET3COST"),
+      label: "Upkeep Bracket 3 Cost Fraction",
+      order: 57,
+      group: "Upkeep Brackets",
+      kind: "slider",
+      helper: "Cost fraction for the fourth upkeep bracket",
+    },
+    { match: () => compact.includes("BUILDING") && compact.includes("DECAY"), label: variable.name, order: 70, group: "Building Decay", kind: "slider", helper: variable.description || variable.env_variable },
+    { match: () => compact.includes("TC") || compact.includes("TOOLCUPBOARD"), label: variable.name, order: 80, group: "Tool Cupboard", kind: "slider", helper: variable.description || variable.env_variable },
+    { match: () => compact.includes("PVE") || compact.includes("PVP"), label: variable.name, order: 90, group: "Gameplay", kind: "toggle", helper: variable.description || variable.env_variable },
+    { match: () => compact.includes("GATHER") || compact.includes("XP") || compact.includes("CRAFT"), label: variable.name, order: 100, group: "Gameplay", kind: "slider", helper: variable.description || variable.env_variable },
   ] as const;
 
   const found = definitions.find((definition) => definition.match());
-  const kind = isBooleanVariable(variable)
+  const kind = found?.kind ?? (isBooleanVariable(variable)
     ? "toggle"
     : /decay|upkeep|hours|time|delay|scale|multiplier|radius|cost|damage|rate/i.test(text)
       ? "slider"
-      : "text";
+      : "text");
 
   return {
     label: found?.label ?? variable.name,
     order: found?.order ?? 100,
     group: found?.group ?? null,
     kind,
-    helper: variable.description || variable.env_variable,
+    helper: found?.helper ?? (variable.description || variable.env_variable),
   };
 }
 
@@ -744,8 +973,26 @@ function rustSectionIdForVariable(variable: Variable) {
 
   if (
     compact.includes("DECAYSCALE") ||
+    compact.includes("DECAYTICK") ||
+    compact.includes("DECAYDEBUG") ||
     compact.includes("DECAYDELAY") ||
+    compact.includes("DECAYDURATION") ||
+    compact.includes("DELAYTWIG") ||
+    compact.includes("DELAYWOOD") ||
+    compact.includes("DELAYSTONE") ||
+    compact.includes("DELAYMETAL") ||
+    compact.includes("DELAYTOPTIER") ||
+    compact.includes("DURATIONTWIG") ||
+    compact.includes("DURATIONWOOD") ||
+    compact.includes("DURATIONSTONE") ||
+    compact.includes("DURATIONMETAL") ||
+    compact.includes("DURATIONTOPTIER") ||
+    compact.includes("OUTSIDETESTRANGE") ||
     compact.includes("UPKEEP") ||
+    compact.includes("BRACKET0") ||
+    compact.includes("BRACKET1") ||
+    compact.includes("BRACKET2") ||
+    compact.includes("BRACKET3") ||
     (compact.includes("BUILDING") && compact.includes("DECAY")) ||
     compact.includes("TOOLCUPBOARD") ||
     compact.includes("PVE") ||
