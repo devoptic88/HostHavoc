@@ -619,10 +619,10 @@ function mappedNumericField(
 
 function decaySliderBounds(label: string) {
   if (label === "Decay Scale") return { min: 0, max: 1, step: 0.001 };
-  if (label === "Decay Tick") return { min: 0, max: 3600, step: 0.001 };
   if (label === "Animal Decay") return { min: 0, max: 360, step: 1 };
   if (label.endsWith("Bracket Count")) return { min: 0, max: 300, step: 1 };
   if (label.endsWith("Bracket Cost")) return { min: 0, max: 1, step: 0.001 };
+  if (label === "Upkeep Grief Protection") return { min: 0, max: 1440, step: 0.001 };
   if (label === "Upkeep Heal Scaling") return { min: 0, max: 2, step: 0.001 };
   if (label === "Protected Upkeep Scaling") return { min: 0, max: 1, step: 0.001 };
   if (label.endsWith("Delay") || label.endsWith("Duration")) return { min: 0, max: 24, step: 1 };
@@ -1151,14 +1151,23 @@ export function Startup({
   );
   const runtimeVariable = frameworkVariable ?? branchVariable;
   const hiddenRuntimeEnvVars = useMemo(
-    () =>
-      new Set(
+    () => {
+      const hidden = new Set(
         [frameworkVariable, branchVariable]
           .filter((variable): variable is Variable => Boolean(variable))
           .filter((variable) => variable.env_variable !== runtimeVariable?.env_variable)
           .map((variable) => variable.env_variable),
-      ),
-    [branchVariable, frameworkVariable, runtimeVariable],
+      );
+
+      if (isRust) {
+        vars
+          .filter((variable) => compactVariableText(variable).includes("DECAYTICK"))
+          .forEach((variable) => hidden.add(variable.env_variable));
+      }
+
+      return hidden;
+    },
+    [branchVariable, frameworkVariable, isRust, runtimeVariable, vars],
   );
   const installedRuntime = runtimeProfileFromVariables(frameworkVariable, branchVariable);
   const selectedRuntime = runtimeVariable && edits[runtimeVariable.env_variable] !== undefined
@@ -2280,14 +2289,19 @@ function RustMappedSection({
   const decayDelayNumber = Number.parseFloat(decayDelayValue);
   const decayDelayOverridesMaterials = Number.isFinite(decayDelayNumber) && decayDelayNumber > 0;
   const delayEnvVariables = delayVariables.map((variable) => variable.env_variable);
+  const buildingUpkeepVariable = ordered.find((variable) => metaFor(variable).label === "Enable Building Upkeep");
+  const buildingUpkeepEnabled = buildingUpkeepVariable
+    ? isTruthyValue(currentFieldValue(buildingUpkeepVariable, edits))
+    : true;
 
   function mappedFieldProps(variable: Variable) {
     const meta = metaFor(variable);
     const isDecayDelay = meta.label === "Decay Delay";
     const isMaterialDelay = materialDelayLabels.has(meta.label);
+    const isUpkeepDependent = meta.group === "Upkeep Settings" && meta.label !== "Enable Building Upkeep";
 
     return {
-      disabledOverride: isMaterialDelay && decayDelayOverridesMaterials,
+      disabledOverride: (isMaterialDelay && decayDelayOverridesMaterials) || (isUpkeepDependent && !buildingUpkeepEnabled),
       linkedEnvVariables: isDecayDelay ? delayEnvVariables : [],
       valueOverride: isMaterialDelay && decayDelayOverridesMaterials ? decayDelayValue : undefined,
     };
