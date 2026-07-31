@@ -580,6 +580,54 @@ function weatherNumericField(
   return boundedWeatherNumericField(numeric, 0, 1);
 }
 
+function boundedMappedNumericField(
+  numeric: ReturnType<typeof parseNumericField>,
+  min: number,
+  max: number,
+  step: number,
+) {
+  const value = Math.min(max, Math.max(min, numeric.value));
+  const display = step < 1 ? String(Number(value.toFixed(3))) : String(Math.round(value));
+
+  return {
+    ...numeric,
+    min,
+    max,
+    step,
+    value,
+    display,
+    integerLike: step >= 1,
+  };
+}
+
+function mappedNumericField(
+  variable: Variable,
+  edits: Record<string, string>,
+  meta: Record<string, unknown>,
+) {
+  const numeric = parseNumericField(variable, edits);
+  const min = typeof meta.min === "number" ? meta.min : null;
+  const max = typeof meta.max === "number" ? meta.max : null;
+  const step = typeof meta.step === "number" ? meta.step : null;
+
+  if (min == null || max == null || step == null) {
+    return numeric;
+  }
+
+  return boundedMappedNumericField(numeric, min, max, step);
+}
+
+function decaySliderBounds(label: string) {
+  if (label === "Decay Scale") return { min: 0, max: 1, step: 0.001 };
+  if (label === "Animal Decay") return { min: 0, max: 360, step: 1 };
+  if (label.endsWith("Bracket Count")) return { min: 0, max: 300, step: 1 };
+  if (label.endsWith("Bracket Cost")) return { min: 0, max: 1, step: 0.001 };
+  if (label === "Upkeep Heal Scaling") return { min: 0, max: 2, step: 0.001 };
+  if (label === "Protected Upkeep Scaling") return { min: 0, max: 1, step: 0.001 };
+  if (label.endsWith("Delay") || label.endsWith("Duration")) return { min: 0, max: 24, step: 1 };
+  return null;
+}
+
 function decayFieldMeta(variable: Variable) {
   const text = variableText(variable);
   const compact = compactVariableText(variable);
@@ -838,12 +886,15 @@ function decayFieldMeta(variable: Variable) {
       ? "slider"
       : "text");
 
+  const label = found?.label ?? variable.name;
+
   return {
-    label: found?.label ?? variable.name,
+    label,
     order: found?.order ?? 100,
     group: found?.group ?? null,
     kind,
     helper: found?.helper ?? (variable.description || variable.env_variable),
+    ...decaySliderBounds(label),
   };
 }
 
@@ -2097,7 +2148,7 @@ function RustMappedField({
   meta: ReturnType<typeof decayFieldMeta> | ReturnType<typeof advancedFieldMeta>;
 }) {
   const currentValue = currentFieldValue(variable, edits);
-  const numeric = parseNumericField(variable, edits);
+  const numeric = mappedNumericField(variable, edits, meta);
   const boolOptions = booleanOptions(variable);
   const canEdit = variable.is_editable;
 
