@@ -12,8 +12,6 @@ import {
   Globe,
   Loader2,
   Lock,
-  Minus,
-  Plus,
   Save,
   Shield,
   SlidersHorizontal,
@@ -451,6 +449,9 @@ function rangeFillStyle(value: number, min: number, max: number) {
   };
 }
 
+const numberInputNoSpinnerClass =
+  "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
 function weatherFieldMeta(variable: Variable) {
   const compact = compactVariableText(variable);
 
@@ -544,7 +545,7 @@ function weatherFieldMeta(variable: Variable) {
 }
 
 function formatWeatherDisplay(value: number) {
-  return String(Number(value.toFixed(2)));
+  return String(Number(value.toFixed(3)));
 }
 
 function boundedWeatherNumericField(
@@ -558,7 +559,7 @@ function boundedWeatherNumericField(
     ...numeric,
     min,
     max,
-    step: 0.01,
+    step: 0.001,
     value,
     display: formatWeatherDisplay(value),
     integerLike: false,
@@ -1330,7 +1331,10 @@ function RustBasicField({
             onChange={(e) =>
               setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
             }
-            className="h-10 rounded-md border-[#65707a] bg-[#30363c] px-3 text-[13px] text-[#eef3f8]"
+            className={cn(
+              "h-10 rounded-md border-[#65707a] bg-[#30363c] px-3 text-[13px] text-[#eef3f8]",
+              numberInputNoSpinnerClass,
+            )}
           />
         </div>
       ) : (
@@ -1364,11 +1368,6 @@ function RustWorldField({
 
   function updateValue(value: string) {
     setEdits((state) => ({ ...state, [variable.env_variable]: value }));
-  }
-
-  function incrementSlider(delta: number) {
-    const next = Math.min(numeric.max, Math.max(numeric.min, numeric.value + delta));
-    updateValue(numeric.integerLike ? String(Math.round(next)) : String(Number(next.toFixed(1))));
   }
 
   const generatorOptions = ["Procedural Map", "Barren", "HapisIsland", "CraggyIsland", "SavasIsland"];
@@ -1441,7 +1440,7 @@ function RustWorldField({
           </div>
         </div>
       ) : meta.kind === "slider" ? (
-        <div className="grid gap-3 md:grid-cols-[minmax(0,367px)_154px] md:items-center">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,367px)_110px] md:items-center">
           <input
             type="range"
             min={numeric.min}
@@ -1453,34 +1452,19 @@ function RustWorldField({
             style={rangeFillStyle(numeric.value, numeric.min, numeric.max)}
             className="h-2.5 w-full cursor-pointer appearance-none rounded-full accent-[#18aee6] disabled:cursor-not-allowed"
           />
-          <div className="grid h-10 grid-cols-[44px_66px_44px] overflow-hidden rounded-md border border-[#3e3e3e] bg-[#0b0b0c]">
-            <button
-              type="button"
-              disabled={!canEdit}
-              onClick={() => incrementSlider(-numeric.step)}
-              className="ring-focus flex items-center justify-center border-r border-[#3e3e3e] text-[#cfd3d7] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
-            >
-              <Minus className="h-4 w-4" />
-            </button>
-            <Input
-              type="number"
-              min={numeric.min}
-              max={numeric.max}
-              step={numeric.step}
-              value={numeric.display}
-              disabled={!canEdit}
-              onChange={(e) => updateValue(e.target.value)}
-              className="h-full rounded-none border-x border-[#65707a] border-y-0 bg-[#30363c] px-2 text-center text-[13px] leading-none text-[#eef3f8]"
-            />
-            <button
-              type="button"
-              disabled={!canEdit}
-              onClick={() => incrementSlider(numeric.step)}
-              className="ring-focus flex items-center justify-center border-l border-[#3e3e3e] text-[#cfd3d7] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          </div>
+          <Input
+            type="number"
+            min={numeric.min}
+            max={numeric.max}
+            step={numeric.step}
+            value={numeric.display}
+            disabled={!canEdit}
+            onChange={(e) => updateValue(e.target.value)}
+            className={cn(
+              "h-10 rounded-md border-[#65707a] bg-[#30363c] px-2 text-center text-[13px] leading-none text-[#eef3f8]",
+              numberInputNoSpinnerClass,
+            )}
+          />
         </div>
       ) : (
         <Input
@@ -1514,11 +1498,6 @@ function RustWeatherField({
     setEdits((state) => ({ ...state, [variable.env_variable]: value }));
   }
 
-  function incrementSlider(delta: number) {
-    const next = Math.min(numeric.max, Math.max(numeric.min, numeric.value + delta));
-    updateValue(formatWeatherDisplay(next));
-  }
-
   return (
     <div className="space-y-2.5">
       <div>
@@ -1531,8 +1510,8 @@ function RustWeatherField({
           className={cn(
             "grid gap-3 md:items-center",
             manualOverride
-              ? "md:grid-cols-[40px_minmax(0,367px)_154px]"
-              : "md:grid-cols-[minmax(0,367px)_154px]",
+              ? "md:grid-cols-[40px_minmax(0,367px)_110px]"
+              : "md:grid-cols-[minmax(0,367px)_110px]",
           )}
         >
           {manualOverride ? (
@@ -1568,34 +1547,19 @@ function RustWeatherField({
             style={rangeFillStyle(numeric.value, numeric.min, numeric.max)}
             className="h-2.5 w-full cursor-pointer appearance-none rounded-full accent-[#18aee6] disabled:cursor-not-allowed"
           />
-          <div className="grid h-10 grid-cols-[44px_66px_44px] overflow-hidden rounded-md border border-[#3e3e3e] bg-[#0b0b0c]">
-            <button
-              type="button"
-              disabled={!canEdit}
-              onClick={() => incrementSlider(-numeric.step)}
-              className="ring-focus flex items-center justify-center border-r border-[#3e3e3e] text-[#cfd3d7] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
-            >
-              <Minus className="h-4 w-4" />
-            </button>
-            <Input
-              type="number"
-              min={numeric.min}
-              max={numeric.max}
-              step={numeric.step}
-              value={numeric.display}
-              disabled={!canEdit}
-              onChange={(e) => updateValue(e.target.value)}
-              className="h-full rounded-none border-x border-[#65707a] border-y-0 bg-[#30363c] px-2 text-center text-[13px] leading-none text-[#eef3f8]"
-            />
-            <button
-              type="button"
-              disabled={!canEdit}
-              onClick={() => incrementSlider(numeric.step)}
-              className="ring-focus flex items-center justify-center border-l border-[#3e3e3e] text-[#cfd3d7] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          </div>
+          <Input
+            type="number"
+            min={numeric.min}
+            max={numeric.max}
+            step={numeric.step}
+            value={numeric.display}
+            disabled={!canEdit}
+            onChange={(e) => updateValue(e.target.value)}
+            className={cn(
+              "h-10 rounded-md border-[#65707a] bg-[#30363c] px-2 text-center text-[13px] leading-none text-[#eef3f8]",
+              numberInputNoSpinnerClass,
+            )}
+          />
         </div>
       ) : (
         <Input
@@ -1884,11 +1848,6 @@ function RustMappedField({
     setEdits((state) => ({ ...state, [variable.env_variable]: value }));
   }
 
-  function incrementSlider(delta: number) {
-    const next = Math.min(numeric.max, Math.max(numeric.min, numeric.value + delta));
-    updateValue(numeric.integerLike ? String(Math.round(next)) : String(Number(next.toFixed(2))));
-  }
-
   return (
     <div className="space-y-2.5">
       <div>
@@ -1920,7 +1879,7 @@ function RustMappedField({
           </button>
         </div>
       ) : meta.kind === "slider" ? (
-        <div className="grid gap-3 md:grid-cols-[minmax(0,367px)_154px] md:items-center">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,367px)_110px] md:items-center">
           <input
             type="range"
             min={numeric.min}
@@ -1932,34 +1891,19 @@ function RustMappedField({
             style={rangeFillStyle(numeric.value, numeric.min, numeric.max)}
             className="h-2.5 w-full cursor-pointer appearance-none rounded-full accent-[#18aee6] disabled:cursor-not-allowed"
           />
-          <div className="grid h-10 grid-cols-[44px_66px_44px] overflow-hidden rounded-md border border-[#3e3e3e] bg-[#0b0b0c]">
-            <button
-              type="button"
-              disabled={!canEdit}
-              onClick={() => incrementSlider(-numeric.step)}
-              className="ring-focus flex items-center justify-center border-r border-[#3e3e3e] text-[#cfd3d7] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
-            >
-              <Minus className="h-4 w-4" />
-            </button>
-            <Input
-              type="number"
-              min={numeric.min}
-              max={numeric.max}
-              step={numeric.step}
-              value={numeric.display}
-              disabled={!canEdit}
-              onChange={(e) => updateValue(e.target.value)}
-              className="h-full rounded-none border-x border-[#65707a] border-y-0 bg-[#30363c] px-2 text-center text-[13px] leading-none text-[#eef3f8]"
-            />
-            <button
-              type="button"
-              disabled={!canEdit}
-              onClick={() => incrementSlider(numeric.step)}
-              className="ring-focus flex items-center justify-center border-l border-[#3e3e3e] text-[#cfd3d7] transition-colors hover:bg-white/[0.04] hover:text-white disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          </div>
+          <Input
+            type="number"
+            min={numeric.min}
+            max={numeric.max}
+            step={numeric.step}
+            value={numeric.display}
+            disabled={!canEdit}
+            onChange={(e) => updateValue(e.target.value)}
+            className={cn(
+              "h-10 rounded-md border-[#65707a] bg-[#30363c] px-2 text-center text-[13px] leading-none text-[#eef3f8]",
+              numberInputNoSpinnerClass,
+            )}
+          />
         </div>
       ) : meta.kind === "textarea" ? (
         <Textarea
