@@ -619,6 +619,7 @@ function mappedNumericField(
 
 function decaySliderBounds(label: string) {
   if (label === "Decay Scale") return { min: 0, max: 1, step: 0.001 };
+  if (label === "Decay Tick") return { min: 0, max: 3600, step: 0.001 };
   if (label === "Animal Decay") return { min: 0, max: 360, step: 1 };
   if (label.endsWith("Bracket Count")) return { min: 0, max: 300, step: 1 };
   if (label.endsWith("Bracket Cost")) return { min: 0, max: 1, step: 0.001 };
@@ -2141,23 +2142,36 @@ function RustMappedField({
   edits,
   setEdits,
   meta,
+  disabledOverride = false,
+  linkedEnvVariables = [],
+  valueOverride,
 }: {
   variable: Variable;
   edits: Record<string, string>;
   setEdits: Dispatch<SetStateAction<Record<string, string>>>;
   meta: ReturnType<typeof decayFieldMeta> | ReturnType<typeof advancedFieldMeta>;
+  disabledOverride?: boolean;
+  linkedEnvVariables?: string[];
+  valueOverride?: string;
 }) {
-  const currentValue = currentFieldValue(variable, edits);
-  const numeric = mappedNumericField(variable, edits, meta);
+  const effectiveEdits = valueOverride == null ? edits : { ...edits, [variable.env_variable]: valueOverride };
+  const currentValue = currentFieldValue(variable, effectiveEdits);
+  const numeric = mappedNumericField(variable, effectiveEdits, meta);
   const boolOptions = booleanOptions(variable);
-  const canEdit = variable.is_editable;
+  const canEdit = variable.is_editable && !disabledOverride;
 
   function updateValue(value: string) {
-    setEdits((state) => ({ ...state, [variable.env_variable]: value }));
+    setEdits((state) => {
+      const next = { ...state, [variable.env_variable]: value };
+      for (const envVariable of linkedEnvVariables) {
+        next[envVariable] = value;
+      }
+      return next;
+    });
   }
 
   return (
-    <div className="space-y-2.5">
+    <div className={cn("space-y-2.5", disabledOverride && "opacity-45")}>
       <div>
         <p className="text-[13px] font-semibold leading-5 text-[#e7ebef]">{meta.label}</p>
         <p className="mt-1.5 text-[11px] leading-5 text-[#c7ced6]">{meta.helper}</p>
@@ -2259,6 +2273,26 @@ function RustMappedSection({
     groups.set(meta.group, current);
   }
 
+  const materialDelayLabels = new Set(["Twig Delay", "Wood Delay", "Stone Delay", "Metal Delay", "Armored Delay"]);
+  const delayVariables = ordered.filter((variable) => materialDelayLabels.has(metaFor(variable).label));
+  const decayDelayVariable = ordered.find((variable) => metaFor(variable).label === "Decay Delay");
+  const decayDelayValue = decayDelayVariable ? currentFieldValue(decayDelayVariable, edits) : "";
+  const decayDelayNumber = Number.parseFloat(decayDelayValue);
+  const decayDelayOverridesMaterials = Number.isFinite(decayDelayNumber) && decayDelayNumber > 0;
+  const delayEnvVariables = delayVariables.map((variable) => variable.env_variable);
+
+  function mappedFieldProps(variable: Variable) {
+    const meta = metaFor(variable);
+    const isDecayDelay = meta.label === "Decay Delay";
+    const isMaterialDelay = materialDelayLabels.has(meta.label);
+
+    return {
+      disabledOverride: isMaterialDelay && decayDelayOverridesMaterials,
+      linkedEnvVariables: isDecayDelay ? delayEnvVariables : [],
+      valueOverride: isMaterialDelay && decayDelayOverridesMaterials ? decayDelayValue : undefined,
+    };
+  }
+
   function groupDescription(group: string) {
     if (group === "Delay for Building Decay") return "Settings for the delay on building decay";
     if (group === "Duration of Building Decay") return "Settings for the duration of building decay";
@@ -2276,6 +2310,7 @@ function RustMappedSection({
           edits={edits}
           setEdits={setEdits}
           meta={metaFor(variable)}
+          {...mappedFieldProps(variable)}
         />
       ))}
 
@@ -2295,6 +2330,7 @@ function RustMappedSection({
                 edits={edits}
                 setEdits={setEdits}
                 meta={metaFor(variable)}
+                {...mappedFieldProps(variable)}
               />
             ))}
           </div>
