@@ -1197,7 +1197,17 @@ export function Startup({
 
       if (isRust) {
         vars
-          .filter((variable) => compactVariableText(variable).includes("DECAYTICK"))
+          .filter((variable) => {
+            const compact = compactVariableText(variable);
+            return (
+              compact.includes("DECAYTICK") ||
+              isRustManagedPortVariable(variable, isRust) ||
+              isRustFrameworkVariable(variable, isRust) ||
+              isRustBranchVariable(variable, isRust) ||
+              compact.includes("SERVERLOGO") ||
+              compact.includes("LOGO")
+            );
+          })
           .forEach((variable) => hidden.add(variable.env_variable));
       }
 
