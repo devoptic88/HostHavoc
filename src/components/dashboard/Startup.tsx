@@ -69,10 +69,15 @@ function variableText(variable: Variable) {
   return `${variable.name} ${variable.description} ${variable.env_variable}`.toUpperCase();
 }
 
+function compactVariableText(variable: Variable) {
+  return variableText(variable).replace(/[^A-Z0-9]/g, "");
+}
+
 function isRustMaxPlayersVariable(variable: Variable, isRust: boolean) {
   if (!isRust) return false;
   const text = variableText(variable);
-  return text.includes("MAXPLAYERS") || text.includes("MAX PLAYERS");
+  const compact = compactVariableText(variable);
+  return compact.includes("MAXPLAYERS") || text.includes("MAX PLAYERS");
 }
 
 function rustBasicFieldMeta(variable: Variable) {
@@ -195,6 +200,7 @@ function isTruthyValue(value: string) {
 
 function worldFieldMeta(variable: Variable) {
   const text = variableText(variable);
+  const compact = compactVariableText(variable);
   const env = variable.env_variable.toUpperCase();
 
   const definitions = [
@@ -208,9 +214,9 @@ function worldFieldMeta(variable: Variable) {
     },
     {
       match: () =>
-        (text.includes("LEVEL") || text.includes("MAP TYPE")) &&
+        (text.includes("LEVEL") || compact.includes("MAPTYPE")) &&
         !text.includes("URL") &&
-        !text.includes("CUSTOM MAP"),
+        !compact.includes("CUSTOMMAP"),
       label: "World Generator",
       helper: "The map to start on",
       kind: "select",
@@ -218,7 +224,7 @@ function worldFieldMeta(variable: Variable) {
       group: "top",
     },
     {
-      match: () => text.includes("SEED"),
+      match: () => compact.includes("SEED"),
       label: "World Seed",
       helper: "The seed used to generate the procedural level",
       kind: "seed",
@@ -228,8 +234,8 @@ function worldFieldMeta(variable: Variable) {
     {
       match: () =>
         env === "MAP_URL" ||
-        text.includes("LEVELURL") ||
-        text.includes("CUSTOM MAP") ||
+        compact.includes("LEVELURL") ||
+        compact.includes("CUSTOMMAP") ||
         (text.includes("MAP") && text.includes("URL")),
       label: "Custom Map",
       helper: "Overwrites the map with the one from the direct download URL. Invalid URLs will cause the server to crash.",
@@ -238,7 +244,7 @@ function worldFieldMeta(variable: Variable) {
       group: "top",
     },
     {
-      match: () => text.includes("WORLDSIZE") || text.includes("WORLD SIZE"),
+      match: () => compact.includes("WORLDSIZE"),
       label: "World Size",
       helper: "Defines the size of the map generated (Min 1000, Max 8000). Default 4500",
       kind: "slider",
@@ -246,7 +252,7 @@ function worldFieldMeta(variable: Variable) {
       group: "top",
     },
     {
-      match: () => text.includes("RADIATION"),
+      match: () => compact.includes("RADIATION"),
       label: "Radiation",
       helper: "Enable or Disable radiation across the entire world",
       kind: "toggle",
@@ -254,7 +260,7 @@ function worldFieldMeta(variable: Variable) {
       group: "top",
     },
     {
-      match: () => text.includes("SAVEINTERVAL") || text.includes("SAVE INTERVAL"),
+      match: () => compact.includes("SAVEINTERVAL"),
       label: "Save Interval",
       helper: "Amount of seconds between automatic saves",
       kind: "slider",
@@ -262,7 +268,7 @@ function worldFieldMeta(variable: Variable) {
       group: "top",
     },
     {
-      match: () => text.includes("ANIMAL") && text.includes("POPULATION"),
+      match: () => compact.includes("ANIMAL") && compact.includes("POPULATION"),
       label: "Animal Population",
       helper: "Settings for the number of animals that spawn",
       kind: "slider",
@@ -270,7 +276,9 @@ function worldFieldMeta(variable: Variable) {
       group: "animals",
     },
     {
-      match: () => text.includes("RIDEABLE") && text.includes("HORSE") && text.includes("POPULATION"),
+      match: () =>
+        env === "HORSE_POPULATION" ||
+        (compact.includes("RIDEABLE") && compact.includes("HORSE") && compact.includes("POPULATION")),
       label: "Rideable Horse Population",
       helper: "Number of rideable horses per square km",
       kind: "slider",
@@ -278,7 +286,7 @@ function worldFieldMeta(variable: Variable) {
       group: "animals",
     },
     {
-      match: () => text.includes("HORSE") && text.includes("POPULATION"),
+      match: () => compact.includes("WILD") && compact.includes("HORSE") && compact.includes("POPULATION"),
       label: "Wild Horse Population",
       helper: "Number of wild horses per square km (normally disabled)",
       kind: "slider",
@@ -286,7 +294,7 @@ function worldFieldMeta(variable: Variable) {
       group: "animals",
     },
     {
-      match: () => text.includes("WOLF") && text.includes("POPULATION"),
+      match: () => compact.includes("WOLF") && compact.includes("POPULATION"),
       label: "Wolf Population",
       helper: "Number of wolves per square km",
       kind: "slider",
@@ -294,7 +302,7 @@ function worldFieldMeta(variable: Variable) {
       group: "animals",
     },
     {
-      match: () => text.includes("CHICKEN") && text.includes("POPULATION"),
+      match: () => compact.includes("CHICKEN") && compact.includes("POPULATION"),
       label: "Chicken Population",
       helper: "Number of chickens per square km",
       kind: "slider",
@@ -302,15 +310,15 @@ function worldFieldMeta(variable: Variable) {
       group: "animals",
     },
     {
-      match: () => text.includes("BOAR") && text.includes("POPULATION"),
+      match: () => compact.includes("BOAR") && compact.includes("POPULATION"),
       label: "Boar Population",
-      helper: "Number of bears per square km",
+      helper: "Number of boars per square km",
       kind: "slider",
       order: 3,
       group: "animals",
     },
     {
-      match: () => text.includes("STAG") && text.includes("POPULATION"),
+      match: () => compact.includes("STAG") && compact.includes("POPULATION"),
       label: "Stag Population",
       helper: "Number of stags per square km",
       kind: "slider",
@@ -318,7 +326,7 @@ function worldFieldMeta(variable: Variable) {
       group: "animals",
     },
     {
-      match: () => text.includes("BEAR") && text.includes("POPULATION"),
+      match: () => compact.includes("BEAR") && compact.includes("POPULATION"),
       label: "Bear Population",
       helper: "Number of bears per square km",
       kind: "slider",
@@ -326,7 +334,7 @@ function worldFieldMeta(variable: Variable) {
       group: "animals",
     },
     {
-      match: () => text.includes("VEHICLE") && text.includes("POPULATION"),
+      match: () => compact.includes("VEHICLE") && compact.includes("POPULATION"),
       label: "Vehicle Population",
       helper: "Settings for the number of vehicles that spawn",
       kind: "slider",
@@ -334,7 +342,7 @@ function worldFieldMeta(variable: Variable) {
       group: "vehicles",
     },
     {
-      match: () => text.includes("HOT AIR BALLOON") && text.includes("POPULATION"),
+      match: () => compact.includes("HOTAIRBALLOON") && compact.includes("POPULATION"),
       label: "Hot Air Balloon Population",
       helper: "Number of hot air balloons per square km",
       kind: "slider",
@@ -343,9 +351,9 @@ function worldFieldMeta(variable: Variable) {
     },
     {
       match: () =>
-        (text.includes("MINI") || env.includes("MINI")) &&
-        text.includes("COPTER") &&
-        text.includes("POPULATION"),
+        compact.includes("MINI") &&
+        compact.includes("COPTER") &&
+        compact.includes("POPULATION"),
       label: "Mini Copter Population",
       helper: "Number of mini copters per square km (normally disabled)",
       kind: "slider",
@@ -353,7 +361,7 @@ function worldFieldMeta(variable: Variable) {
       group: "vehicles",
     },
     {
-      match: () => text.includes("MODULAR") && text.includes("CAR") && text.includes("POPULATION"),
+      match: () => compact.includes("MODULAR") && compact.includes("CAR") && compact.includes("POPULATION"),
       label: "Modular Car Population",
       helper: "Number of modular cars per square km",
       kind: "slider",
@@ -361,7 +369,7 @@ function worldFieldMeta(variable: Variable) {
       group: "vehicles",
     },
     {
-      match: () => text.includes("MOTOR") && text.includes("ROWBOAT") && text.includes("POPULATION"),
+      match: () => compact.includes("MOTOR") && compact.includes("ROWBOAT") && compact.includes("POPULATION"),
       label: "Motor Rowboat Population",
       helper: "Number of motor rowboats per square km",
       kind: "slider",
@@ -369,7 +377,7 @@ function worldFieldMeta(variable: Variable) {
       group: "vehicles",
     },
     {
-      match: () => text.includes("RHIB") && text.includes("POPULATION"),
+      match: () => compact.includes("RHIB") && compact.includes("POPULATION"),
       label: "RHIB Population",
       helper: "Number of rigged hulled inflatable boats per square km (normally disabled)",
       kind: "slider",
@@ -377,7 +385,7 @@ function worldFieldMeta(variable: Variable) {
       group: "vehicles",
     },
     {
-      match: () => text.includes("SCRAP") && text.includes("TRANSPORT") && text.includes("HELICOPTER") && text.includes("POPULATION"),
+      match: () => compact.includes("SCRAP") && compact.includes("TRANSPORT") && compact.includes("HELICOPTER") && compact.includes("POPULATION"),
       label: "Scrap Transport Helicopter Population",
       helper: "Number of scrap transport helicopters per square km (normally disabled)",
       kind: "slider",
@@ -567,6 +575,7 @@ function runtimeLabel(profile: RustRuntimeProfile) {
 
 function rustSectionIdForVariable(variable: Variable) {
   const text = variableText(variable);
+  const compact = compactVariableText(variable);
   const env = variable.env_variable.toUpperCase();
 
   if (env === "URL" || (text.includes("URL") && !text.includes("MAP") && !text.includes("LEVEL"))) {
@@ -578,6 +587,26 @@ function rustSectionIdForVariable(variable: Variable) {
     text.includes("LEVELURL") ||
     text.includes("CUSTOM MAP") ||
     (text.includes("MAP") && text.includes("URL"))
+  ) {
+    return "world";
+  }
+
+  if (
+    compact.includes("WORLDSIZE") ||
+    compact.includes("SAVEINTERVAL") ||
+    compact.includes("RADIATION") ||
+    compact.includes("HORSEPOPULATION") ||
+    compact.includes("WOLFPOPULATION") ||
+    compact.includes("CHICKENPOPULATION") ||
+    compact.includes("BOARPOPULATION") ||
+    compact.includes("STAGPOPULATION") ||
+    compact.includes("BEARPOPULATION") ||
+    compact.includes("HOTAIRBALLOONPOPULATION") ||
+    compact.includes("MINICOPTERPOPULATION") ||
+    compact.includes("MODULARCARPOPULATION") ||
+    compact.includes("MOTORROWBOATPOPULATION") ||
+    compact.includes("RHIBPOPULATION") ||
+    compact.includes("SCRAPTRANSPORTHELICOPTERPOPULATION")
   ) {
     return "world";
   }
@@ -598,7 +627,7 @@ const rustSections = [
     title: "World",
     description: "Map generation, save identity, level, seed, and world size controls.",
     icon: Globe,
-    matchers: ["LEVEL", "WORLD", "SEED", "MAP", "SAVE", "WORLD_SIZE", "IDENTITY", "LEVELURL", "CUSTOM MAP", "MAP_URL"],
+    matchers: ["LEVEL", "WORLD", "SEED", "MAP", "SAVE", "RADIATION", "POPULATION", "WORLD_SIZE", "IDENTITY", "LEVELURL", "CUSTOM MAP", "MAP_URL"],
   },
   {
     id: "weather",
