@@ -79,6 +79,14 @@ function rustBasicFieldMeta(variable: Variable) {
   const text = variableText(variable);
   const env = variable.env_variable.toUpperCase();
 
+  if (env === "DESCRIPTION" || text.includes("DESCRIPTION")) {
+    return {
+      order: 1,
+      label: "Server Description",
+      helper: "Appears under Server Name in listing",
+    };
+  }
+
   if (
     env === "HOSTNAME" ||
     text.includes("SERVER NAME") ||
@@ -89,14 +97,6 @@ function rustBasicFieldMeta(variable: Variable) {
       order: 0,
       label: "Server Name",
       helper: "Displayed in the server list & when someone is joining the server",
-    };
-  }
-
-  if (env === "DESCRIPTION" || text.includes("DESCRIPTION")) {
-    return {
-      order: 1,
-      label: "Description",
-      helper: "Appears under Server Name in listing",
     };
   }
 
@@ -203,11 +203,14 @@ function worldFieldMeta(variable: Variable) {
       label: "Data Folder",
       helper: "Identity folder to store map and player data in the /server folder",
       kind: "text",
-      order: 0,
+      order: 100,
       group: "top",
     },
     {
-      match: () => text.includes("LEVEL") || text.includes("MAP TYPE"),
+      match: () =>
+        (text.includes("LEVEL") || text.includes("MAP TYPE")) &&
+        !text.includes("URL") &&
+        !text.includes("CUSTOM MAP"),
       label: "World Generator",
       helper: "The map to start on",
       kind: "select",
@@ -228,10 +231,10 @@ function worldFieldMeta(variable: Variable) {
         text.includes("LEVELURL") ||
         text.includes("CUSTOM MAP") ||
         (text.includes("MAP") && text.includes("URL")),
-      label: "Custom Map URL",
+      label: "Custom Map",
       helper: "Overwrites the map with the one from the direct download URL. Invalid URLs will cause the server to crash.",
       kind: "text",
-      order: 3,
+      order: 0,
       group: "top",
     },
     {
@@ -239,7 +242,7 @@ function worldFieldMeta(variable: Variable) {
       label: "World Size",
       helper: "Defines the size of the map generated (Min 1000, Max 8000). Default 4500",
       kind: "slider",
-      order: 4,
+      order: 3,
       group: "top",
     },
     {
@@ -247,7 +250,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Radiation",
       helper: "Enable or Disable radiation across the entire world",
       kind: "toggle",
-      order: 5,
+      order: 4,
       group: "top",
     },
     {
@@ -255,7 +258,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Save Interval",
       helper: "Amount of seconds between automatic saves",
       kind: "slider",
-      order: 6,
+      order: 5,
       group: "top",
     },
     {
@@ -263,7 +266,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Animal Population",
       helper: "Settings for the number of animals that spawn",
       kind: "slider",
-      order: 6,
+      order: 100,
       group: "animals",
     },
     {
@@ -271,7 +274,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Rideable Horse Population",
       helper: "Number of rideable horses per square km",
       kind: "slider",
-      order: 7,
+      order: 0,
       group: "animals",
     },
     {
@@ -279,7 +282,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Wild Horse Population",
       helper: "Number of wild horses per square km (normally disabled)",
       kind: "slider",
-      order: 8,
+      order: 100,
       group: "animals",
     },
     {
@@ -287,7 +290,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Wolf Population",
       helper: "Number of wolves per square km",
       kind: "slider",
-      order: 9,
+      order: 1,
       group: "animals",
     },
     {
@@ -295,7 +298,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Chicken Population",
       helper: "Number of chickens per square km",
       kind: "slider",
-      order: 10,
+      order: 2,
       group: "animals",
     },
     {
@@ -303,7 +306,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Boar Population",
       helper: "Number of bears per square km",
       kind: "slider",
-      order: 11,
+      order: 3,
       group: "animals",
     },
     {
@@ -311,7 +314,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Stag Population",
       helper: "Number of stags per square km",
       kind: "slider",
-      order: 12,
+      order: 4,
       group: "animals",
     },
     {
@@ -319,7 +322,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Bear Population",
       helper: "Number of bears per square km",
       kind: "slider",
-      order: 13,
+      order: 5,
       group: "animals",
     },
     {
@@ -327,7 +330,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Vehicle Population",
       helper: "Settings for the number of vehicles that spawn",
       kind: "slider",
-      order: 20,
+      order: 100,
       group: "vehicles",
     },
     {
@@ -335,7 +338,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Hot Air Balloon Population",
       helper: "Number of hot air balloons per square km",
       kind: "slider",
-      order: 21,
+      order: 0,
       group: "vehicles",
     },
     {
@@ -346,7 +349,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Mini Copter Population",
       helper: "Number of mini copters per square km (normally disabled)",
       kind: "slider",
-      order: 22,
+      order: 1,
       group: "vehicles",
     },
     {
@@ -354,7 +357,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Modular Car Population",
       helper: "Number of modular cars per square km",
       kind: "slider",
-      order: 23,
+      order: 2,
       group: "vehicles",
     },
     {
@@ -362,7 +365,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Motor Rowboat Population",
       helper: "Number of motor rowboats per square km",
       kind: "slider",
-      order: 24,
+      order: 3,
       group: "vehicles",
     },
     {
@@ -370,7 +373,7 @@ function worldFieldMeta(variable: Variable) {
       label: "RHIB Population",
       helper: "Number of rigged hulled inflatable boats per square km (normally disabled)",
       kind: "slider",
-      order: 25,
+      order: 4,
       group: "vehicles",
     },
     {
@@ -378,7 +381,7 @@ function worldFieldMeta(variable: Variable) {
       label: "Scrap Transport Helicopter Population",
       helper: "Number of scrap transport helicopters per square km (normally disabled)",
       kind: "slider",
-      order: 26,
+      order: 5,
       group: "vehicles",
     },
   ] as const;
@@ -393,6 +396,40 @@ function worldFieldMeta(variable: Variable) {
       (isBooleanVariable(variable) ? "toggle" : /population|size|interval/i.test(text) ? "slider" : "text"),
     helper: found?.helper ?? (variable.description || variable.env_variable),
   };
+}
+
+function boundedNumericField(
+  numeric: ReturnType<typeof parseNumericField>,
+  min: number,
+  max: number,
+) {
+  const value = Math.min(max, Math.max(min, numeric.value));
+
+  return {
+    ...numeric,
+    min,
+    max,
+    value,
+    display: numeric.integerLike ? String(Math.round(value)) : String(value),
+  };
+}
+
+function worldNumericField(
+  variable: Variable,
+  edits: Record<string, string>,
+  meta: ReturnType<typeof worldFieldMeta>,
+) {
+  const numeric = parseNumericField(variable, edits);
+
+  if (meta.label === "Save Interval") {
+    return boundedNumericField(numeric, 0, 1500);
+  }
+
+  if (meta.group === "animals" || meta.group === "vehicles") {
+    return boundedNumericField(numeric, 0, 10);
+  }
+
+  return numeric;
 }
 
 function randomRustSeed() {
@@ -1071,6 +1108,7 @@ function RustBasicField({
     : edits[variable.env_variable] ?? variable.server_value ?? "";
   const meta = rustBasicFieldMeta(variable);
   const showSlider = isRustMaxPlayersVariable(variable, isRust) && !runtimeField;
+  const maxPlayerRange = maxPlayersBounds(controlValue);
 
   return (
     <div className="space-y-3">
@@ -1108,23 +1146,20 @@ function RustBasicField({
         <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_150px] md:items-center">
           <input
             type="range"
-            min={maxPlayersBounds(controlValue).min}
-            max={maxPlayersBounds(controlValue).max}
-            value={maxPlayersBounds(controlValue).value}
+            min={maxPlayerRange.min}
+            max={maxPlayerRange.max}
+            value={maxPlayerRange.value}
             disabled={!canEdit}
             onChange={(e) =>
               setEdits((s) => ({ ...s, [variable.env_variable]: e.target.value }))
             }
             className="h-3 w-full cursor-pointer appearance-none rounded-full bg-transparent accent-[#28aef3] disabled:cursor-not-allowed"
-            style={{
-              background:
-                "linear-gradient(to right, #28aef3 0%, #28aef3 50%, #343a42 50%, #343a42 100%)",
-            }}
+            style={rangeFillStyle(maxPlayerRange.value, maxPlayerRange.min, maxPlayerRange.max)}
           />
           <Input
             type="number"
-            min={maxPlayersBounds(controlValue).min}
-            max={maxPlayersBounds(controlValue).max}
+            min={maxPlayerRange.min}
+            max={maxPlayerRange.max}
             value={controlValue}
             disabled={!canEdit}
             onChange={(e) =>
@@ -1158,7 +1193,7 @@ function RustWorldField({
 }) {
   const meta = worldFieldMeta(variable);
   const currentValue = currentFieldValue(variable, edits);
-  const numeric = parseNumericField(variable, edits);
+  const numeric = worldNumericField(variable, edits, meta);
   const boolOptions = booleanOptions(variable);
   const canEdit = variable.is_editable;
 
@@ -1470,10 +1505,27 @@ function RustWorldSection({
   edits: Record<string, string>;
   setEdits: Dispatch<SetStateAction<Record<string, string>>>;
 }) {
+  const topFields = new Set(["Custom Map", "World Generator", "World Seed", "World Size", "Radiation", "Save Interval"]);
+  const animalFields = new Set([
+    "Rideable Horse Population",
+    "Wolf Population",
+    "Chicken Population",
+    "Boar Population",
+    "Stag Population",
+    "Bear Population",
+  ]);
+  const vehicleFields = new Set([
+    "Hot Air Balloon Population",
+    "Mini Copter Population",
+    "Modular Car Population",
+    "Motor Rowboat Population",
+    "RHIB Population",
+    "Scrap Transport Helicopter Population",
+  ]);
   const ordered = [...variables].sort((a, b) => worldFieldMeta(a).order - worldFieldMeta(b).order);
-  const top = ordered.filter((variable) => worldFieldMeta(variable).group === "top");
-  const animals = ordered.filter((variable) => worldFieldMeta(variable).group === "animals");
-  const vehicles = ordered.filter((variable) => worldFieldMeta(variable).group === "vehicles");
+  const top = ordered.filter((variable) => topFields.has(worldFieldMeta(variable).label));
+  const animals = ordered.filter((variable) => animalFields.has(worldFieldMeta(variable).label));
+  const vehicles = ordered.filter((variable) => vehicleFields.has(worldFieldMeta(variable).label));
 
   function splitColumns(items: Variable[]) {
     const left: Variable[] = [];
