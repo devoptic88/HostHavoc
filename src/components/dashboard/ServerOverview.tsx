@@ -175,9 +175,9 @@ export function ServerOverview({
   const gameLogo = game?.slug === "rust" ? "/games/rust/logo.png" : game ? gameCapsule(game.slug) : null;
   const state = res?.current_state ?? "offline";
   const running = state === "running";
-  const liveRam = res?.resources.memory_bytes ?? ramMb * 1024 * 1024;
-  const liveCpu = res?.resources.cpu_absolute ?? cpuPercent;
-  const liveDisk = res?.resources.disk_bytes ?? diskMb * 1024 * 1024;
+  const allocatedRam = ramMb * 1024 * 1024;
+  const allocatedCpu = cpuPercent;
+  const allocatedDisk = diskMb * 1024 * 1024;
   const livePlayers = query?.playerCount ?? 0;
   const filteredPlayers = (query?.players ?? []).filter((player) =>
     player.name.toLowerCase().includes(playerSearch.toLowerCase()),
@@ -287,9 +287,9 @@ export function ServerOverview({
                   value={game?.tagline ?? "Live game server management"}
                   compact
                 />
-                <TopMetricCard label="RAM" value={formatBytes(liveRam)} />
-                <TopMetricCard label="CPU" value={`${Math.round(liveCpu)}%`} />
-                <TopMetricCard label="SSD" value={formatBytes(liveDisk)} />
+                <TopMetricCard label="RAM" value={formatBytes(allocatedRam)} />
+                <TopMetricCard label="CPU" value={`${Math.round(allocatedCpu)}%`} />
+                <TopMetricCard label="SSD" value={formatBytes(allocatedDisk)} />
                 <TopMetricCard
                   label="Players"
                   value={String(livePlayers)}
@@ -473,9 +473,9 @@ export function ServerOverview({
               </p>
             </div>
             <div className="mt-4 grid gap-3">
-              <MiniStat label="RAM" value={formatBytes(liveRam)} />
-              <MiniStat label="CPU" value={`${Math.round(liveCpu)}%`} />
-              <MiniStat label="SSD" value={formatBytes(liveDisk)} />
+              <MiniStat label="RAM" value={formatBytes(allocatedRam)} />
+              <MiniStat label="CPU" value={`${Math.round(allocatedCpu)}%`} />
+              <MiniStat label="SSD" value={formatBytes(allocatedDisk)} />
             </div>
           </OverviewPanel>
 

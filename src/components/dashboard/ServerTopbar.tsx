@@ -39,9 +39,6 @@ export function ServerTopbar({
   name,
   planName,
   gameSlug,
-  ramMb,
-  cpuPercent,
-  diskMb,
 }: {
   orderId: string;
   name: string;
@@ -94,9 +91,9 @@ export function ServerTopbar({
       }
     : undefined;
 
-  const liveRam = running && res ? res.resources.memory_bytes : ramMb * 1024 * 1024;
-  const liveCpu = running && res ? res.resources.cpu_absolute : cpuPercent;
-  const liveDisk = running && res ? res.resources.disk_bytes : diskMb * 1024 * 1024;
+  const liveRam = res?.resources.memory_bytes ?? 0;
+  const liveCpu = res?.resources.cpu_absolute ?? 0;
+  const liveDisk = res?.resources.disk_bytes ?? 0;
   const livePlayers = query?.playerCount ?? 0;
 
   const stats = useMemo(

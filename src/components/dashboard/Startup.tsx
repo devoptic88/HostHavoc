@@ -2195,7 +2195,7 @@ function advancedNumericField(variable: Variable, edits: Record<string, string>,
   const numeric = parseNumericField(variable, edits);
 
   if (meta.label === "Tickrate") {
-    return boundedMappedNumericField(numeric, 1, 60, 1);
+    return boundedMappedNumericField(numeric, 1, 128, 1);
   }
 
   return numeric;
