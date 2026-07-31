@@ -519,10 +519,20 @@ function weatherFieldMeta(variable: Variable) {
     { match: () => compact.includes("WEATHERFOG") || compact === "FOG", label: "Fog", helper: "How much fog there should be", order: 53, group: "manual" },
     { match: () => compact.includes("WEATHERDUST") || compact === "DUST", label: "Dust", helper: "How much dust there should be", order: 54, group: "manual" },
     { match: () => compact.includes("WEATHERCLOUDS") || compact === "CLOUDS", label: "Clouds", helper: "How cloudy it should be", order: 55, group: "manual" },
-    { match: () => compact.includes("CLOUDCOLOR"), label: "Cloud Coloring", helper: "Affects how much color clouds gets from the sky and sun", order: 56, group: "manual" },
-    { match: () => compact.includes("CLOUDATTENUATION"), label: "Cloud Attenuation", helper: "Affects how dark clouds should be as they get thicker", order: 57, group: "manual" },
-    { match: () => compact.includes("CLOUDSCATTER"), label: "Cloud Scattering", helper: "Affects how much light clouds scatter (which causes bloom)", order: 58, group: "manual" },
-    { match: () => compact.includes("CLOUDBRIGHT"), label: "Cloud Brightness", helper: "Affects the brightness of clouds", order: 59, group: "manual" },
+    { match: () => compact.includes("RAINBOW"), label: "Rainbow", helper: "Affects how visible rainbows are in the sky", order: 56, group: "manual" },
+    { match: () => compact.includes("RAYLEIGH"), label: "Rayleigh Scattering Intensity", helper: "Affects atmospheric Rayleigh scattering intensity", order: 57, group: "manual" },
+    { match: () => compact.includes("MIESCATTER"), label: "Mie Scattering Intensity", helper: "Affects atmospheric Mie scattering intensity", order: 58, group: "manual" },
+    { match: () => compact.includes("SKYBRIGHT"), label: "Sky Brightness", helper: "Affects the brightness of the sky", order: 59, group: "manual" },
+    { match: () => compact.includes("SKYCONTRAST"), label: "Sky Contrast", helper: "Affects the contrast of the sky", order: 60, group: "manual" },
+    { match: () => compact.includes("ATMOSPHERE") && compact.includes("DIRECTION"), label: "Atmosphere Directionality", helper: "Affects atmospheric light directionality", order: 61, group: "manual" },
+    { match: () => compact.includes("CLOUDLAYER") && compact.includes("SIZE"), label: "Cloud Layer Size", helper: "Affects the size of the cloud layer", order: 62, group: "manual" },
+    { match: () => compact.includes("CLOUDOPACITY"), label: "Cloud Opacity", helper: "Affects cloud opacity", order: 63, group: "manual" },
+    { match: () => compact.includes("CLOUDCOVERAGE") || compact.includes("CLOUDCOVER"), label: "Cloud Coverage", helper: "Affects cloud coverage", order: 64, group: "manual" },
+    { match: () => compact.includes("CLOUDSHARP"), label: "Cloud Sharpness", helper: "Affects cloud edge sharpness", order: 65, group: "manual" },
+    { match: () => compact.includes("CLOUDCOLOR"), label: "Cloud Coloring", helper: "Affects how much color clouds gets from the sky and sun", order: 66, group: "manual" },
+    { match: () => compact.includes("CLOUDATTENUATION"), label: "Cloud Attenuation", helper: "Affects how dark clouds should be as they get thicker", order: 67, group: "manual" },
+    { match: () => compact.includes("CLOUDSCATTER"), label: "Cloud Scattering", helper: "Affects how much light clouds scatter (which causes bloom)", order: 68, group: "manual" },
+    { match: () => compact.includes("CLOUDBRIGHT"), label: "Cloud Brightness", helper: "Affects the brightness of clouds", order: 69, group: "manual" },
   ] as const;
 
   const found = definitions.find((definition) => definition.match());
@@ -714,6 +724,17 @@ function rustSectionIdForVariable(variable: Variable) {
     compact.includes("WEATHERFOG") ||
     compact.includes("WEATHERDUST") ||
     compact.includes("WEATHERCLOUDS") ||
+    compact.includes("RAINBOW") ||
+    compact.includes("RAYLEIGH") ||
+    compact.includes("MIESCATTER") ||
+    compact.includes("SKYBRIGHT") ||
+    compact.includes("SKYCONTRAST") ||
+    (compact.includes("ATMOSPHERE") && compact.includes("DIRECTION")) ||
+    (compact.includes("CLOUDLAYER") && compact.includes("SIZE")) ||
+    compact.includes("CLOUDOPACITY") ||
+    compact.includes("CLOUDCOVERAGE") ||
+    compact.includes("CLOUDCOVER") ||
+    compact.includes("CLOUDSHARP") ||
     compact.includes("CLOUDCOLOR") ||
     compact.includes("CLOUDATTENUATION") ||
     compact.includes("CLOUDSCATTER") ||
