@@ -105,6 +105,12 @@ function logCreateServerPayload(orderId: string, payload: Record<string, unknown
   );
 }
 
+function logUpdateServerBuildPayload(orderId: string, payload: Record<string, unknown>) {
+  console.info(
+    `[provision] updateServerBuild payload for order ${orderId}: ${JSON.stringify(redactValue("payload", payload))}`,
+  );
+}
+
 function normalizeVariableText(variable: ClientEggVariable) {
   return `${variable.name} ${variable.description} ${variable.env_variable}`.toLowerCase();
 }
@@ -684,9 +690,6 @@ export async function provisionOrder(orderId: string): Promise<void> {
       placement = {
         allocation: {
           default: reservedRustAllocations.find((allocation) => allocation.role === "game")!.allocationId,
-          additional: reservedRustAllocations
-            .filter((allocation) => allocation.role !== "game")
-            .map((allocation) => allocation.allocationId),
         },
       };
     } else if (plan.nodeId) {
@@ -739,6 +742,29 @@ export async function provisionOrder(orderId: string): Promise<void> {
     const created = await pteroApp.createServer(createPayload);
 
     const attrs = created.attributes;
+
+    if (reservedRustAllocations.length > 1) {
+      const buildPayload = {
+        allocation: reservedRustAllocations.find((allocation) => allocation.role === "game")!.allocationId,
+        memory: plan.ramMb,
+        swap: 0,
+        disk: plan.diskMb,
+        io: 500,
+        cpu: plan.cpuPercent,
+        threads: null,
+        feature_limits: {
+          databases: plan.databases,
+          allocations: Math.max(1, reservedRustAllocations.length),
+          backups: plan.backups,
+        },
+        add_allocations: reservedRustAllocations
+          .filter((allocation) => allocation.role !== "game")
+          .map((allocation) => allocation.allocationId),
+      };
+      logUpdateServerBuildPayload(order.id, buildPayload);
+      await pteroApp.updateServerBuild(attrs.id, buildPayload);
+    }
+
     await attachProvisionedServer(
       order.id,
       attrs,
