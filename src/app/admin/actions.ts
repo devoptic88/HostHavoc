@@ -237,6 +237,16 @@ export async function saveRustNodeConfig(formData: FormData) {
     if (!portRanges) throw new Error("Rust port ranges are required when Rust auto-allocation is enabled.");
   }
 
+  console.info(
+    `[admin] saveRustNodeConfig for node ${nodeId}: ${JSON.stringify({
+      enabled,
+      allocationIp,
+      allocationAlias,
+      portRanges,
+      portStride,
+    })}`,
+  );
+
   await db.rustNodeConfig.upsert({
     where: { nodeId },
     update: { enabled, allocationIp, allocationAlias, portRanges, portStride },

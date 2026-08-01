@@ -98,10 +98,13 @@ export const getNodeAllocations = (id: number, page = 1) =>
   });
 
 export const createAllocations = (nodeId: number, ip: string, ports: string[]) =>
+  (console.info(
+    `[pterodactyl] POST /api/application/nodes/${nodeId}/allocations ${JSON.stringify({ ip, ports })}`,
+  ),
   app<void>(`/nodes/${nodeId}/allocations`, {
     method: "POST",
     body: { ip, ports },
-  });
+  }));
 
 export const deleteAllocation = (nodeId: number, allocationId: number) =>
   app<void>(`/nodes/${nodeId}/allocations/${allocationId}`, { method: "DELETE" });

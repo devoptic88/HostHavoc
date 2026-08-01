@@ -464,6 +464,16 @@ async function reserveRustAllocations(
     .map((entry) => String(entry.port));
 
   if (missingPorts.length > 0) {
+    console.info(
+      `[provision] createAllocations for node ${order.plan.nodeId}: ${JSON.stringify({
+        orderId: order.id,
+        configuredAllocationIp: config.allocationIp,
+        preferredAllocationIp,
+        selectedAllocationIp: selected.ip,
+        allocationAlias: config.allocationAlias,
+        missingPorts,
+      })}`,
+    );
     await pteroApp.createAllocations(order.plan.nodeId, selected.ip, missingPorts);
   }
 
