@@ -2,9 +2,9 @@ import { db } from "@/lib/db";
 import { pteroApp, pteroClient, PterodactylError } from "@/lib/pterodactyl";
 import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
 import {
-  encodeRustStartupVariableValue,
   hasRequiredRule,
   isRustMapUrlVariable,
+  normalizeRustPanelVariableValue,
   normalizeRustMapUrlValue,
   patchRustStartupCommand,
 } from "@/lib/rustStartup";
@@ -207,10 +207,6 @@ function plusDays(date: Date, days: number) {
   return next;
 }
 
-function shellEscapeRustText(value: string) {
-  return `'${value.replace(/'/g, `'\"'\"'`)}'`;
-}
-
 function isTransientInstallLock(err: unknown) {
   if (!(err instanceof PterodactylError)) return false;
   const message = formatPterodactylError(err);
@@ -237,7 +233,7 @@ function desiredRustValue(
     text.includes("server title") ||
     text.includes("hostname")
   ) {
-    return shellEscapeRustText(order.serverName);
+    return order.serverName;
   }
 
   if (text.includes("query") && text.includes("port")) {
@@ -266,12 +262,12 @@ function desiredRustValue(
   }
 
   if (text.includes("description") && !(variable.server_value || variable.default_value)) {
-    return shellEscapeRustText("Hosted on HyperNode");
+    return "Hosted on HyperNode";
   }
 
   if (text.includes("level") && !text.includes("url") && !text.includes("custom map")) {
     const value = variable.server_value || variable.default_value;
-    return value ? encodeRustStartupVariableValue(variable, value) : null;
+    return value ? normalizeRustPanelVariableValue(variable, value) : null;
   }
 
   return null;
@@ -297,7 +293,7 @@ function desiredRustEnvironmentValue(
     text.includes("server title") ||
     text.includes("hostname")
   ) {
-    return shellEscapeRustText(order.serverName);
+    return order.serverName;
   }
 
   if (text.includes("query") && text.includes("port")) {
@@ -326,7 +322,7 @@ function desiredRustEnvironmentValue(
   }
 
   if (text.includes("description")) {
-    return shellEscapeRustText("Hosted on HyperNode");
+    return "Hosted on HyperNode";
   }
 
   if (isRustMapUrlVariable(variable)) {
@@ -335,7 +331,7 @@ function desiredRustEnvironmentValue(
 
   if (text.includes("level") && !text.includes("url") && !text.includes("custom map")) {
     return variable.default_value
-      ? encodeRustStartupVariableValue({ ...variable, server_value: "" }, variable.default_value)
+      ? normalizeRustPanelVariableValue({ ...variable, server_value: "" }, variable.default_value)
       : null;
   }
 

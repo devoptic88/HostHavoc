@@ -59,6 +59,14 @@ export function normalizeRustMapUrlValue(rawValue: string | null | undefined) {
   }
 }
 
+export function normalizeRustPanelVariableValue(variable: RustStartupVariable, rawValue: string | null | undefined) {
+  if (isRustMapUrlVariable(variable)) {
+    return normalizeRustMapUrlValue(rawValue);
+  }
+
+  return decodeShellQuotedValue(String(rawValue ?? "").trim());
+}
+
 export function isRustMapUrlVariable(variable: Pick<RustStartupVariable, "name" | "description" | "env_variable">) {
   const env = variableEnv(variable);
   const text = variableText({ ...variable, server_value: "", default_value: "" });
@@ -102,12 +110,8 @@ function needsShellQuoting(value: string) {
 }
 
 export function encodeRustStartupVariableValue(variable: RustStartupVariable, rawValue: string) {
-  if (isRustMapUrlVariable(variable)) {
-    return normalizeRustMapUrlValue(rawValue);
-  }
-
   const entry = toConfigEntry(variable);
-  const value = decodeShellQuotedValue(rawValue.trim());
+  const value = normalizeRustPanelVariableValue(variable, rawValue);
 
   if (!entry || !value || /^-?\d+(\.\d+)?$/.test(value) || /^(true|false)$/i.test(value)) {
     return value;

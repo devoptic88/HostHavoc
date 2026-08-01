@@ -6,8 +6,8 @@ import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
 import { provisionOrder } from "@/lib/provision";
 import {
   buildRustServerConfig,
-  encodeRustStartupVariableValue,
   isRustStartupProfile,
+  normalizeRustPanelVariableValue,
 } from "@/lib/rustStartup";
 import { queryRustServer } from "@/lib/serverQuery";
 import type { ClientEggVariable } from "@/lib/pterodactyl";
@@ -336,7 +336,7 @@ export async function POST(
           const variable = editableVars.get(key);
           if (!variable) continue;
 
-          const nextValue = encodeRustStartupVariableValue(variable, String(rawValue ?? ""));
+          const nextValue = normalizeRustPanelVariableValue(variable, String(rawValue ?? ""));
           if (runtimeVariable && key === runtimeVariable.env_variable) {
             pendingRustProfile = normalizeInstallProfile(nextValue);
             if (!pendingRustProfile) continue;
