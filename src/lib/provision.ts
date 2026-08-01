@@ -474,12 +474,16 @@ async function reserveRustAllocations(
   }
 
   const freshAllocations = missingPorts.length > 0 ? await listNodeAllocations(order.plan.nodeId) : allocations;
-  const freshByPort = new Map(freshAllocations.map((allocation) => [allocation.port, allocation]));
+  const freshByIpAndPort = new Map(
+    freshAllocations.map((allocation) => [`${allocation.ip}:${allocation.port}`, allocation]),
+  );
 
   return selected.entries.map((entry) => {
-    const allocation = entry.allocation ?? freshByPort.get(entry.port);
+    const allocation = entry.allocation ?? freshByIpAndPort.get(`${selected.ip}:${entry.port}`);
     if (!allocation) {
-      throw new Error(`Rust allocation ${entry.port} could not be reserved on node ${order.plan.nodeId}.`);
+      throw new Error(
+        `Rust allocation ${selected.ip}:${entry.port} could not be reserved on node ${order.plan.nodeId}.`,
+      );
     }
     return {
       role: entry.role,
