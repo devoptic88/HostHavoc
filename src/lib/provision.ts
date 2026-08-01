@@ -479,6 +479,23 @@ async function reservedRustAllocationIdsForNode(nodeId: number, excludingOrderId
   );
 }
 
+async function reservedRustAllocationKeysForNode(nodeId: number, excludingOrderId: string) {
+  const orders = await db.order.findMany({
+    where: {
+      id: { not: excludingOrderId },
+      status: { in: ["PROVISIONING", "ACTIVE", "SUSPENDED", "GRACE_PERIOD"] },
+      plan: { nodeId },
+    },
+    select: { rustAllocations: true },
+  });
+
+  return new Set(
+    orders.flatMap((entry) =>
+      parseRustAllocations(entry.rustAllocations).map((allocation) => `${allocation.ip}:${allocation.port}`),
+    ),
+  );
+}
+
 async function reserveRustAllocations(
   order: ProvisionableOrder,
   includeAppPort: boolean,
@@ -496,8 +513,9 @@ async function reserveRustAllocations(
 
   const allocations = await listNodeAllocations(order.plan.nodeId);
   const reservedAllocationIds = await reservedRustAllocationIdsForNode(order.plan.nodeId, order.id);
+  const reservedAllocationKeys = await reservedRustAllocationKeysForNode(order.plan.nodeId, order.id);
   const availableAllocations = allocations.map((allocation) =>
-    reservedAllocationIds.has(allocation.id)
+    reservedAllocationIds.has(allocation.id) || reservedAllocationKeys.has(`${allocation.ip}:${allocation.port}`)
       ? { ...allocation, assigned: true }
       : allocation,
   );
@@ -553,6 +571,11 @@ async function reserveRustAllocations(
     if (reservedAllocationIds.has(allocation.id)) {
       throw new Error(
         `Rust allocation ${allocation.id} (${allocation.ip}:${allocation.port}) is already reserved by another order on node ${order.plan.nodeId}.`,
+      );
+    }
+    if (reservedAllocationKeys.has(`${allocation.ip}:${allocation.port}`)) {
+      throw new Error(
+        `Rust allocation ${allocation.ip}:${allocation.port} is already reserved by another order on node ${order.plan.nodeId}.`,
       );
     }
     return {
@@ -700,6 +723,12 @@ export async function provisionOrder(orderId: string): Promise<void> {
       }
       const includeRustAppPort = hasRustAppPort(eggVariables);
       reservedRustAllocations = await reserveRustAllocations(order, includeRustAppPort);
+      await db.order.update({
+        where: { id: order.id },
+        data: {
+          rustAllocations: serializeRustAllocations(reservedRustAllocations) as unknown as Prisma.InputJsonValue,
+        },
+      });
       const rustAllocationsByRole = rustAllocationMap(reservedRustAllocations);
       for (const variable of eggVariables) {
         const next = desiredRustEnvironmentValue(variable, order, rustAllocationsByRole);
