@@ -74,6 +74,38 @@ export function parsePortRanges(value: string) {
   return Array.from(ports).sort((a, b) => a - b);
 }
 
+function matchesConfiguredAlias(allocation: AppAllocation, alias: string | null) {
+  if (!alias) return true;
+  return allocation.alias === alias;
+}
+
+export function detectPreferredRustAllocationIp(
+  allocations: AppAllocation[],
+  config: RustNodeConfigInput,
+) {
+  const allowedPorts = new Set(parsePortRanges(config.portRanges));
+  const candidates = allocations.filter((allocation) => {
+    if (!matchesConfiguredAlias(allocation, config.allocationAlias)) return false;
+    return allowedPorts.size === 0 || allowedPorts.has(allocation.port);
+  });
+
+  const counts = new Map<string, number>();
+  for (const allocation of candidates) {
+    counts.set(allocation.ip, (counts.get(allocation.ip) ?? 0) + 1);
+  }
+
+  if (counts.size === 1) {
+    return Array.from(counts.keys())[0] ?? null;
+  }
+
+  const ranked = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  if (ranked.length > 1 && ranked[0][1] > ranked[1][1]) {
+    return ranked[0][0];
+  }
+
+  return null;
+}
+
 export function findRustPortGroup(
   allocations: AppAllocation[],
   config: RustNodeConfigInput,
@@ -85,11 +117,9 @@ export function findRustPortGroup(
   }
 
   const eligibleAllocations = allocations.filter((allocation) => {
-    if (allocation.ip !== config.allocationIp) return false;
-    if (config.allocationAlias && allocation.alias && allocation.alias !== config.allocationAlias) return false;
+    if (!matchesConfiguredAlias(allocation, config.allocationAlias)) return false;
     return allowedPorts.has(allocation.port);
   });
-  const allocationByPort = new Map(eligibleAllocations.map((allocation) => [allocation.port, allocation]));
 
   const stride = Math.max(1, config.portStride || 1);
   const distinctRoles = uniquePortRoles(roles);
@@ -99,14 +129,48 @@ export function findRustPortGroup(
   const anchorPort = gamePortCandidates[0] ?? 28015;
   const candidateGamePorts = gamePortCandidates.filter((port) => (port - anchorPort) % stride === 0);
 
-  for (const gamePort of candidateGamePorts) {
-    const group = distinctRoles.map((role) => {
-      const port = portForRole(gamePort, role);
-      const allocation = allocationByPort.get(port) ?? null;
-      return { role, port, allocation };
-    });
-    if (group.some((entry) => entry.allocation?.assigned)) continue;
-    return group;
+  const preferredIp = detectPreferredRustAllocationIp(allocations, config);
+  const allocationsByIp = new Map<string, AppAllocation[]>();
+  for (const allocation of eligibleAllocations) {
+    const existing = allocationsByIp.get(allocation.ip) ?? [];
+    existing.push(allocation);
+    allocationsByIp.set(allocation.ip, existing);
+  }
+
+  const orderedIps = Array.from(allocationsByIp.entries())
+    .sort((a, b) => {
+      if (a[0] === preferredIp) return -1;
+      if (b[0] === preferredIp) return 1;
+      if (a[0] === config.allocationIp) return -1;
+      if (b[0] === config.allocationIp) return 1;
+      return b[1].length - a[1].length;
+    })
+    .map(([ip]) => ip);
+
+  for (const ip of orderedIps) {
+    const allocationByPort = new Map(
+      (allocationsByIp.get(ip) ?? []).map((allocation) => [allocation.port, allocation]),
+    );
+
+    for (const gamePort of candidateGamePorts) {
+      const group = distinctRoles.map((role) => {
+        const port = portForRole(gamePort, role);
+        const allocation = allocationByPort.get(port) ?? null;
+        return { role, port, allocation };
+      });
+      if (group.some((entry) => entry.allocation?.assigned)) continue;
+      return { ip, entries: group };
+    }
+  }
+
+  if (candidateGamePorts.length > 0) {
+    return {
+      ip: preferredIp ?? config.allocationIp,
+      entries: distinctRoles.map((role) => {
+        const port = portForRole(candidateGamePorts[0], role);
+        return { role, port, allocation: null };
+      }),
+    };
   }
 
   throw new Error(

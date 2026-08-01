@@ -9,6 +9,7 @@ import {
   patchRustStartupCommand,
 } from "@/lib/rustStartup";
 import {
+  detectPreferredRustAllocationIp,
   findRustPortGroup,
   hasRustAppPort,
   inferRustAllocationsFromServer,
@@ -446,21 +447,30 @@ async function reserveRustAllocations(
   }
 
   const allocations = await listNodeAllocations(order.plan.nodeId);
+  const preferredAllocationIp = detectPreferredRustAllocationIp(allocations, config);
+  if (preferredAllocationIp && preferredAllocationIp !== config.allocationIp) {
+    await db.rustNodeConfig.update({
+      where: { nodeId: order.plan.nodeId },
+      data: { allocationIp: preferredAllocationIp },
+    });
+    config.allocationIp = preferredAllocationIp;
+  }
+
   const roles = requiredRustRoles(includeAppPort);
   const selected = findRustPortGroup(allocations, config, roles);
 
-  const missingPorts = selected
+  const missingPorts = selected.entries
     .filter((entry) => !entry.allocation)
     .map((entry) => String(entry.port));
 
   if (missingPorts.length > 0) {
-    await pteroApp.createAllocations(order.plan.nodeId, config.allocationIp, missingPorts);
+    await pteroApp.createAllocations(order.plan.nodeId, selected.ip, missingPorts);
   }
 
   const freshAllocations = missingPorts.length > 0 ? await listNodeAllocations(order.plan.nodeId) : allocations;
   const freshByPort = new Map(freshAllocations.map((allocation) => [allocation.port, allocation]));
 
-  return selected.map((entry) => {
+  return selected.entries.map((entry) => {
     const allocation = entry.allocation ?? freshByPort.get(entry.port);
     if (!allocation) {
       throw new Error(`Rust allocation ${entry.port} could not be reserved on node ${order.plan.nodeId}.`);
