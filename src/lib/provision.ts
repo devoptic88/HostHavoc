@@ -464,6 +464,21 @@ async function attachProvisionedServer(
   });
 }
 
+async function reservedRustAllocationIdsForNode(nodeId: number, excludingOrderId: string) {
+  const orders = await db.order.findMany({
+    where: {
+      id: { not: excludingOrderId },
+      status: { in: ["PROVISIONING", "ACTIVE", "SUSPENDED", "GRACE_PERIOD"] },
+      plan: { nodeId },
+    },
+    select: { rustAllocations: true },
+  });
+
+  return new Set(
+    orders.flatMap((entry) => parseRustAllocations(entry.rustAllocations).map((allocation) => allocation.allocationId)),
+  );
+}
+
 async function reserveRustAllocations(
   order: ProvisionableOrder,
   includeAppPort: boolean,
@@ -480,6 +495,12 @@ async function reserveRustAllocations(
   }
 
   const allocations = await listNodeAllocations(order.plan.nodeId);
+  const reservedAllocationIds = await reservedRustAllocationIdsForNode(order.plan.nodeId, order.id);
+  const availableAllocations = allocations.map((allocation) =>
+    reservedAllocationIds.has(allocation.id)
+      ? { ...allocation, assigned: true }
+      : allocation,
+  );
   const preferredAllocationIp = detectPreferredRustAllocationIp(allocations, config);
   if (preferredAllocationIp && preferredAllocationIp !== config.allocationIp) {
     await db.rustNodeConfig.update({
@@ -490,7 +511,7 @@ async function reserveRustAllocations(
   }
 
   const roles = requiredRustRoles(includeAppPort);
-  const selected = findRustPortGroup(allocations, config, roles);
+  const selected = findRustPortGroup(availableAllocations, config, roles);
 
   const missingPorts = selected.entries
     .filter((entry) => !entry.allocation)
@@ -517,7 +538,7 @@ async function reserveRustAllocations(
           selected.ip,
           selected.entries.map((entry) => entry.port),
         )
-      : allocations;
+      : availableAllocations;
   const freshByIpAndPort = new Map(
     freshAllocations.map((allocation) => [`${allocation.ip}:${allocation.port}`, allocation]),
   );
@@ -527,6 +548,11 @@ async function reserveRustAllocations(
     if (!allocation) {
       throw new Error(
         `Rust allocation ${selected.ip}:${entry.port} could not be reserved on node ${order.plan.nodeId}.`,
+      );
+    }
+    if (reservedAllocationIds.has(allocation.id)) {
+      throw new Error(
+        `Rust allocation ${allocation.id} (${allocation.ip}:${allocation.port}) is already reserved by another order on node ${order.plan.nodeId}.`,
       );
     }
     return {
