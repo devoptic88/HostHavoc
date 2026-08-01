@@ -110,6 +110,7 @@ export function findRustPortGroup(
   allocations: AppAllocation[],
   config: RustNodeConfigInput,
   roles: RustAllocationRole[],
+  reservedKeys: Set<string> = new Set(),
 ) {
   const allowedPorts = new Set(parsePortRanges(config.portRanges));
   if (allowedPorts.size === 0) {
@@ -158,14 +159,29 @@ export function findRustPortGroup(
         const allocation = allocationByPort.get(port) ?? null;
         return { role, port, allocation };
       });
+      if (group.some((entry) => reservedKeys.has(`${ip}:${entry.port}`))) continue;
       if (group.some((entry) => entry.allocation?.assigned)) continue;
       return { ip, entries: group };
     }
   }
 
   if (candidateGamePorts.length > 0) {
+    const fallbackIp = preferredIp ?? config.allocationIp;
+    const fallbackGamePort = candidateGamePorts.find((gamePort) =>
+      distinctRoles.every((role) => !reservedKeys.has(`${fallbackIp}:${portForRole(gamePort, role)}`)),
+    );
+    if (fallbackGamePort !== undefined) {
+      return {
+        ip: fallbackIp,
+        entries: distinctRoles.map((role) => {
+          const port = portForRole(fallbackGamePort, role);
+          return { role, port, allocation: null };
+        }),
+      };
+    }
+
     return {
-      ip: preferredIp ?? config.allocationIp,
+      ip: fallbackIp,
       entries: distinctRoles.map((role) => {
         const port = portForRole(candidateGamePorts[0], role);
         return { role, port, allocation: null };

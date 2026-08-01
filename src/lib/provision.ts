@@ -529,7 +529,7 @@ async function reserveRustAllocations(
   }
 
   const roles = requiredRustRoles(includeAppPort);
-  const selected = findRustPortGroup(availableAllocations, config, roles);
+  const selected = findRustPortGroup(availableAllocations, config, roles, reservedAllocationKeys);
 
   const missingPorts = selected.entries
     .filter((entry) => !entry.allocation)
