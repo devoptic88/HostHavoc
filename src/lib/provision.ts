@@ -355,6 +355,37 @@ async function listNodeAllocations(nodeId: number): Promise<AppAllocation[]> {
   return allocations;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForNodeAllocations(
+  nodeId: number,
+  ip: string,
+  ports: number[],
+  attempts = 8,
+  delayMs = 350,
+) {
+  const wanted = new Set(ports);
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const allocations = await listNodeAllocations(nodeId);
+    const matched = allocations.filter((allocation) => allocation.ip === ip && wanted.has(allocation.port));
+    if (
+      matched.length === ports.length &&
+      matched.every((allocation) => !allocation.assigned)
+    ) {
+      return allocations;
+    }
+
+    if (attempt < attempts) {
+      await sleep(delayMs);
+    }
+  }
+
+  return listNodeAllocations(nodeId);
+}
+
 async function findServerByExternalId(externalId: string) {
   for (let page = 1; page <= 10; page += 1) {
     const res = await pteroApp.listServers(page);
@@ -473,7 +504,14 @@ async function reserveRustAllocations(
     await pteroApp.createAllocations(order.plan.nodeId, selected.ip, missingPorts);
   }
 
-  const freshAllocations = missingPorts.length > 0 ? await listNodeAllocations(order.plan.nodeId) : allocations;
+  const freshAllocations =
+    missingPorts.length > 0
+      ? await waitForNodeAllocations(
+          order.plan.nodeId,
+          selected.ip,
+          selected.entries.map((entry) => entry.port),
+        )
+      : allocations;
   const freshByIpAndPort = new Map(
     freshAllocations.map((allocation) => [`${allocation.ip}:${allocation.port}`, allocation]),
   );
