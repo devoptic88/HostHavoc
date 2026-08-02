@@ -5,6 +5,8 @@ import { ChevronRight, Download, ExternalLink, Loader2, RefreshCw, Search } from
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
+const PLUGINS_PER_PAGE = 10;
+
 type CatalogPlugin = {
   title: string;
   slug: string;
@@ -34,6 +36,7 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
   const [catalogPagesLoaded, setCatalogPagesLoaded] = useState(0);
   const [catalogComplete, setCatalogComplete] = useState(true);
   const [query, setQuery] = useState("");
+  const [listPage, setListPage] = useState(1);
   const [selectedSlug, setSelectedSlug] = useState("");
   const [message, setMessage] = useState("");
 
@@ -52,6 +55,13 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
     );
   }, [plugins, query]);
 
+  const totalListPages = Math.max(1, Math.ceil(filteredPlugins.length / PLUGINS_PER_PAGE));
+  const currentListPage = Math.min(listPage, totalListPages);
+  const pagedPlugins = useMemo(() => {
+    const start = (currentListPage - 1) * PLUGINS_PER_PAGE;
+    return filteredPlugins.slice(start, start + PLUGINS_PER_PAGE);
+  }, [currentListPage, filteredPlugins]);
+
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
     setCatalogError("");
@@ -69,6 +79,7 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
     setCatalogPagesLoaded(Number(data?.pagesLoaded ?? 0));
     setCatalogComplete(Boolean(data?.complete ?? true));
     setPlugins(items);
+    setListPage(1);
     setSelectedSlug((current) => current || items[0]?.slug || "");
     setCatalogLoading(false);
   }, [orderId]);
@@ -76,6 +87,18 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
   useEffect(() => {
     loadCatalog();
   }, [loadCatalog]);
+
+  useEffect(() => {
+    setListPage(1);
+  }, [query]);
+
+  useEffect(() => {
+    if (!pagedPlugins.length) return;
+    const selectedVisible = pagedPlugins.some((plugin) => plugin.slug === selectedSlug);
+    if (!selectedVisible) {
+      setSelectedSlug(pagedPlugins[0]?.slug ?? "");
+    }
+  }, [pagedPlugins, selectedSlug]);
 
   async function installPlugin(targetUrl?: string) {
     const url = (targetUrl ?? pluginUrl).trim();
@@ -142,6 +165,11 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
               Loaded {plugins.length.toLocaleString()} plugins from {catalogPagesLoaded.toLocaleString()} of {catalogPages.toLocaleString()} pages.
             </p>
           )}
+          {filteredPlugins.length > 0 && (
+            <p className="mt-1 text-xs leading-5 text-steel-faint">
+              Showing {pagedPlugins.length.toLocaleString()} plugins on page {currentListPage.toLocaleString()} of {totalListPages.toLocaleString()}.
+            </p>
+          )}
           {!catalogComplete && (
             <p className="mt-1 text-xs leading-5 text-warning">
               uMod throttled part of the catalog, so this is a partial live list. Refresh again in a bit to load more.
@@ -156,7 +184,7 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
             {!catalogLoading && !filteredPlugins.length && !catalogError && (
               <p className="text-sm text-steel-faint">No plugins on this page matched your search.</p>
             )}
-            {filteredPlugins.map((plugin) => {
+            {pagedPlugins.map((plugin) => {
               const active = selectedPlugin?.slug === plugin.slug;
               return (
                 <button
@@ -185,6 +213,29 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
                 </button>
               );
             })}
+            {filteredPlugins.length > PLUGINS_PER_PAGE && (
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={currentListPage <= 1}
+                  onClick={() => setListPage((page) => Math.max(1, page - 1))}
+                >
+                  Previous
+                </Button>
+                <p className="text-xs text-steel-faint">
+                  Page {currentListPage} of {totalListPages}
+                </p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={currentListPage >= totalListPages}
+                  onClick={() => setListPage((page) => Math.min(totalListPages, page + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
