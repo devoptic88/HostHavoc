@@ -82,6 +82,7 @@ let umodCatalogCache:
       items: UmodCatalogPlugin[];
       total: number;
       pages: number;
+      perPage: number;
     }
   | null = null;
 
@@ -250,6 +251,7 @@ async function fetchUmodCatalogPage(page: number) {
   const params = new URLSearchParams({
     query: "",
     page: String(page),
+    per_page: "100",
     sort: "title",
     sortdir: "asc",
     filter: "",
@@ -273,6 +275,7 @@ async function fetchUmodCatalogPage(page: number) {
     current_page?: number;
     last_page?: number;
     total?: number;
+    per_page?: number;
     data?: Array<Record<string, unknown>>;
   };
 
@@ -303,6 +306,7 @@ async function fetchUmodCatalogPage(page: number) {
     currentPage: Number(payload.current_page ?? page),
     lastPage: Number(payload.last_page ?? page),
     total: Number(payload.total ?? items.length),
+    perPage: Number(payload.per_page ?? items.length),
   };
 }
 
@@ -311,19 +315,36 @@ async function fetchUmodPluginCatalog() {
     return umodCatalogCache;
   }
 
-  const firstPage = await fetchUmodCatalogPage(1);
+  const staleCache = umodCatalogCache;
+  let firstPage;
+  try {
+    firstPage = await fetchUmodCatalogPage(1);
+  } catch (error) {
+    if (staleCache) return staleCache;
+    throw error;
+  }
   const pages = Number.isFinite(firstPage.lastPage) && firstPage.lastPage > 0 ? firstPage.lastPage : 1;
   const total = Number.isFinite(firstPage.total) && firstPage.total > 0 ? firstPage.total : firstPage.items.length;
+  const perPage = Number.isFinite(firstPage.perPage) && firstPage.perPage > 0 ? firstPage.perPage : firstPage.items.length;
 
   let items = firstPage.items;
 
   if (pages > 1) {
     const pageNumbers = Array.from({ length: pages - 1 }, (_, index) => index + 2);
-    const batchSize = 8;
+    const batchSize = 4;
 
     for (let index = 0; index < pageNumbers.length; index += batchSize) {
       const batch = pageNumbers.slice(index, index + batchSize);
-      const results = await Promise.all(batch.map((page) => fetchUmodCatalogPage(page)));
+      const results = await Promise.all(
+        batch.map(async (page) => {
+          try {
+            return await fetchUmodCatalogPage(page);
+          } catch (error) {
+            if (staleCache) return { items: [], currentPage: page, lastPage: pages, total, perPage };
+            throw error;
+          }
+        }),
+      );
       items = items.concat(results.flatMap((result) => result.items));
     }
   }
@@ -332,6 +353,7 @@ async function fetchUmodPluginCatalog() {
     items,
     total,
     pages,
+    perPage,
     expiresAt: Date.now() + 1000 * 60 * 15,
   };
 
@@ -425,6 +447,7 @@ export async function GET(
           items: catalog.items,
           total: catalog.total,
           pages: catalog.pages,
+          perPage: catalog.perPage,
           source: "https://umod.org/plugins?page=1&sort=title&sortdir=asc",
           cachedForSeconds: 900,
         });
