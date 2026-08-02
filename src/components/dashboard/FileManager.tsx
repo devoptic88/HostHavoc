@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronUp,
   Download,
@@ -8,12 +8,14 @@ import {
   FilePlus2,
   Folder,
   FolderPlus,
+  Inbox,
   Loader2,
   Pencil,
   RefreshCw,
   Save,
   Search,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -26,6 +28,15 @@ interface FileEntry {
   is_file: boolean;
   mimetype: string;
   modified_at: string;
+}
+
+interface UploadItem {
+  id: string;
+  name: string;
+  size: number;
+  progress: number;
+  status: "queued" | "uploading" | "done" | "error";
+  error?: string;
 }
 
 const EDITABLE = /^(text\/|application\/(json|xml|x-yaml|javascript|toml))/;
@@ -41,6 +52,10 @@ export function FileManager({ orderId }: { orderId: string }) {
   const [editing, setEditing] = useState<{ path: string; content: string; original: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<"delete" | "refresh" | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadQueue, setUploadQueue] = useState<UploadItem[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(
     async (path: string) => {
@@ -95,6 +110,12 @@ export function FileManager({ orderId }: { orderId: string }) {
   const totalBytes = entries.filter((entry) => entry.is_file).reduce((sum, entry) => sum + entry.size, 0);
   const allVisibleSelected = filteredEntries.length > 0 && filteredEntries.every((entry) => selected.includes(entry.name));
   const dirtyEditor = editing ? editing.content !== editing.original : false;
+
+  function updateUploadItem(id: string, patch: Partial<UploadItem>) {
+    setUploadQueue((current) =>
+      current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
+  }
 
   async function openFile(entry: FileEntry) {
     setError("");
@@ -256,6 +277,136 @@ export function FileManager({ orderId }: { orderId: string }) {
     await load(dir);
   }
 
+  function openUploadPicker() {
+    fileInputRef.current?.click();
+  }
+
+  async function requestUploadUrl() {
+    const res = await fetch(`/api/servers/${orderId}/upload-file?dir=${encodeURIComponent(dir)}`);
+    if (!res.ok) {
+      throw new Error((await res.json().catch(() => null))?.error ?? "Failed to prepare upload");
+    }
+
+    const data = await res.json();
+    return String(data.attributes?.url ?? "");
+  }
+
+  async function uploadSingleFile(file: File, signedUrl: string, uploadId: string) {
+    const formData = new FormData();
+    formData.append("files", file, file.name);
+    formData.append("directory", dir);
+
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", signedUrl);
+
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        updateUploadItem(uploadId, {
+          status: "uploading",
+          progress: Math.max(1, Math.min(100, Math.round((event.loaded / event.total) * 100))),
+        });
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          updateUploadItem(uploadId, { status: "done", progress: 100 });
+          resolve();
+          return;
+        }
+
+        let nextError = `Upload failed (${xhr.status})`;
+        if (xhr.responseText) {
+          try {
+            const parsed = JSON.parse(xhr.responseText) as { errors?: Array<{ detail?: string }> };
+            nextError = parsed.errors?.[0]?.detail ?? nextError;
+          } catch {
+            nextError = xhr.responseText;
+          }
+        }
+        updateUploadItem(uploadId, { status: "error", error: nextError });
+        reject(new Error(nextError));
+      };
+
+      xhr.onerror = () => {
+        const nextError = "Network error while uploading file";
+        updateUploadItem(uploadId, { status: "error", error: nextError });
+        reject(new Error(nextError));
+      };
+
+      xhr.send(formData);
+    });
+  }
+
+  async function uploadFiles(files: File[]) {
+    if (files.length === 0 || uploading) return;
+
+    setError("");
+    setMessage("");
+    setUploading(true);
+    setDragActive(false);
+
+    const queuedItems: UploadItem[] = files.map((file, index) => ({
+      id: `${file.name}-${file.size}-${file.lastModified}-${index}`,
+      name: file.name,
+      size: file.size,
+      progress: 0,
+      status: "queued",
+    }));
+    setUploadQueue(queuedItems);
+
+    let completed = 0;
+    let failed = 0;
+
+    try {
+      const signedUrl = await requestUploadUrl();
+      if (!signedUrl) throw new Error("Upload endpoint was empty");
+
+      for (const item of queuedItems) {
+        const file = files.find(
+          (candidate, index) =>
+            `${candidate.name}-${candidate.size}-${candidate.lastModified}-${index}` === item.id,
+        );
+        if (!file) continue;
+
+        try {
+          await uploadSingleFile(file, signedUrl, item.id);
+          completed += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+
+      if (completed > 0) {
+        setMessage(
+          failed > 0
+            ? `Uploaded ${completed} file${completed === 1 ? "" : "s"} with ${failed} failure${failed === 1 ? "" : "s"}.`
+            : `Uploaded ${completed} file${completed === 1 ? "" : "s"} to ${dir}.`,
+        );
+      } else if (failed > 0) {
+        setError("No files were uploaded successfully.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload files");
+    } finally {
+      setUploading(false);
+      await load(dir);
+    }
+  }
+
+  async function handleInputUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    event.target.value = "";
+    await uploadFiles(files);
+  }
+
+  async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragActive(false);
+    const files = Array.from(event.dataTransfer.files ?? []);
+    await uploadFiles(files);
+  }
+
   function toggleSelected(name: string) {
     setSelected((current) => (current.includes(name) ? current.filter((item) => item !== name) : [...current, name]));
   }
@@ -320,11 +471,23 @@ export function FileManager({ orderId }: { orderId: string }) {
             <Button size="sm" variant="secondary" onClick={newFolder}>
               <FolderPlus className="h-4 w-4" /> New folder
             </Button>
+            <Button size="sm" onClick={openUploadPicker} disabled={uploading}>
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              Upload
+            </Button>
             <Button size="sm" variant="ghost" onClick={() => { setBusy("refresh"); load(dir); }}>
               <RefreshCw className={cn("h-4 w-4", (loading || busy === "refresh") && "animate-spin")} />
             </Button>
           </div>
         </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          onChange={handleInputUpload}
+          className="hidden"
+        />
 
         <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
           <nav className="flex items-center gap-1 overflow-x-auto font-mono text-sm">
@@ -357,6 +520,74 @@ export function FileManager({ orderId }: { orderId: string }) {
               className="h-10 border-0 bg-transparent text-sm focus:border-0"
             />
           </div>
+        </div>
+
+        <div
+          onDragEnter={(event) => {
+            event.preventDefault();
+            setDragActive(true);
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDragActive(true);
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+            setDragActive(false);
+          }}
+          onDrop={handleDrop}
+          className={cn(
+            "mt-4 rounded-2xl border border-dashed px-4 py-4 transition-colors",
+            dragActive ? "border-hyper-400 bg-hyper-500/10" : "border-white/10 bg-white/[0.02]",
+          )}
+        >
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl bg-white/[0.06] p-2.5 text-hyper-300">
+                <Inbox className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">Upload into {dir}</p>
+                <p className="text-sm text-steel-faint">
+                  Drag files here or choose files to send them straight into this folder.
+                </p>
+              </div>
+            </div>
+            <Button size="sm" variant="secondary" onClick={openUploadPicker} disabled={uploading}>
+              <Upload className="h-4 w-4" /> Choose files
+            </Button>
+          </div>
+
+          {uploadQueue.length > 0 ? (
+            <div className="mt-4 grid gap-2">
+              {uploadQueue.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-xl border border-white/8 bg-night-100/70 px-3 py-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-white">{item.name}</p>
+                      <p className="text-xs text-steel-faint">
+                        {formatBytes(item.size)} · {item.status === "done" ? "Uploaded" : item.status === "error" ? item.error ?? "Failed" : item.status}
+                      </p>
+                    </div>
+                    <span className="text-xs text-steel-faint">{item.progress}%</span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all",
+                        item.status === "error" ? "bg-danger" : "bg-gradient-to-r from-hyper-500 to-sky-400",
+                      )}
+                      style={{ width: `${item.progress}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
 

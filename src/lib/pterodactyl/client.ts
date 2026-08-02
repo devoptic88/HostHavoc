@@ -154,8 +154,10 @@ export const getDownloadLink = (id: string, file: string) =>
     searchParams: { file },
   });
 
-export const getUploadLink = (id: string) =>
-  client<PteroItem<{ url: string }>>(`/servers/${id}/files/upload`);
+export const getUploadLink = (id: string, directory = "/") =>
+  client<PteroItem<{ url: string }>>(`/servers/${id}/files/upload`, {
+    searchParams: { directory },
+  });
 
 // ─── Backups ────────────────────────────────────────────────────────────
 

@@ -650,6 +650,10 @@ export async function GET(
         if (!file) throw new HttpError(400, "file param required");
         return NextResponse.json(await pteroClient.getDownloadLink(id, file));
       }
+      case "upload-file":
+        return NextResponse.json(
+          await pteroClient.getUploadLink(id, url.searchParams.get("dir") ?? "/"),
+        );
       case "backups":
         return NextResponse.json(await pteroClient.listBackups(id));
       case "backup-download": {
