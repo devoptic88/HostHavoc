@@ -58,6 +58,7 @@ function handle(err: unknown) {
 
 type InstallProfile = "vanilla" | "oxide" | "carbon" | "staging";
 const OXIDE_PLUGIN_DIR = "/oxide/plugins";
+const JINA_MIRROR_PREFIX = "https://r.jina.ai/http://";
 type UmodCatalogPlugin = {
   title: string;
   slug: string;
@@ -209,6 +210,51 @@ function sanitizePluginFileName(input: string) {
   return safe;
 }
 
+function jinaMirrorUrl(url: string) {
+  return `${JINA_MIRROR_PREFIX}${url.replace(/^https?:\/\//, "")}`;
+}
+
+function extractJinaContent(body: string) {
+  const marker = "Markdown Content:\n";
+  const index = body.indexOf(marker);
+  if (index === -1) return body;
+  return body.slice(index + marker.length);
+}
+
+async function fetchTextWithUmodFallback(url: string, accept: string) {
+  const directResponse = await fetch(url, {
+    headers: { Accept: accept },
+    cache: "no-store",
+  });
+
+  if (directResponse.ok) {
+    return {
+      body: await directResponse.text(),
+      contentType: directResponse.headers.get("content-type")?.toLowerCase() ?? "",
+      mirrored: false,
+    };
+  }
+
+  if (!url.includes("umod.org")) {
+    throw new HttpError(502, `Upstream download failed (${directResponse.status})`);
+  }
+
+  const mirroredResponse = await fetch(jinaMirrorUrl(url), {
+    headers: { Accept: "text/plain" },
+    cache: "no-store",
+  });
+
+  if (!mirroredResponse.ok) {
+    throw new HttpError(502, `uMod mirror unavailable (${mirroredResponse.status})`);
+  }
+
+  return {
+    body: extractJinaContent(await mirroredResponse.text()),
+    contentType: mirroredResponse.headers.get("content-type")?.toLowerCase() ?? "",
+    mirrored: true,
+  };
+}
+
 async function installOxidePlugin(serverId: string, pluginUrl: string) {
   let parsed: URL;
   try {
@@ -222,17 +268,10 @@ async function installOxidePlugin(serverId: string, pluginUrl: string) {
   }
 
   const fileName = sanitizePluginFileName(parsed.pathname);
-  const response = await fetch(parsed, {
-    headers: { Accept: "text/plain, text/x-csharp, application/octet-stream;q=0.9, */*;q=0.1" },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new HttpError(502, `Plugin download failed (${response.status})`);
-  }
-
-  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-  const body = await response.text();
+  const { body, contentType } = await fetchTextWithUmodFallback(
+    parsed.toString(),
+    "text/plain, text/x-csharp, application/octet-stream;q=0.9, */*;q=0.1",
+  );
   if (!body.trim()) {
     throw new HttpError(400, "Downloaded plugin file was empty");
   }
@@ -259,19 +298,12 @@ async function fetchUmodCatalogPage(page: number) {
   });
   params.append("categories[]", "rust");
 
-  const response = await fetch(`https://umod.org/plugins/search.json?${params.toString()}`, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "HyperNode/1.0 (+https://hypernode.gg)",
-    },
-    cache: "no-store",
-  });
+  const { body } = await fetchTextWithUmodFallback(
+    `https://umod.org/plugins/search.json?${params.toString()}`,
+    "application/json",
+  );
 
-  if (!response.ok) {
-    throw new HttpError(502, `uMod catalog unavailable (${response.status})`);
-  }
-
-  const payload = (await response.json()) as {
+  const payload = JSON.parse(body) as {
     current_page?: number;
     last_page?: number;
     total?: number;
