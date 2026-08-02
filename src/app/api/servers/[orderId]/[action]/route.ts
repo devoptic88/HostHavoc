@@ -57,6 +57,7 @@ function handle(err: unknown) {
 }
 
 type InstallProfile = "vanilla" | "oxide" | "carbon" | "staging";
+const OXIDE_PLUGIN_DIR = "/oxide/plugins";
 
 function normalize(input: string) {
   return input.trim().toLowerCase();
@@ -166,6 +167,57 @@ async function applyInstallProfile(serverId: string, profile: InstallProfile) {
   }
 
   await pteroClient.reinstall(serverId);
+}
+
+function sanitizePluginFileName(input: string) {
+  const normalized = input.trim().replace(/[?#].*$/, "");
+  const base = normalized.split("/").pop() ?? "";
+  const safe = base.replace(/[^a-zA-Z0-9._-]/g, "");
+  if (!safe.toLowerCase().endsWith(".cs")) {
+    throw new HttpError(400, "Plugin URL must point to a .cs file");
+  }
+  if (!safe) {
+    throw new HttpError(400, "Unable to determine plugin filename");
+  }
+  return safe;
+}
+
+async function installOxidePlugin(serverId: string, pluginUrl: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(pluginUrl);
+  } catch {
+    throw new HttpError(400, "Enter a valid direct download URL");
+  }
+
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new HttpError(400, "Plugin URL must use http or https");
+  }
+
+  const fileName = sanitizePluginFileName(parsed.pathname);
+  const response = await fetch(parsed, {
+    headers: { Accept: "text/plain, text/x-csharp, application/octet-stream;q=0.9, */*;q=0.1" },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new HttpError(502, `Plugin download failed (${response.status})`);
+  }
+
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  const body = await response.text();
+  if (!body.trim()) {
+    throw new HttpError(400, "Downloaded plugin file was empty");
+  }
+  if (!contentType.includes("text") && !contentType.includes("csharp") && !fileName.endsWith(".cs")) {
+    throw new HttpError(400, "Downloaded file did not look like a C# plugin");
+  }
+
+  await pteroClient.createFolder(serverId, "/", "oxide").catch(() => {});
+  await pteroClient.createFolder(serverId, "/oxide", "plugins").catch(() => {});
+  await pteroClient.writeFile(serverId, `${OXIDE_PLUGIN_DIR}/${fileName}`, body);
+
+  return { fileName, path: `${OXIDE_PLUGIN_DIR}/${fileName}` };
 }
 
 async function syncRustConfig(serverId: string, vars: ClientEggVariable[]) {
@@ -394,6 +446,14 @@ export async function POST(
           data: { rustInstallProfile: profile, rustPendingReinstallProfile: null },
         });
         break;
+      }
+      case "install-plugin": {
+        const pluginUrl = String(body.url ?? "").trim();
+        if (!pluginUrl) throw new HttpError(400, "Plugin URL is required");
+        return NextResponse.json({
+          ok: true,
+          ...(await installOxidePlugin(id, pluginUrl)),
+        });
       }
       case "create-schedule":
         return NextResponse.json(
