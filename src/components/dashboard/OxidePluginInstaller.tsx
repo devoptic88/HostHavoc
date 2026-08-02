@@ -1,17 +1,76 @@
 "use client";
 
-import { useState } from "react";
-import { Download, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronRight, Download, ExternalLink, Loader2, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+
+type CatalogPlugin = {
+  title: string;
+  slug: string;
+  description: string;
+  author: string;
+  downloads: number;
+  downloadsShortened: string;
+  updatedAt: string;
+  updatedAtAtom: string;
+  latestReleaseVersion: string | null;
+  latestReleaseVersionFormatted: string | null;
+  categoryTags: string;
+  iconUrl: string;
+  url: string;
+  jsonUrl: string;
+  downloadUrl: string;
+};
 
 export function OxidePluginInstaller({ orderId }: { orderId: string }) {
   const [pluginUrl, setPluginUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
+  const [plugins, setPlugins] = useState<CatalogPlugin[]>([]);
+  const [query, setQuery] = useState("");
+  const [selectedSlug, setSelectedSlug] = useState("");
   const [message, setMessage] = useState("");
 
-  async function installPlugin() {
-    const url = pluginUrl.trim();
+  const selectedPlugin = useMemo(
+    () => plugins.find((plugin) => plugin.slug === selectedSlug) ?? plugins[0] ?? null,
+    [plugins, selectedSlug],
+  );
+
+  const filteredPlugins = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return plugins;
+    return plugins.filter((plugin) =>
+      `${plugin.title} ${plugin.author} ${plugin.description} ${plugin.categoryTags}`
+        .toLowerCase()
+        .includes(normalized),
+    );
+  }, [plugins, query]);
+
+  const loadCatalog = useCallback(async () => {
+    setCatalogLoading(true);
+    setCatalogError("");
+    const res = await fetch(`/api/servers/${orderId}/plugin-catalog?page=1`);
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      setCatalogError(data?.error ?? "Failed to load the uMod plugin list");
+      setCatalogLoading(false);
+      return;
+    }
+
+    const items = Array.isArray(data?.items) ? (data.items as CatalogPlugin[]) : [];
+    setPlugins(items);
+    setSelectedSlug((current) => current || items[0]?.slug || "");
+    setCatalogLoading(false);
+  }, [orderId]);
+
+  useEffect(() => {
+    loadCatalog();
+  }, [loadCatalog]);
+
+  async function installPlugin(targetUrl?: string) {
+    const url = (targetUrl ?? pluginUrl).trim();
     if (!url) {
       setMessage("Paste a direct download URL for a .cs Oxide/uMod plugin first.");
       return;
@@ -40,7 +99,143 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
         <div className="border-b border-white/[0.08] px-4 py-3">
           <h2 className="text-base font-semibold text-white">Oxide / uMod Plugin Installer</h2>
           <p className="mt-1 text-xs text-steel-faint">
-            Paste a direct URL to a single `.cs` plugin file and HyperNode will place it in `/oxide/plugins`.
+            Browse the current uMod Rust catalog, inspect a plugin, and install it into `/oxide/plugins` with one click.
+          </p>
+        </div>
+        <div className="border-b border-white/[0.08] px-4 py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="flex flex-1 items-center overflow-hidden rounded-xl border border-white/20 bg-white/[0.06]">
+              <div className="px-3 text-steel-faint">
+                <Search className="h-4 w-4" />
+              </div>
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search plugins on page 1..."
+                className="h-11 border-0 bg-transparent text-sm focus:border-0"
+              />
+            </div>
+            <Button
+              size="md"
+              variant="secondary"
+              className="h-11 rounded-full px-5"
+              disabled={catalogLoading}
+              onClick={loadCatalog}
+            >
+              {catalogLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Refresh List
+            </Button>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-steel-faint">
+            Source: uMod Rust plugins, page 1, sorted A-Z. HyperNode caches the list briefly so refreshes do not hammer uMod.
+          </p>
+        </div>
+
+        <div className="grid gap-4 px-4 py-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+          <div className="space-y-2">
+            {catalogError && <p className="text-sm text-danger">{catalogError}</p>}
+            {catalogLoading && !plugins.length && <p className="text-sm text-steel-faint">Loading current plugin list...</p>}
+            {!catalogLoading && !filteredPlugins.length && !catalogError && (
+              <p className="text-sm text-steel-faint">No plugins on this page matched your search.</p>
+            )}
+            {filteredPlugins.map((plugin) => {
+              const active = selectedPlugin?.slug === plugin.slug;
+              return (
+                <button
+                  key={plugin.slug}
+                  onClick={() => setSelectedSlug(plugin.slug)}
+                  className={`w-full rounded-2xl border p-3 text-left transition-colors ${
+                    active
+                      ? "border-hyper-400/40 bg-hyper-500/10"
+                      : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="h-12 w-12 shrink-0 rounded-xl border border-white/10 bg-cover bg-center bg-no-repeat"
+                      style={plugin.iconUrl ? { backgroundImage: `url('${plugin.iconUrl}')` } : undefined}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-white">{plugin.title}</p>
+                        <ChevronRight className={`h-4 w-4 text-steel-faint transition-transform ${active ? "rotate-90" : ""}`} />
+                      </div>
+                      <p className="mt-1 text-xs text-steel">by {plugin.author || "Unknown author"}</p>
+                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-steel-faint">{plugin.description}</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            {selectedPlugin ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div
+                    className="h-16 w-16 shrink-0 rounded-2xl border border-white/10 bg-cover bg-center bg-no-repeat"
+                    style={selectedPlugin.iconUrl ? { backgroundImage: `url('${selectedPlugin.iconUrl}')` } : undefined}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-xl font-semibold text-white">{selectedPlugin.title}</p>
+                    <p className="mt-1 text-sm text-steel">by {selectedPlugin.author || "Unknown author"}</p>
+                    <p className="mt-1 text-xs text-steel-faint">
+                      {selectedPlugin.latestReleaseVersionFormatted || selectedPlugin.latestReleaseVersion || "Version unavailable"}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-sm leading-6 text-steel">{selectedPlugin.description || "No description was provided by uMod."}</p>
+
+                <div className="grid gap-2 text-sm text-steel">
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-white/6 bg-white/[0.03] px-3 py-2">
+                    <span className="text-steel-faint">Downloads</span>
+                    <span className="font-medium text-white">{selectedPlugin.downloadsShortened}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-white/6 bg-white/[0.03] px-3 py-2">
+                    <span className="text-steel-faint">Updated</span>
+                    <span className="font-medium text-white">{selectedPlugin.updatedAt || "Unknown"}</span>
+                  </div>
+                  <div className="rounded-lg border border-white/6 bg-white/[0.03] px-3 py-2">
+                    <p className="text-steel-faint">Tags</p>
+                    <p className="mt-1 text-sm text-white">{selectedPlugin.categoryTags || "No tags listed"}</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    size="md"
+                    className="h-11 rounded-full px-5"
+                    disabled={busy || !selectedPlugin.downloadUrl}
+                    onClick={() => installPlugin(selectedPlugin.downloadUrl)}
+                  >
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    Install This Plugin
+                  </Button>
+                  <a
+                    href={selectedPlugin.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="ring-focus inline-flex h-11 items-center justify-center gap-2 rounded-full border border-white/10 px-5 text-sm font-semibold text-steel transition-colors hover:bg-white/[0.05] hover:text-white"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open on uMod
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-steel-faint">Select a plugin from the list to inspect and install it.</p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#132b45]">
+        <div className="border-b border-white/[0.08] px-4 py-3">
+          <h3 className="text-sm font-semibold text-white">Manual Plugin URL</h3>
+          <p className="mt-1 text-xs text-steel-faint">
+            If a specific uMod download is rate-limited or you have a raw `.cs` file elsewhere, paste the direct file URL here.
           </p>
         </div>
         <div className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -59,10 +254,10 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
             size="md"
             className="h-11 rounded-full px-5"
             disabled={busy}
-            onClick={installPlugin}
+            onClick={() => installPlugin()}
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Install Plugin
+            Install from URL
           </Button>
         </div>
       </section>

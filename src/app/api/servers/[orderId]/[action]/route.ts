@@ -58,6 +58,31 @@ function handle(err: unknown) {
 
 type InstallProfile = "vanilla" | "oxide" | "carbon" | "staging";
 const OXIDE_PLUGIN_DIR = "/oxide/plugins";
+type UmodCatalogPlugin = {
+  title: string;
+  slug: string;
+  description: string;
+  author: string;
+  downloads: number;
+  downloadsShortened: string;
+  updatedAt: string;
+  updatedAtAtom: string;
+  latestReleaseVersion: string | null;
+  latestReleaseVersionFormatted: string | null;
+  categoryTags: string;
+  iconUrl: string;
+  url: string;
+  jsonUrl: string;
+  downloadUrl: string;
+};
+
+let umodCatalogCache:
+  | {
+      expiresAt: number;
+      page: number;
+      items: UmodCatalogPlugin[];
+    }
+  | null = null;
 
 function normalize(input: string) {
   return input.trim().toLowerCase();
@@ -220,6 +245,73 @@ async function installOxidePlugin(serverId: string, pluginUrl: string) {
   return { fileName, path: `${OXIDE_PLUGIN_DIR}/${fileName}` };
 }
 
+async function fetchUmodPluginCatalog(page = 1) {
+  const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  if (
+    umodCatalogCache &&
+    umodCatalogCache.page === normalizedPage &&
+    umodCatalogCache.expiresAt > Date.now()
+  ) {
+    return umodCatalogCache.items;
+  }
+
+  const params = new URLSearchParams({
+    query: "",
+    page: String(normalizedPage),
+    sort: "title",
+    sortdir: "asc",
+    filter: "",
+    author: "",
+  });
+  params.append("categories[]", "rust");
+
+  const response = await fetch(`https://umod.org/plugins/search.json?${params.toString()}`, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "HyperNode/1.0 (+https://hypernode.gg)",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new HttpError(502, `uMod catalog unavailable (${response.status})`);
+  }
+
+  const payload = (await response.json()) as {
+    data?: Array<Record<string, unknown>>;
+  };
+
+  const items = Array.isArray(payload.data)
+    ? payload.data.map((item) => ({
+        title: String(item.title ?? ""),
+        slug: String(item.slug ?? ""),
+        description: String(item.description ?? ""),
+        author: String(item.author ?? ""),
+        downloads: Number(item.downloads ?? 0),
+        downloadsShortened: String(item.downloads_shortened ?? item.downloads ?? "0"),
+        updatedAt: String(item.updated_at ?? ""),
+        updatedAtAtom: String(item.updated_at_atom ?? ""),
+        latestReleaseVersion: item.latest_release_version ? String(item.latest_release_version) : null,
+        latestReleaseVersionFormatted: item.latest_release_version_formatted
+          ? String(item.latest_release_version_formatted)
+          : null,
+        categoryTags: String(item.tags_all ?? item.category_tags ?? ""),
+        iconUrl: String(item.icon_url ?? ""),
+        url: String(item.url ?? ""),
+        jsonUrl: String(item.json_url ?? ""),
+        downloadUrl: String(item.download_url ?? ""),
+      }))
+    : [];
+
+  umodCatalogCache = {
+    page: normalizedPage,
+    items,
+    expiresAt: Date.now() + 1000 * 60 * 15,
+  };
+
+  return items;
+}
+
 async function syncRustConfig(serverId: string, vars: ClientEggVariable[]) {
   if (!isRustStartupProfile(vars)) return null;
 
@@ -301,6 +393,15 @@ export async function GET(
         return NextResponse.json(await pteroClient.listSchedules(id));
       case "startup":
         return NextResponse.json(await pteroClient.getStartup(id));
+      case "plugin-catalog": {
+        const page = Number(url.searchParams.get("page") ?? "1");
+        return NextResponse.json({
+          items: await fetchUmodPluginCatalog(page),
+          source: "https://umod.org/plugins?page=1&sort=title&sortdir=asc",
+          page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
+          cachedForSeconds: 900,
+        });
+      }
       default:
         throw new HttpError(404, "Unknown action");
     }
