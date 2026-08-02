@@ -59,6 +59,8 @@ function handle(err: unknown) {
 type InstallProfile = "vanilla" | "oxide" | "carbon" | "staging";
 const OXIDE_PLUGIN_DIR = "/oxide/plugins";
 const JINA_MIRROR_PREFIX = "https://r.jina.ai/http://";
+const UMOD_RUST_CATALOG_CACHE_KEY = "UMOD_RUST_CATALOG_CACHE";
+const UMOD_CATALOG_REFRESH_MS = 1000 * 60 * 60;
 type UmodCatalogPlugin = {
   title: string;
   slug: string;
@@ -80,6 +82,7 @@ type UmodCatalogPlugin = {
 let umodCatalogCache:
   | {
       expiresAt: number;
+      fetchedAt: number;
       items: UmodCatalogPlugin[];
       total: number;
       pages: number;
@@ -88,6 +91,7 @@ let umodCatalogCache:
       pagesLoaded: number;
     }
   | null = null;
+let umodCatalogRefreshPromise: Promise<typeof umodCatalogCache> | null = null;
 
 function normalize(input: string) {
   return input.trim().toLowerCase();
@@ -223,6 +227,91 @@ function extractJinaContent(body: string) {
   return body.slice(index + marker.length);
 }
 
+function snapshotCatalogCache(catalog: NonNullable<typeof umodCatalogCache>) {
+  return {
+    fetchedAt: catalog.fetchedAt,
+    items: catalog.items,
+    total: catalog.total,
+    pages: catalog.pages,
+    perPage: catalog.perPage,
+    complete: catalog.complete,
+    pagesLoaded: catalog.pagesLoaded,
+  };
+}
+
+function isCatalogFresh(catalog: NonNullable<typeof umodCatalogCache>) {
+  return Date.now() - catalog.fetchedAt < UMOD_CATALOG_REFRESH_MS;
+}
+
+function normalizeCatalogSnapshot(input: unknown): NonNullable<typeof umodCatalogCache> | null {
+  if (!input || typeof input !== "object") return null;
+  const candidate = input as Record<string, unknown>;
+  if (!Array.isArray(candidate.items)) return null;
+
+  const fetchedAt = Number(candidate.fetchedAt ?? 0);
+  const total = Number(candidate.total ?? candidate.items.length);
+  const pages = Number(candidate.pages ?? 0);
+  const perPage = Number(candidate.perPage ?? candidate.items.length);
+  const complete = Boolean(candidate.complete ?? false);
+  const pagesLoaded = Number(candidate.pagesLoaded ?? pages);
+
+  const items = candidate.items.map((item) => {
+    const plugin = item as Record<string, unknown>;
+    return {
+      title: String(plugin.title ?? ""),
+      slug: String(plugin.slug ?? ""),
+      description: String(plugin.description ?? ""),
+      author: String(plugin.author ?? ""),
+      downloads: Number(plugin.downloads ?? 0),
+      downloadsShortened: String(plugin.downloadsShortened ?? plugin.downloads ?? "0"),
+      updatedAt: String(plugin.updatedAt ?? ""),
+      updatedAtAtom: String(plugin.updatedAtAtom ?? ""),
+      latestReleaseVersion: plugin.latestReleaseVersion ? String(plugin.latestReleaseVersion) : null,
+      latestReleaseVersionFormatted: plugin.latestReleaseVersionFormatted
+        ? String(plugin.latestReleaseVersionFormatted)
+        : null,
+      categoryTags: String(plugin.categoryTags ?? ""),
+      iconUrl: String(plugin.iconUrl ?? ""),
+      url: String(plugin.url ?? ""),
+      jsonUrl: String(plugin.jsonUrl ?? ""),
+      downloadUrl: String(plugin.downloadUrl ?? ""),
+    };
+  });
+
+  return {
+    fetchedAt: Number.isFinite(fetchedAt) ? fetchedAt : Date.now(),
+    expiresAt: Date.now() + 1000 * 60 * 15,
+    items,
+    total: Number.isFinite(total) ? total : items.length,
+    pages: Number.isFinite(pages) ? pages : 0,
+    perPage: Number.isFinite(perPage) ? perPage : items.length,
+    complete,
+    pagesLoaded: Number.isFinite(pagesLoaded) ? pagesLoaded : 0,
+  };
+}
+
+async function loadPersistedUmodCatalog() {
+  try {
+    const row = await db.setting.findUnique({ where: { key: UMOD_RUST_CATALOG_CACHE_KEY } });
+    if (!row?.value) return null;
+    return normalizeCatalogSnapshot(JSON.parse(row.value));
+  } catch {
+    return null;
+  }
+}
+
+async function persistUmodCatalog(catalog: NonNullable<typeof umodCatalogCache>) {
+  try {
+    await db.setting.upsert({
+      where: { key: UMOD_RUST_CATALOG_CACHE_KEY },
+      update: { value: JSON.stringify(snapshotCatalogCache(catalog)) },
+      create: { key: UMOD_RUST_CATALOG_CACHE_KEY, value: JSON.stringify(snapshotCatalogCache(catalog)) },
+    });
+  } catch {
+    /* best-effort persistence */
+  }
+}
+
 async function fetchTextWithUmodFallback(url: string, accept: string) {
   const directResponse = await fetch(url, {
     headers: { Accept: accept },
@@ -345,60 +434,100 @@ async function fetchUmodCatalogPage(page: number) {
 }
 
 async function fetchUmodPluginCatalog() {
-  if (umodCatalogCache && umodCatalogCache.expiresAt > Date.now()) {
+  if (umodCatalogCache && isCatalogFresh(umodCatalogCache)) {
     return umodCatalogCache;
   }
 
-  const staleCache = umodCatalogCache;
-  let firstPage;
-  try {
-    firstPage = await fetchUmodCatalogPage(1);
-  } catch (error) {
-    if (staleCache) return staleCache;
-    throw error;
-  }
-  const pages = Number.isFinite(firstPage.lastPage) && firstPage.lastPage > 0 ? firstPage.lastPage : 1;
-  const total = Number.isFinite(firstPage.total) && firstPage.total > 0 ? firstPage.total : firstPage.items.length;
-  const perPage = Number.isFinite(firstPage.perPage) && firstPage.perPage > 0 ? firstPage.perPage : firstPage.items.length;
-
-  let items = firstPage.items;
-  let pagesLoaded = 1;
-  let complete = true;
-
-  if (pages > 1) {
-    const pageNumbers = Array.from({ length: pages - 1 }, (_, index) => index + 2);
-    const batchSize = 4;
-
-    for (let index = 0; index < pageNumbers.length; index += batchSize) {
-      const batch = pageNumbers.slice(index, index + batchSize);
-      const results = await Promise.all(
-        batch.map(async (page) => {
-          try {
-            return await fetchUmodCatalogPage(page);
-          } catch {
-            complete = false;
-            if (staleCache) return { items: [], currentPage: page, lastPage: pages, total, perPage };
-            return null;
-          }
-        }),
-      );
-      const successful = results.filter((result): result is NonNullable<typeof result> => result !== null);
-      pagesLoaded += successful.length;
-      items = items.concat(successful.flatMap((result) => result.items));
-    }
+  if (!umodCatalogCache) {
+    umodCatalogCache = await loadPersistedUmodCatalog();
   }
 
-  umodCatalogCache = {
-    items,
-    total,
-    pages,
-    perPage,
-    complete,
-    pagesLoaded,
-    expiresAt: Date.now() + 1000 * 60 * 15,
-  };
+  if (umodCatalogCache && isCatalogFresh(umodCatalogCache)) {
+    return umodCatalogCache;
+  }
 
-  return umodCatalogCache;
+  if (!umodCatalogRefreshPromise) {
+    umodCatalogRefreshPromise = (async () => {
+      const staleCache = umodCatalogCache ?? (await loadPersistedUmodCatalog());
+      let firstPage;
+      try {
+        firstPage = await fetchUmodCatalogPage(1);
+      } catch (error) {
+        if (staleCache) return staleCache;
+        throw error;
+      }
+      const pages = Number.isFinite(firstPage.lastPage) && firstPage.lastPage > 0 ? firstPage.lastPage : 1;
+      const total = Number.isFinite(firstPage.total) && firstPage.total > 0 ? firstPage.total : firstPage.items.length;
+      const perPage = Number.isFinite(firstPage.perPage) && firstPage.perPage > 0 ? firstPage.perPage : firstPage.items.length;
+
+      let items = firstPage.items;
+      let pagesLoaded = 1;
+      let complete = true;
+
+      if (pages > 1) {
+        const pageNumbers = Array.from({ length: pages - 1 }, (_, index) => index + 2);
+        const batchSize = 4;
+
+        for (let index = 0; index < pageNumbers.length; index += batchSize) {
+          const batch = pageNumbers.slice(index, index + batchSize);
+          const results = await Promise.all(
+            batch.map(async (page) => {
+              try {
+                return await fetchUmodCatalogPage(page);
+              } catch {
+                complete = false;
+                if (staleCache) return { items: [], currentPage: page, lastPage: pages, total, perPage };
+                return null;
+              }
+            }),
+          );
+          const successful = results.filter((result): result is NonNullable<typeof result> => result !== null);
+          pagesLoaded += successful.length;
+          items = items.concat(successful.flatMap((result) => result.items));
+        }
+      }
+
+      const nextCache = {
+        fetchedAt: Date.now(),
+        items,
+        total,
+        pages,
+        perPage,
+        complete,
+        pagesLoaded,
+        expiresAt: Date.now() + 1000 * 60 * 15,
+      };
+
+      if (complete) {
+        umodCatalogCache = nextCache;
+        await persistUmodCatalog(nextCache);
+        return nextCache;
+      }
+
+      if (staleCache?.complete) {
+        umodCatalogCache = {
+          ...staleCache,
+          expiresAt: Date.now() + 1000 * 60 * 15,
+        };
+        return umodCatalogCache;
+      }
+
+      umodCatalogCache = nextCache;
+      return nextCache;
+    })().finally(() => {
+      umodCatalogRefreshPromise = null;
+    });
+  }
+
+  if (umodCatalogCache) {
+    void umodCatalogRefreshPromise;
+    return {
+      ...umodCatalogCache,
+      expiresAt: Date.now() + 1000 * 60 * 15,
+    };
+  }
+
+  return await umodCatalogRefreshPromise;
 }
 
 async function syncRustConfig(serverId: string, vars: ClientEggVariable[]) {
