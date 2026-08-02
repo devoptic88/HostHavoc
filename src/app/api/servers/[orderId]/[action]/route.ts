@@ -88,6 +88,8 @@ type UmodCatalogCache = {
   perPage: number;
   complete: boolean;
   pagesLoaded: number;
+  loadedPages: number[];
+  nextPageToFetch: number;
 };
 
 let umodCatalogCache: UmodCatalogCache | null = null;
@@ -236,6 +238,8 @@ function snapshotCatalogCache(catalog: UmodCatalogCache) {
     perPage: catalog.perPage,
     complete: catalog.complete,
     pagesLoaded: catalog.pagesLoaded,
+    loadedPages: catalog.loadedPages,
+    nextPageToFetch: catalog.nextPageToFetch,
   };
 }
 
@@ -254,6 +258,12 @@ function normalizeCatalogSnapshot(input: unknown): UmodCatalogCache | null {
   const perPage = Number(candidate.perPage ?? candidate.items.length);
   const complete = Boolean(candidate.complete ?? false);
   const pagesLoaded = Number(candidate.pagesLoaded ?? pages);
+  const loadedPages = Array.isArray(candidate.loadedPages)
+    ? candidate.loadedPages
+        .map((page) => Number(page))
+        .filter((page) => Number.isFinite(page) && page > 0)
+    : [];
+  const nextPageToFetch = Number(candidate.nextPageToFetch ?? 1);
 
   const items = candidate.items.map((item) => {
     const plugin = item as Record<string, unknown>;
@@ -287,6 +297,8 @@ function normalizeCatalogSnapshot(input: unknown): UmodCatalogCache | null {
     perPage: Number.isFinite(perPage) ? perPage : items.length,
     complete,
     pagesLoaded: Number.isFinite(pagesLoaded) ? pagesLoaded : 0,
+    loadedPages,
+    nextPageToFetch: Number.isFinite(nextPageToFetch) ? nextPageToFetch : 1,
   };
 }
 
@@ -433,101 +445,141 @@ async function fetchUmodCatalogPage(page: number) {
   };
 }
 
-async function fetchUmodPluginCatalog() {
-  if (umodCatalogCache && isCatalogFresh(umodCatalogCache)) {
-    return umodCatalogCache;
+function mergeCatalogPage(
+  current: UmodCatalogCache,
+  page: Awaited<ReturnType<typeof fetchUmodCatalogPage>>,
+) {
+  const itemsBySlug = new Map(current.items.map((plugin) => [plugin.slug, plugin]));
+  for (const plugin of page.items) {
+    itemsBySlug.set(plugin.slug, plugin);
   }
 
+  const loadedPages = Array.from(new Set([...current.loadedPages, page.currentPage])).sort((a, b) => a - b);
+  const pages = Number.isFinite(page.lastPage) && page.lastPage > 0 ? page.lastPage : current.pages;
+  const nextPageToFetch =
+    Array.from({ length: Math.max(pages, 1) }, (_, index) => index + 1).find((pageNumber) => !loadedPages.includes(pageNumber)) ??
+    pages + 1;
+  const complete = pages > 0 && loadedPages.length >= pages;
+
+  return {
+    ...current,
+    items: Array.from(itemsBySlug.values()),
+    total: Number.isFinite(page.total) && page.total > 0 ? page.total : current.total,
+    pages,
+    perPage: Number.isFinite(page.perPage) && page.perPage > 0 ? page.perPage : current.perPage,
+    loadedPages,
+    pagesLoaded: loadedPages.length,
+    nextPageToFetch,
+    complete,
+    fetchedAt: complete ? Date.now() : current.fetchedAt,
+    expiresAt: Date.now() + 1000 * 60 * 15,
+  };
+}
+
+function createEmptyCatalogCache(): UmodCatalogCache {
+  return {
+    expiresAt: Date.now() + 1000 * 60 * 15,
+    fetchedAt: 0,
+    items: [],
+    total: 0,
+    pages: 0,
+    perPage: 100,
+    complete: false,
+    pagesLoaded: 0,
+    loadedPages: [],
+    nextPageToFetch: 1,
+  };
+}
+
+async function buildIncrementalCatalog(base: UmodCatalogCache | null) {
+  const batchSize = 4;
+  let cache = base ? { ...base, items: [...base.items], loadedPages: [...base.loadedPages] } : createEmptyCatalogCache();
+
+  const shouldRefreshFirstPage = cache.pages === 0 || !cache.loadedPages.includes(1);
+  if (shouldRefreshFirstPage) {
+    const firstPage = await fetchUmodCatalogPage(1);
+    cache = mergeCatalogPage(cache, firstPage);
+  }
+
+  const pagesToFetch: number[] = [];
+  let candidate = Math.max(1, cache.nextPageToFetch);
+  while (pagesToFetch.length < batchSize && cache.pages > 0 && candidate <= cache.pages) {
+    if (!cache.loadedPages.includes(candidate)) pagesToFetch.push(candidate);
+    candidate += 1;
+  }
+
+  for (const pageNumber of pagesToFetch) {
+    try {
+      const page = await fetchUmodCatalogPage(pageNumber);
+      cache = mergeCatalogPage(cache, page);
+    } catch {
+      break;
+    }
+  }
+
+  umodCatalogCache = cache;
+  await persistUmodCatalog(cache);
+  return cache;
+}
+
+async function refreshFullCatalog(base: UmodCatalogCache) {
+  let cache = createEmptyCatalogCache();
+  try {
+    const firstPage = await fetchUmodCatalogPage(1);
+    cache = mergeCatalogPage(cache, firstPage);
+    for (let pageNumber = 2; pageNumber <= cache.pages; pageNumber += 1) {
+      const page = await fetchUmodCatalogPage(pageNumber);
+      cache = mergeCatalogPage(cache, page);
+    }
+    umodCatalogCache = cache;
+    await persistUmodCatalog(cache);
+    return cache;
+  } catch {
+    umodCatalogCache = {
+      ...base,
+      expiresAt: Date.now() + 1000 * 60 * 15,
+    };
+    return umodCatalogCache;
+  }
+}
+
+async function fetchUmodPluginCatalog() {
   if (!umodCatalogCache) {
     umodCatalogCache = await loadPersistedUmodCatalog();
   }
 
-  if (umodCatalogCache && isCatalogFresh(umodCatalogCache)) {
+  if (!umodCatalogCache) {
+    if (!umodCatalogRefreshPromise) {
+      umodCatalogRefreshPromise = buildIncrementalCatalog(null).finally(() => {
+        umodCatalogRefreshPromise = null;
+      });
+    }
+    return await umodCatalogRefreshPromise;
+  }
+
+  if (!umodCatalogCache.complete) {
+    if (!umodCatalogRefreshPromise) {
+      umodCatalogRefreshPromise = buildIncrementalCatalog(umodCatalogCache).finally(() => {
+        umodCatalogRefreshPromise = null;
+      });
+    }
+    return await umodCatalogRefreshPromise;
+  }
+
+  if (isCatalogFresh(umodCatalogCache)) {
     return umodCatalogCache;
   }
 
   if (!umodCatalogRefreshPromise) {
-    umodCatalogRefreshPromise = (async () => {
-      const staleCache = umodCatalogCache ?? (await loadPersistedUmodCatalog());
-      let firstPage;
-      try {
-        firstPage = await fetchUmodCatalogPage(1);
-      } catch (error) {
-        if (staleCache) return staleCache;
-        throw error;
-      }
-      const pages = Number.isFinite(firstPage.lastPage) && firstPage.lastPage > 0 ? firstPage.lastPage : 1;
-      const total = Number.isFinite(firstPage.total) && firstPage.total > 0 ? firstPage.total : firstPage.items.length;
-      const perPage = Number.isFinite(firstPage.perPage) && firstPage.perPage > 0 ? firstPage.perPage : firstPage.items.length;
-
-      let items = firstPage.items;
-      let pagesLoaded = 1;
-      let complete = true;
-
-      if (pages > 1) {
-        const pageNumbers = Array.from({ length: pages - 1 }, (_, index) => index + 2);
-        const batchSize = 4;
-
-        for (let index = 0; index < pageNumbers.length; index += batchSize) {
-          const batch = pageNumbers.slice(index, index + batchSize);
-          const results = await Promise.all(
-            batch.map(async (page) => {
-              try {
-                return await fetchUmodCatalogPage(page);
-              } catch {
-                complete = false;
-                if (staleCache) return { items: [], currentPage: page, lastPage: pages, total, perPage };
-                return null;
-              }
-            }),
-          );
-          const successful = results.filter((result): result is NonNullable<typeof result> => result !== null);
-          pagesLoaded += successful.length;
-          items = items.concat(successful.flatMap((result) => result.items));
-        }
-      }
-
-      const nextCache = {
-        fetchedAt: Date.now(),
-        items,
-        total,
-        pages,
-        perPage,
-        complete,
-        pagesLoaded,
-        expiresAt: Date.now() + 1000 * 60 * 15,
-      };
-
-      if (complete) {
-        umodCatalogCache = nextCache;
-        await persistUmodCatalog(nextCache);
-        return nextCache;
-      }
-
-      if (staleCache?.complete) {
-        umodCatalogCache = {
-          ...staleCache,
-          expiresAt: Date.now() + 1000 * 60 * 15,
-        };
-        return umodCatalogCache;
-      }
-
-      umodCatalogCache = nextCache;
-      return nextCache;
-    })().finally(() => {
+    umodCatalogRefreshPromise = refreshFullCatalog(umodCatalogCache).finally(() => {
       umodCatalogRefreshPromise = null;
     });
   }
 
-  if (umodCatalogCache) {
-    void umodCatalogRefreshPromise;
-    return {
-      ...umodCatalogCache,
-      expiresAt: Date.now() + 1000 * 60 * 15,
-    };
-  }
-
-  return await umodCatalogRefreshPromise;
+  return {
+    ...umodCatalogCache,
+    expiresAt: Date.now() + 1000 * 60 * 15,
+  };
 }
 
 async function syncRustConfig(serverId: string, vars: ClientEggVariable[]) {
