@@ -79,19 +79,19 @@ type UmodCatalogPlugin = {
   downloadUrl: string;
 };
 
-let umodCatalogCache:
-  | {
-      expiresAt: number;
-      fetchedAt: number;
-      items: UmodCatalogPlugin[];
-      total: number;
-      pages: number;
-      perPage: number;
-      complete: boolean;
-      pagesLoaded: number;
-    }
-  | null = null;
-let umodCatalogRefreshPromise: Promise<typeof umodCatalogCache> | null = null;
+type UmodCatalogCache = {
+  expiresAt: number;
+  fetchedAt: number;
+  items: UmodCatalogPlugin[];
+  total: number;
+  pages: number;
+  perPage: number;
+  complete: boolean;
+  pagesLoaded: number;
+};
+
+let umodCatalogCache: UmodCatalogCache | null = null;
+let umodCatalogRefreshPromise: Promise<UmodCatalogCache> | null = null;
 
 function normalize(input: string) {
   return input.trim().toLowerCase();
@@ -227,7 +227,7 @@ function extractJinaContent(body: string) {
   return body.slice(index + marker.length);
 }
 
-function snapshotCatalogCache(catalog: NonNullable<typeof umodCatalogCache>) {
+function snapshotCatalogCache(catalog: UmodCatalogCache) {
   return {
     fetchedAt: catalog.fetchedAt,
     items: catalog.items,
@@ -239,11 +239,11 @@ function snapshotCatalogCache(catalog: NonNullable<typeof umodCatalogCache>) {
   };
 }
 
-function isCatalogFresh(catalog: NonNullable<typeof umodCatalogCache>) {
+function isCatalogFresh(catalog: UmodCatalogCache) {
   return Date.now() - catalog.fetchedAt < UMOD_CATALOG_REFRESH_MS;
 }
 
-function normalizeCatalogSnapshot(input: unknown): NonNullable<typeof umodCatalogCache> | null {
+function normalizeCatalogSnapshot(input: unknown): UmodCatalogCache | null {
   if (!input || typeof input !== "object") return null;
   const candidate = input as Record<string, unknown>;
   if (!Array.isArray(candidate.items)) return null;
@@ -300,7 +300,7 @@ async function loadPersistedUmodCatalog() {
   }
 }
 
-async function persistUmodCatalog(catalog: NonNullable<typeof umodCatalogCache>) {
+async function persistUmodCatalog(catalog: UmodCatalogCache) {
   try {
     await db.setting.upsert({
       where: { key: UMOD_RUST_CATALOG_CACHE_KEY },
