@@ -282,7 +282,7 @@ export function FileManager({ orderId }: { orderId: string }) {
   }
 
   async function requestUploadUrl() {
-    const res = await fetch(`/api/servers/${orderId}/upload-file?dir=${encodeURIComponent(dir)}`);
+    const res = await fetch(`/api/servers/${orderId}/upload-file?dir=${encodeURIComponent("/")}`);
     if (!res.ok) {
       throw new Error((await res.json().catch(() => null))?.error ?? "Failed to prepare upload");
     }
@@ -310,7 +310,7 @@ export function FileManager({ orderId }: { orderId: string }) {
 
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          updateUploadItem(uploadId, { status: "done", progress: 100 });
+          updateUploadItem(uploadId, { status: "uploading", progress: 100 });
           resolve();
           return;
         }
@@ -336,6 +336,25 @@ export function FileManager({ orderId }: { orderId: string }) {
 
       xhr.send(formData);
     });
+  }
+
+  async function moveUploadedFileToCurrentDirectory(fileName: string) {
+    if (dir === "/") return;
+
+    const destination = dir === "/" ? fileName : `${dir.replace(/\/$/, "")}/${fileName}`;
+    const res = await fetch(`/api/servers/${orderId}/rename-file`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        root: "/",
+        from: fileName,
+        to: destination,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error((await res.json().catch(() => null))?.error ?? `Uploaded ${fileName}, but failed to move it into ${dir}`);
+    }
   }
 
   async function uploadFiles(files: File[]) {
@@ -371,8 +390,14 @@ export function FileManager({ orderId }: { orderId: string }) {
 
         try {
           await uploadSingleFile(file, signedUrl, item.id);
+          await moveUploadedFileToCurrentDirectory(file.name);
+          updateUploadItem(item.id, { status: "done", progress: 100 });
           completed += 1;
-        } catch {
+        } catch (err) {
+          updateUploadItem(item.id, {
+            status: "error",
+            error: err instanceof Error ? err.message : "Upload failed",
+          });
           failed += 1;
         }
       }
