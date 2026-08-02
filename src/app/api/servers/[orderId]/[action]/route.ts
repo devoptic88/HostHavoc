@@ -79,8 +79,9 @@ type UmodCatalogPlugin = {
 let umodCatalogCache:
   | {
       expiresAt: number;
-      page: number;
       items: UmodCatalogPlugin[];
+      total: number;
+      pages: number;
     }
   | null = null;
 
@@ -245,19 +246,10 @@ async function installOxidePlugin(serverId: string, pluginUrl: string) {
   return { fileName, path: `${OXIDE_PLUGIN_DIR}/${fileName}` };
 }
 
-async function fetchUmodPluginCatalog(page = 1) {
-  const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-  if (
-    umodCatalogCache &&
-    umodCatalogCache.page === normalizedPage &&
-    umodCatalogCache.expiresAt > Date.now()
-  ) {
-    return umodCatalogCache.items;
-  }
-
+async function fetchUmodCatalogPage(page: number) {
   const params = new URLSearchParams({
     query: "",
-    page: String(normalizedPage),
+    page: String(page),
     sort: "title",
     sortdir: "asc",
     filter: "",
@@ -278,6 +270,9 @@ async function fetchUmodPluginCatalog(page = 1) {
   }
 
   const payload = (await response.json()) as {
+    current_page?: number;
+    last_page?: number;
+    total?: number;
     data?: Array<Record<string, unknown>>;
   };
 
@@ -303,13 +298,44 @@ async function fetchUmodPluginCatalog(page = 1) {
       }))
     : [];
 
-  umodCatalogCache = {
-    page: normalizedPage,
+  return {
     items,
+    currentPage: Number(payload.current_page ?? page),
+    lastPage: Number(payload.last_page ?? page),
+    total: Number(payload.total ?? items.length),
+  };
+}
+
+async function fetchUmodPluginCatalog() {
+  if (umodCatalogCache && umodCatalogCache.expiresAt > Date.now()) {
+    return umodCatalogCache;
+  }
+
+  const firstPage = await fetchUmodCatalogPage(1);
+  const pages = Number.isFinite(firstPage.lastPage) && firstPage.lastPage > 0 ? firstPage.lastPage : 1;
+  const total = Number.isFinite(firstPage.total) && firstPage.total > 0 ? firstPage.total : firstPage.items.length;
+
+  let items = firstPage.items;
+
+  if (pages > 1) {
+    const pageNumbers = Array.from({ length: pages - 1 }, (_, index) => index + 2);
+    const batchSize = 8;
+
+    for (let index = 0; index < pageNumbers.length; index += batchSize) {
+      const batch = pageNumbers.slice(index, index + batchSize);
+      const results = await Promise.all(batch.map((page) => fetchUmodCatalogPage(page)));
+      items = items.concat(results.flatMap((result) => result.items));
+    }
+  }
+
+  umodCatalogCache = {
+    items,
+    total,
+    pages,
     expiresAt: Date.now() + 1000 * 60 * 15,
   };
 
-  return items;
+  return umodCatalogCache;
 }
 
 async function syncRustConfig(serverId: string, vars: ClientEggVariable[]) {
@@ -394,11 +420,12 @@ export async function GET(
       case "startup":
         return NextResponse.json(await pteroClient.getStartup(id));
       case "plugin-catalog": {
-        const page = Number(url.searchParams.get("page") ?? "1");
+        const catalog = await fetchUmodPluginCatalog();
         return NextResponse.json({
-          items: await fetchUmodPluginCatalog(page),
+          items: catalog.items,
+          total: catalog.total,
+          pages: catalog.pages,
           source: "https://umod.org/plugins?page=1&sort=title&sortdir=asc",
-          page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
           cachedForSeconds: 900,
         });
       }

@@ -29,6 +29,8 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
   const [plugins, setPlugins] = useState<CatalogPlugin[]>([]);
+  const [catalogTotal, setCatalogTotal] = useState(0);
+  const [catalogPages, setCatalogPages] = useState(0);
   const [query, setQuery] = useState("");
   const [selectedSlug, setSelectedSlug] = useState("");
   const [message, setMessage] = useState("");
@@ -51,7 +53,7 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
     setCatalogError("");
-    const res = await fetch(`/api/servers/${orderId}/plugin-catalog?page=1`);
+    const res = await fetch(`/api/servers/${orderId}/plugin-catalog`);
     const data = await res.json().catch(() => null);
     if (!res.ok) {
       setCatalogError(data?.error ?? "Failed to load the uMod plugin list");
@@ -60,6 +62,8 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
     }
 
     const items = Array.isArray(data?.items) ? (data.items as CatalogPlugin[]) : [];
+    setCatalogTotal(Number(data?.total ?? items.length));
+    setCatalogPages(Number(data?.pages ?? 0));
     setPlugins(items);
     setSelectedSlug((current) => current || items[0]?.slug || "");
     setCatalogLoading(false);
@@ -111,7 +115,7 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
               <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search plugins on page 1..."
+                placeholder="Search the full plugin catalog..."
                 className="h-11 border-0 bg-transparent text-sm focus:border-0"
               />
             </div>
@@ -127,8 +131,13 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
             </Button>
           </div>
           <p className="mt-3 text-xs leading-5 text-steel-faint">
-            Source: uMod Rust plugins, page 1, sorted A-Z. HyperNode caches the list briefly so refreshes do not hammer uMod.
+            Source: full uMod Rust catalog, sorted A-Z. HyperNode caches the list briefly so refreshes do not hammer uMod.
           </p>
+          {(catalogTotal > 0 || catalogPages > 0) && (
+            <p className="mt-1 text-xs leading-5 text-steel-faint">
+              Loaded {catalogTotal.toLocaleString()} plugins across {catalogPages.toLocaleString()} pages.
+            </p>
+          )}
         </div>
 
         <div className="grid gap-4 px-4 py-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
