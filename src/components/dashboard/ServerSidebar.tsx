@@ -31,9 +31,11 @@ interface Resources {
 export function ServerSidebar({
   orderId,
   gameSlug,
+  rustInstallProfile,
 }: {
   orderId: string;
   gameSlug?: string | null;
+  rustInstallProfile?: "vanilla" | "oxide" | "carbon" | "staging" | null;
 }) {
   const pathname = usePathname();
   const base = `/dashboard/servers/${orderId}`;
@@ -83,6 +85,15 @@ export function ServerSidebar({
   const running = state === "running";
   const isRust = gameSlug === "rust";
 
+  const fileChildren = [
+    { path: "/files", label: "Files" },
+    { path: "/files/sftp", label: "SFTP" },
+    { path: "/files/installer", label: "Installer" },
+    ...(rustInstallProfile === "oxide"
+      ? [{ path: "/files/installer/plugins", label: "Plugin Installer" }]
+      : []),
+  ];
+
   const items = [
     { path: "", label: "Overview", icon: Gauge },
     { path: "/startup", label: "Game Settings", icon: Gamepad2 },
@@ -91,11 +102,7 @@ export function ServerSidebar({
       path: "/files",
       label: "Server Files",
       icon: FolderOpen,
-      children: [
-        { path: "/files", label: "Files" },
-        { path: "/files/sftp", label: "SFTP" },
-        { path: "/files/installer", label: "Installer" },
-      ],
+      children: fileChildren,
     },
     { path: "/backups", label: "Backups", icon: History },
     { path: "/schedules", label: "Automated Tasks", icon: Repeat },

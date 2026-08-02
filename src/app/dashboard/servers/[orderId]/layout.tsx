@@ -73,7 +73,11 @@ export default async function ServerLayout({
         />
       )}
       <div className="relative flex flex-col gap-6 lg:flex-row">
-        <ServerSidebar orderId={order.id} gameSlug={order.plan.gameSlug} />
+        <ServerSidebar
+          orderId={order.id}
+          gameSlug={order.plan.gameSlug}
+          rustInstallProfile={order.rustInstallProfile as "vanilla" | "oxide" | "carbon" | "staging" | null}
+        />
         <div className="min-w-0 flex-1">{children}</div>
       </div>
     </div>
