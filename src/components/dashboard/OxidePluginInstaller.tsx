@@ -31,6 +31,8 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
   const [plugins, setPlugins] = useState<CatalogPlugin[]>([]);
   const [catalogTotal, setCatalogTotal] = useState(0);
   const [catalogPages, setCatalogPages] = useState(0);
+  const [catalogPagesLoaded, setCatalogPagesLoaded] = useState(0);
+  const [catalogComplete, setCatalogComplete] = useState(true);
   const [query, setQuery] = useState("");
   const [selectedSlug, setSelectedSlug] = useState("");
   const [message, setMessage] = useState("");
@@ -64,6 +66,8 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
     const items = Array.isArray(data?.items) ? (data.items as CatalogPlugin[]) : [];
     setCatalogTotal(Number(data?.total ?? items.length));
     setCatalogPages(Number(data?.pages ?? 0));
+    setCatalogPagesLoaded(Number(data?.pagesLoaded ?? 0));
+    setCatalogComplete(Boolean(data?.complete ?? true));
     setPlugins(items);
     setSelectedSlug((current) => current || items[0]?.slug || "");
     setCatalogLoading(false);
@@ -135,7 +139,12 @@ export function OxidePluginInstaller({ orderId }: { orderId: string }) {
           </p>
           {(catalogTotal > 0 || catalogPages > 0) && (
             <p className="mt-1 text-xs leading-5 text-steel-faint">
-              Loaded {catalogTotal.toLocaleString()} plugins across {catalogPages.toLocaleString()} pages.
+              Loaded {plugins.length.toLocaleString()} plugins from {catalogPagesLoaded.toLocaleString()} of {catalogPages.toLocaleString()} pages.
+            </p>
+          )}
+          {!catalogComplete && (
+            <p className="mt-1 text-xs leading-5 text-warning">
+              uMod throttled part of the catalog, so this is a partial live list. Refresh again in a bit to load more.
             </p>
           )}
         </div>

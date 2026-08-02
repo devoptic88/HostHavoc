@@ -84,6 +84,8 @@ let umodCatalogCache:
       total: number;
       pages: number;
       perPage: number;
+      complete: boolean;
+      pagesLoaded: number;
     }
   | null = null;
 
@@ -360,6 +362,8 @@ async function fetchUmodPluginCatalog() {
   const perPage = Number.isFinite(firstPage.perPage) && firstPage.perPage > 0 ? firstPage.perPage : firstPage.items.length;
 
   let items = firstPage.items;
+  let pagesLoaded = 1;
+  let complete = true;
 
   if (pages > 1) {
     const pageNumbers = Array.from({ length: pages - 1 }, (_, index) => index + 2);
@@ -371,13 +375,16 @@ async function fetchUmodPluginCatalog() {
         batch.map(async (page) => {
           try {
             return await fetchUmodCatalogPage(page);
-          } catch (error) {
+          } catch {
+            complete = false;
             if (staleCache) return { items: [], currentPage: page, lastPage: pages, total, perPage };
-            throw error;
+            return null;
           }
         }),
       );
-      items = items.concat(results.flatMap((result) => result.items));
+      const successful = results.filter((result): result is NonNullable<typeof result> => result !== null);
+      pagesLoaded += successful.length;
+      items = items.concat(successful.flatMap((result) => result.items));
     }
   }
 
@@ -386,6 +393,8 @@ async function fetchUmodPluginCatalog() {
     total,
     pages,
     perPage,
+    complete,
+    pagesLoaded,
     expiresAt: Date.now() + 1000 * 60 * 15,
   };
 
@@ -480,6 +489,8 @@ export async function GET(
           total: catalog.total,
           pages: catalog.pages,
           perPage: catalog.perPage,
+          complete: catalog.complete,
+          pagesLoaded: catalog.pagesLoaded,
           source: "https://umod.org/plugins?page=1&sort=title&sortdir=asc",
           cachedForSeconds: 900,
         });
