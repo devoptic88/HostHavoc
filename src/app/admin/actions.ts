@@ -136,6 +136,13 @@ export async function deletePlan(formData: FormData) {
   revalidatePath("/admin/plans");
 }
 
+export async function unretirePlan(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("planId"));
+  await db.plan.update({ where: { id }, data: { active: true } });
+  revalidatePath("/admin/plans");
+}
+
 // ─── Customers ──────────────────────────────────────────────────────────
 
 export async function toggleRole(formData: FormData) {

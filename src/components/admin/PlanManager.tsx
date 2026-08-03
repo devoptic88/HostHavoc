@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Label, Select } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { GAMES } from "@/content/games";
-import { createPlan, updatePlan, deletePlan } from "@/app/admin/actions";
+import { createPlan, updatePlan, deletePlan, unretirePlan } from "@/app/admin/actions";
 import { cn } from "@/lib/utils";
 
 export interface AdminPlan {
@@ -277,6 +277,14 @@ function PlanRow({ plan, catalog }: { plan: AdminPlan; catalog: PteroCatalog }) 
             <Badge tone="red">no egg mapped</Badge>
           )}
           {plan.nodeId && <Badge tone="blue">{nodeName ?? `node ${plan.nodeId}`}</Badge>}
+          {!plan.active && (
+            <form action={unretirePlan}>
+              <input type="hidden" name="planId" value={plan.id} />
+              <Button size="sm" type="submit">
+                Unretire
+              </Button>
+            </form>
+          )}
           <form
             action={deletePlan}
             onSubmit={(e) => {
