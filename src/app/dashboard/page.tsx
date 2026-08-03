@@ -98,8 +98,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       }),
   );
 
-  const featuredOrder = orders[0];
-  const otherOrders = orders.slice(1);
   const activeGameServers = orders.filter((order) => order.productType === "GAME_SERVER");
   const activeSpend = orders
     .filter((order) => ["ACTIVE", "PROVISIONING", "PENDING", "GRACE_PERIOD"].includes(order.status))
@@ -281,8 +279,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <div key={order.id}>{row}</div>
     );
   };
-  const featuredServerCard = featuredOrder ? renderServerCard(featuredOrder) : null;
-
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
@@ -318,80 +314,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </div>
       </div>
 
-      <div className="mb-8 grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_360px]">
-        {featuredServerCard ?? (
-          <Card className="overflow-hidden border-hyper-500/20 bg-[linear-gradient(135deg,rgba(13,19,32,0.96),rgba(9,13,24,0.92))]">
-            <CardBody className="relative overflow-hidden px-6 py-7 sm:px-8">
-              <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-hyper-500/20 blur-3xl" />
-              <div className="pointer-events-none absolute bottom-0 left-1/3 h-40 w-40 rounded-full bg-volt/10 blur-3xl" />
-              <div className="relative flex h-full flex-col justify-between gap-6">
-                <div className="max-w-2xl">
-                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-hyper-400/20 bg-hyper-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-hyper-200">
-                    <Zap className="h-3.5 w-3.5" />
-                    Account Snapshot
-                  </div>
-                  <h1 className="font-display text-3xl font-extrabold italic text-white sm:text-4xl">
-                    Your dashboard, <span className="text-gradient-hyper">{firstName}</span>
-                  </h1>
-                  <p className="mt-3 max-w-xl text-sm leading-6 text-steel-dim sm:text-base">
-                    Servers, billing, and support stay one click away while you get your next deployment ready.
-                  </p>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Servers</p>
-                    <p className="mt-1 font-display text-2xl font-bold text-white">{activeGameServers.length}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Open Tickets</p>
-                    <p className="mt-1 font-display text-2xl font-bold text-white">{openTickets}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Monthly Spend</p>
-                    <p className="mt-1 font-display text-2xl font-bold text-white">{formatMoney(activeSpend)}</p>
-                  </div>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-        )}
-
-        <Card className="border-white/10 bg-[linear-gradient(180deg,rgba(12,18,32,0.96),rgba(9,13,24,0.9))]">
-          <CardBody className="flex h-full flex-col justify-between">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Explore Next</p>
-              <h2 className="mt-2 font-display text-2xl font-bold text-white">Spin up another world</h2>
-              <p className="mt-2 text-sm leading-6 text-steel-dim">
-                Browse high-demand games, upgrade a current community, or launch something new in minutes.
-              </p>
-            </div>
-            <div className="mt-5 space-y-3">
-              {spotlightGames.slice(0, 3).map((game) => (
-                <div key={game.slug} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                  <div className="relative h-14 w-20 overflow-hidden rounded-xl">
-                    <Image src={gameCapsule(game.slug)} alt={game.name} fill className="object-cover" sizes="80px" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-display text-base font-bold text-white">{game.name}</p>
-                    <p className="truncate text-xs text-steel-dim">{game.tagline}</p>
-                  </div>
-                  {game.badge ? <Badge tone="violet">{game.badge}</Badge> : null}
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 flex gap-3">
-              <ButtonLink href="/games" size="sm" className="flex-1">
-                <Plus className="h-4 w-4" /> Browse games
-              </ButtonLink>
-              <ButtonLink href="/dashboard/tickets" size="sm" variant="secondary" className="flex-1">
-                <LifeBuoy className="h-4 w-4" /> Support
-              </ButtonLink>
-            </div>
-          </CardBody>
-        </Card>
-      </div>
-
-      {otherOrders.length > 0 && (
+      {orders.length > 0 && (
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h2 className="font-display text-2xl font-extrabold italic text-white">
@@ -446,12 +369,81 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_360px]">
           <div className={serverLayout === "compact" ? "space-y-3" : "space-y-4"}>
-            {otherOrders.map((order) =>
+            {orders.map((order) =>
               serverLayout === "compact" ? renderCompactServerRow(order) : renderServerCard(order),
             )}
           </div>
 
           <div className="space-y-4">
+            <Card className="overflow-hidden border-hyper-500/20 bg-[linear-gradient(135deg,rgba(13,19,32,0.96),rgba(9,13,24,0.92))]">
+              <CardBody className="relative overflow-hidden px-6 py-7 sm:px-8">
+                <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-hyper-500/20 blur-3xl" />
+                <div className="pointer-events-none absolute bottom-0 left-1/3 h-40 w-40 rounded-full bg-volt/10 blur-3xl" />
+                <div className="relative flex h-full flex-col justify-between gap-6">
+                  <div className="max-w-2xl">
+                    <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-hyper-400/20 bg-hyper-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-hyper-200">
+                      <Zap className="h-3.5 w-3.5" />
+                      Account Snapshot
+                    </div>
+                    <h1 className="font-display text-3xl font-extrabold italic text-white sm:text-4xl">
+                      Your dashboard, <span className="text-gradient-hyper">{firstName}</span>
+                    </h1>
+                    <p className="mt-3 max-w-xl text-sm leading-6 text-steel-dim sm:text-base">
+                      Servers, billing, and support stay one click away while you get your next deployment ready.
+                    </p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Servers</p>
+                      <p className="mt-1 font-display text-2xl font-bold text-white">{activeGameServers.length}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Open Tickets</p>
+                      <p className="mt-1 font-display text-2xl font-bold text-white">{openTickets}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Monthly Spend</p>
+                      <p className="mt-1 font-display text-2xl font-bold text-white">{formatMoney(activeSpend)}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+
+            <Card className="border-white/10 bg-[linear-gradient(180deg,rgba(12,18,32,0.96),rgba(9,13,24,0.9))]">
+              <CardBody className="flex h-full flex-col justify-between">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-steel-faint">Explore Next</p>
+                  <h2 className="mt-2 font-display text-2xl font-bold text-white">Spin up another world</h2>
+                  <p className="mt-2 text-sm leading-6 text-steel-dim">
+                    Browse high-demand games, upgrade a current community, or launch something new in minutes.
+                  </p>
+                </div>
+                <div className="mt-5 space-y-3">
+                  {spotlightGames.slice(0, 3).map((game) => (
+                    <div key={game.slug} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                      <div className="relative h-14 w-20 overflow-hidden rounded-xl">
+                        <Image src={gameCapsule(game.slug)} alt={game.name} fill className="object-cover" sizes="80px" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-display text-base font-bold text-white">{game.name}</p>
+                        <p className="truncate text-xs text-steel-dim">{game.tagline}</p>
+                      </div>
+                      {game.badge ? <Badge tone="violet">{game.badge}</Badge> : null}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-6 flex gap-3">
+                  <ButtonLink href="/games" size="sm" className="flex-1">
+                    <Plus className="h-4 w-4" /> Browse games
+                  </ButtonLink>
+                  <ButtonLink href="/dashboard/tickets" size="sm" variant="secondary" className="flex-1">
+                    <LifeBuoy className="h-4 w-4" /> Support
+                  </ButtonLink>
+                </div>
+              </CardBody>
+            </Card>
+
             <Card className="border-white/10 bg-[linear-gradient(180deg,rgba(12,18,32,0.96),rgba(8,12,22,0.9))]">
               <CardBody>
                 <div className="flex items-center justify-between">
