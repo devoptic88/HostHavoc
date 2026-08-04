@@ -318,7 +318,9 @@ function JavaSettings({ orderId, onSaved }: { orderId: string; onSaved: () => vo
             </div>
           </div>
           <p className="text-xs text-steel-faint">
-            Minimum/maximum RAM and other startup flags are managed on the{" "}
+            Server memory comes from your plan and is applied as a container limit — the JVM
+            sizes its heap from that automatically, so there is no RAM setting here. Any
+            startup variables your server&apos;s egg does expose are on the{" "}
             <a href={`/dashboard/servers/${orderId}/startup`} className="text-hyper-300 underline">
               Startup Variables
             </a>{" "}

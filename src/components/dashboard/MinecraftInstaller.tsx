@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Download, PackageCheck, RotateCw } from "lucide-react";
+import { AlertTriangle, Download, Info, PackageCheck, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
@@ -130,6 +130,16 @@ export function MinecraftInstaller({ orderId }: { orderId: string }) {
           )}
         </div>
       )}
+
+      <div className="glass flex items-start gap-3 rounded-2xl border-white/[0.08] p-4">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-steel-dim" />
+        <p className="text-xs text-steel-faint">
+          Installing downloads the new jar alongside your existing files and points your startup
+          jar at it — worlds and configs are left untouched. Note that using{" "}
+          <span className="text-steel">Reinstall Server</span> afterwards re-runs your egg&apos;s
+          original install script, which will restore the software your server was created with.
+        </p>
+      </div>
 
       {!entries ? (
         <div className="glass rounded-2xl p-6">
