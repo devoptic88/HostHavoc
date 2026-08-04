@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { pteroClient, PterodactylError } from "@/lib/pterodactyl";
+import { pteroApp, pteroClient, PterodactylError } from "@/lib/pterodactyl";
+import {
+  isJarFileVariable,
+  isMcSoftware,
+  listMcVersions,
+  MC_CATALOG,
+  resolveMcDownload,
+} from "@/lib/minecraftInstaller";
 import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
 import { provisionOrder } from "@/lib/provision";
 import {
@@ -40,6 +47,28 @@ async function resolveServer(orderId: string) {
     throw new HttpError(409, "Server is not provisioned yet");
   }
   return { id: order.pteroServerIdentifier, order };
+}
+
+async function requireMinecraft(orderId: string) {
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { plan: true },
+  });
+  if (order?.plan.gameSlug !== "minecraft") {
+    throw new HttpError(400, "This action is only available for Minecraft servers");
+  }
+}
+
+/** Allowed Java runtimes = the egg's docker_images map (label → image tag). */
+async function getJavaImages(order: { pteroServerId: number | null }) {
+  if (!order.pteroServerId) throw new HttpError(409, "Server is not provisioned yet");
+  const server = (await pteroApp.getServer(order.pteroServerId)).attributes;
+  const egg = (await pteroApp.getEgg(server.nest, server.egg)).attributes;
+  const images = egg.docker_images ?? { Default: egg.docker_image };
+  return {
+    current: server.container?.image ?? egg.docker_image,
+    images: Object.entries(images).map(([label, image]) => ({ label, image })),
+  };
 }
 
 class HttpError extends Error {
@@ -690,6 +719,26 @@ export async function GET(
           values: Object.fromEntries(parseProperties(contents)),
         });
       }
+      case "mc-catalog": {
+        await requireMinecraft(params.orderId);
+        const software = url.searchParams.get("software");
+        if (software) {
+          if (!isMcSoftware(software)) throw new HttpError(400, "Unknown software");
+          return NextResponse.json({ software, versions: await listMcVersions(software) });
+        }
+        const entries = await Promise.all(
+          MC_CATALOG.map(async (entry) => ({
+            ...entry,
+            versions: await listMcVersions(entry.id).catch(() => []),
+          })),
+        );
+        return NextResponse.json({ entries });
+      }
+      case "mc-java": {
+        await requireMinecraft(params.orderId);
+        const { order } = await resolveServer(params.orderId);
+        return NextResponse.json(await getJavaImages(order));
+      }
       case "plugin-catalog": {
         const catalog = await fetchUmodPluginCatalog();
         return NextResponse.json({
@@ -878,6 +927,49 @@ export async function POST(
           data: { rustInstallProfile: profile, rustPendingReinstallProfile: null },
         });
         break;
+      }
+      case "mc-install": {
+        await requireMinecraft(params.orderId);
+        const software = body.software;
+        const version = String(body.version ?? "").trim();
+        if (!isMcSoftware(software)) throw new HttpError(400, "Unknown software");
+        const versions = await listMcVersions(software);
+        if (!versions.includes(version)) {
+          throw new HttpError(400, `Unknown ${software} version: ${version}`);
+        }
+
+        const download = await resolveMcDownload(software, version);
+        await pteroClient.pullFile(id, download.url, "/", download.fileName);
+
+        // Point the egg's jar variable at the new file so the next start uses it.
+        let jarVariable: string | null = null;
+        const startup = await pteroClient.getStartup(id);
+        const variable = startup.data
+          .map((item) => item.attributes)
+          .find((entry) => entry.is_editable && isJarFileVariable(entry));
+        if (variable) {
+          await pteroClient.updateVariable(id, variable.env_variable, download.fileName);
+          jarVariable = variable.env_variable;
+        }
+
+        return NextResponse.json({
+          ok: true,
+          fileName: download.fileName,
+          build: download.build ?? null,
+          jarVariable,
+          note: "The jar is downloading on the node in the background. Restart once it finishes.",
+        });
+      }
+      case "mc-java": {
+        await requireMinecraft(params.orderId);
+        const image = String(body.image ?? "").trim();
+        if (!image) throw new HttpError(400, "image required");
+        const { images } = await getJavaImages(order);
+        if (!images.some((entry) => entry.image === image)) {
+          throw new HttpError(400, "Image is not allowed by this server's egg");
+        }
+        await pteroClient.setDockerImage(id, image);
+        return NextResponse.json({ ok: true, restartRequired: true });
       }
       case "install-plugin": {
         const pluginUrl = String(body.url ?? "").trim();

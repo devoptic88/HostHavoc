@@ -72,6 +72,13 @@ export const renameServer = (id: string, name: string) =>
 export const reinstall = (id: string) =>
   client<void>(`/servers/${id}/settings/reinstall`, { method: "POST" });
 
+/** Swap the container image (must be in the egg's allowed docker_images). */
+export const setDockerImage = (id: string, dockerImage: string) =>
+  client<void>(`/servers/${id}/settings/docker-image`, {
+    method: "PUT",
+    body: { docker_image: dockerImage },
+  });
+
 // ─── Startup variables ──────────────────────────────────────────────────
 
 export const getStartup = (id: string) =>
@@ -118,6 +125,18 @@ async function pteroFetchRawBody(path: string, file: string, content: string) {
   );
   if (!res.ok) throw new Error(`File write failed: ${res.status}`);
 }
+
+/** Ask the daemon to download a remote file into the server (async on the node). */
+export const pullFile = (
+  id: string,
+  url: string,
+  directory = "/",
+  filename?: string,
+) =>
+  client<void>(`/servers/${id}/files/pull`, {
+    method: "POST",
+    body: { url, directory, ...(filename ? { filename } : {}) },
+  });
 
 export const renameFile = (id: string, root: string, from: string, to: string) =>
   client<void>(`/servers/${id}/files/rename`, {

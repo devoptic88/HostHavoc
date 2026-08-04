@@ -67,6 +67,11 @@ export interface AppServer {
   allocation: number;
   nest: number;
   egg: number;
+  container?: {
+    startup_command: string;
+    image: string;
+    environment: Record<string, string>;
+  };
   created_at: string;
   updated_at: string;
 }

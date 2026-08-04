@@ -27,8 +27,16 @@ function initialStateFrom(values: Record<string, string>): FieldState {
   return state;
 }
 
+type UiTab = McTab | "java";
+
+const UI_TABS: { id: UiTab; label: string }[] = [
+  MC_TABS[0],
+  { id: "java", label: "Java" },
+  ...MC_TABS.slice(1),
+];
+
 export function MinecraftSettings({ orderId }: { orderId: string }) {
-  const [tab, setTab] = useState<McTab>("basic");
+  const [tab, setTab] = useState<UiTab>("basic");
   const [saved, setSaved] = useState<FieldState | null>(null);
   const [draft, setDraft] = useState<FieldState>({});
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -54,7 +62,10 @@ export function MinecraftSettings({ orderId }: { orderId: string }) {
     load();
   }, [load]);
 
-  const tabFields = useMemo(() => MC_FIELDS.filter((field) => field.tab === tab), [tab]);
+  const tabFields = useMemo(
+    () => (tab === "java" ? [] : MC_FIELDS.filter((field) => field.tab === tab)),
+    [tab],
+  );
 
   const dirtyKeys = useMemo(() => {
     if (!saved) return [];
@@ -117,21 +128,6 @@ export function MinecraftSettings({ orderId }: { orderId: string }) {
     }
   }
 
-  if (loadError) {
-    return (
-      <div className="glass rounded-2xl border-warning/20 p-6">
-        <div className="flex items-center gap-2 text-warning">
-          <AlertTriangle className="h-4 w-4" />
-          <h2 className="text-sm font-semibold">Settings unavailable</h2>
-        </div>
-        <p className="mt-2 max-w-xl text-sm text-steel-dim">{loadError}</p>
-        <Button variant="secondary" size="sm" className="mt-4" onClick={load}>
-          Retry
-        </Button>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {restartNeeded && (
@@ -148,7 +144,7 @@ export function MinecraftSettings({ orderId }: { orderId: string }) {
 
       <div className="glass rounded-2xl p-2">
         <div className="flex flex-wrap gap-1">
-          {MC_TABS.map((item) => (
+          {UI_TABS.map((item) => (
             <button
               key={item.id}
               onClick={() => setTab(item.id)}
@@ -165,6 +161,20 @@ export function MinecraftSettings({ orderId }: { orderId: string }) {
         </div>
       </div>
 
+      {tab === "java" ? (
+        <JavaSettings orderId={orderId} onSaved={() => setRestartNeeded(true)} />
+      ) : loadError ? (
+        <div className="glass rounded-2xl border-warning/20 p-6">
+          <div className="flex items-center gap-2 text-warning">
+            <AlertTriangle className="h-4 w-4" />
+            <h2 className="text-sm font-semibold">Settings unavailable</h2>
+          </div>
+          <p className="mt-2 max-w-xl text-sm text-steel-dim">{loadError}</p>
+          <Button variant="secondary" size="sm" className="mt-4" onClick={load}>
+            Retry
+          </Button>
+        </div>
+      ) : (
       <div className="glass rounded-2xl p-6">
         {!saved ? (
           <p className="text-sm text-steel-dim">Loading settings…</p>
@@ -206,6 +216,117 @@ export function MinecraftSettings({ orderId }: { orderId: string }) {
           </div>
         )}
       </div>
+      )}
+    </div>
+  );
+}
+
+function JavaSettings({ orderId, onSaved }: { orderId: string; onSaved: () => void }) {
+  const [data, setData] = useState<{
+    current: string;
+    images: { label: string; image: string }[];
+  } | null>(null);
+  const [choice, setChoice] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const res = await fetch(`/api/servers/${orderId}/mc-java`);
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload?.error ?? "Failed to load Java settings");
+      setData(payload);
+      setChoice(payload.current);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load Java settings");
+    }
+  }, [orderId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function save() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/servers/${orderId}/mc-java`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: choice }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload?.error ?? "Failed to update Java version");
+      setData((prev) => (prev ? { ...prev, current: choice } : prev));
+      setMsg("Java runtime updated.");
+      onSaved();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Failed to update Java version");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (error) {
+    return (
+      <div className="glass rounded-2xl border-warning/20 p-6">
+        <div className="flex items-center gap-2 text-warning">
+          <AlertTriangle className="h-4 w-4" />
+          <h2 className="text-sm font-semibold">Java settings unavailable</h2>
+        </div>
+        <p className="mt-2 max-w-xl text-sm text-steel-dim">{error}</p>
+        <Button variant="secondary" size="sm" className="mt-4" onClick={load}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass rounded-2xl p-6">
+      {!data ? (
+        <p className="text-sm text-steel-dim">Loading Java settings…</p>
+      ) : (
+        <div className="space-y-6">
+          <div>
+            <p className="text-sm font-semibold text-white">Java Version</p>
+            <p className="mt-0.5 max-w-xl text-xs text-steel-faint">
+              Changes the container image (and Java runtime) the server runs on. Only images
+              allowed by this server&apos;s egg are listed.
+            </p>
+            <div className="mt-2 flex max-w-xl items-center gap-2">
+              <Select value={choice} onChange={(e) => setChoice(e.target.value)}>
+                {data.images.map((entry) => (
+                  <option key={entry.image} value={entry.image}>
+                    {entry.label} ({entry.image})
+                  </option>
+                ))}
+                {!data.images.some((entry) => entry.image === data.current) && (
+                  <option value={data.current}>Current ({data.current})</option>
+                )}
+              </Select>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={busy || choice === data.current}
+                onClick={save}
+              >
+                <Save className="h-3.5 w-3.5" /> Save
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-steel-faint">
+            Minimum/maximum RAM and other startup flags are managed on the{" "}
+            <a href={`/dashboard/servers/${orderId}/startup`} className="text-hyper-300 underline">
+              Startup Variables
+            </a>{" "}
+            page.
+          </p>
+          {msg && <p className="text-sm text-steel">{msg}</p>}
+        </div>
+      )}
     </div>
   );
 }
