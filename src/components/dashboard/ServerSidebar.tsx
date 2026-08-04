@@ -94,9 +94,27 @@ export function ServerSidebar({
       : []),
   ];
 
+  const gameSettingsItem: {
+    path: string;
+    label: string;
+    icon: typeof Gamepad2;
+    children?: { path: string; label: string }[];
+  } =
+    gameSlug === "minecraft"
+      ? {
+          path: "/game-settings",
+          label: "Game Settings",
+          icon: Gamepad2,
+          children: [
+            { path: "/game-settings", label: "Server Settings" },
+            { path: "/startup", label: "Startup Variables" },
+          ],
+        }
+      : { path: "/startup", label: "Game Settings", icon: Gamepad2 };
+
   const items = [
     { path: "", label: "Overview", icon: Gauge },
-    { path: "/startup", label: "Game Settings", icon: Gamepad2 },
+    gameSettingsItem,
     { path: "/console", label: "Console", icon: TerminalSquare },
     {
       path: "/files",

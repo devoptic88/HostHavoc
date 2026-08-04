@@ -10,6 +10,12 @@ import {
   normalizeRustPanelVariableValue,
 } from "@/lib/rustStartup";
 import { queryRustServer } from "@/lib/serverQuery";
+import {
+  applySettings,
+  getMcField,
+  parseProperties,
+  validateMcValue,
+} from "@/lib/minecraftSettings";
 import type { ClientEggVariable } from "@/lib/pterodactyl";
 
 /**
@@ -667,6 +673,23 @@ export async function GET(
         return NextResponse.json(await pteroClient.listSchedules(id));
       case "startup":
         return NextResponse.json(await pteroClient.getStartup(id));
+      case "game-settings": {
+        let contents: string;
+        try {
+          contents = await pteroClient.getFileContents(id, "/server.properties");
+        } catch (err) {
+          if (err instanceof PterodactylError && err.status === 404) {
+            throw new HttpError(
+              404,
+              "server.properties not found — start the server once to generate it",
+            );
+          }
+          throw err;
+        }
+        return NextResponse.json({
+          values: Object.fromEntries(parseProperties(contents)),
+        });
+      }
       case "plugin-catalog": {
         const catalog = await fetchUmodPluginCatalog();
         return NextResponse.json({
@@ -803,6 +826,36 @@ export async function POST(
           });
         }
         return NextResponse.json({ ok: true, configPath });
+      }
+      case "game-settings": {
+        const updates =
+          body && typeof body.updates === "object" && body.updates !== null
+            ? (body.updates as Record<string, unknown>)
+            : null;
+        if (!updates) throw new HttpError(400, "updates payload required");
+
+        const normalized: Record<string, string | null> = {};
+        for (const [key, rawValue] of Object.entries(updates)) {
+          const field = getMcField(key);
+          if (!field || field.readOnly) {
+            throw new HttpError(400, `Unknown or read-only setting: ${key}`);
+          }
+          if (rawValue === null) {
+            if (!field.optional) {
+              throw new HttpError(400, `${field.label} cannot be unset`);
+            }
+            normalized[key] = null;
+            continue;
+          }
+          const value = String(rawValue).trim();
+          const error = validateMcValue(field, value);
+          if (error) throw new HttpError(400, error);
+          normalized[key] = value;
+        }
+
+        const contents = await pteroClient.getFileContents(id, "/server.properties");
+        await pteroClient.writeFile(id, "/server.properties", applySettings(contents, normalized));
+        return NextResponse.json({ ok: true, restartRequired: true });
       }
       case "rename":
         await pteroClient.renameServer(id, String(body.name));
