@@ -5,9 +5,18 @@ import { AlertTriangle, Download, Info, PackageCheck, RotateCw } from "lucide-re
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
-import type { McCatalogEntry } from "@/lib/minecraftInstaller";
-
-type CatalogEntry = McCatalogEntry & { versions: string[] };
+type CatalogEntry = {
+  id: string;
+  name: string;
+  category: "Vanilla" | "Plugin Framework" | "Modded Framework";
+  description: string;
+  minRamMb: number;
+  supportsPlugins: boolean;
+  supportsMods: boolean;
+  versions: string[];
+  durable: boolean;
+  eggName: string | null;
+};
 
 const CATEGORY_ORDER = ["Vanilla", "Plugin Framework", "Modded Framework"] as const;
 
@@ -50,13 +59,10 @@ export function MinecraftInstaller({ orderId }: { orderId: string }) {
   async function install(entry: CatalogEntry) {
     const version = selected[entry.id];
     if (!version) return;
-    if (
-      !confirm(
-        `Install ${entry.name} ${version}? The new jar downloads alongside your current files — your worlds and configs are untouched, but take a backup first if unsure.`,
-      )
-    ) {
-      return;
-    }
+    const warning = entry.durable
+      ? `Install ${entry.name} ${version}? Your server will reinstall onto the ${entry.eggName} egg. Worlds and configs are kept, but take a backup first if unsure.`
+      : `Install ${entry.name} ${version}? The new jar downloads alongside your current files — worlds and configs are untouched — but a later "Reinstall Server" will revert to your original software.`;
+    if (!confirm(warning)) return;
     setBusyId(entry.id);
     setResult(null);
     try {
@@ -69,11 +75,14 @@ export function MinecraftInstaller({ orderId }: { orderId: string }) {
       if (!res.ok) throw new Error(data?.error ?? "Install failed");
       setResult({
         ok: true,
-        text: `${entry.name} ${version}${data.build ? ` (build ${data.build})` : ""} is downloading as ${data.fileName}. ${
-          data.jarVariable
-            ? "The startup jar has been updated — restart the server once the download finishes."
-            : "Set your startup jar variable to this file, then restart."
-        }`,
+        text:
+          data.strategy === "egg"
+            ? `${entry.name} ${version} — ${data.note}`
+            : `${entry.name} ${version}${data.build ? ` (build ${data.build})` : ""} is downloading as ${data.fileName}. ${
+                data.jarVariable
+                  ? "The startup jar has been updated — restart the server once the download finishes."
+                  : "Set your startup jar variable to this file, then restart."
+              }`,
       });
     } catch (err) {
       setResult({ ok: false, text: err instanceof Error ? err.message : "Install failed" });
@@ -134,10 +143,11 @@ export function MinecraftInstaller({ orderId }: { orderId: string }) {
       <div className="glass flex items-start gap-3 rounded-2xl border-white/[0.08] p-4">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-steel-dim" />
         <p className="text-xs text-steel-faint">
-          Installing downloads the new jar alongside your existing files and points your startup
-          jar at it — worlds and configs are left untouched. Note that using{" "}
-          <span className="text-steel">Reinstall Server</span> afterwards re-runs your egg&apos;s
-          original install script, which will restore the software your server was created with.
+          Your worlds, configs, and plugins are kept when switching software — but take a backup
+          first if you&apos;re unsure. Options marked{" "}
+          <span className="text-steel">Reinstall reverts</span> are installed as a jar alongside
+          your files, so a later <span className="text-steel">Reinstall Server</span> will restore
+          the software your server was created with.
         </p>
       </div>
 
@@ -171,6 +181,14 @@ export function MinecraftInstaller({ orderId }: { orderId: string }) {
                       {entry.supportsMods && (
                         <span className="rounded-md bg-hyper-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-hyper-300">
                           Mods
+                        </span>
+                      )}
+                      {!entry.durable && (
+                        <span
+                          className="rounded-md bg-warning/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning"
+                          title="Installed as a jar — a later Reinstall Server reverts to your original software."
+                        >
+                          Reinstall reverts
                         </span>
                       )}
                     </div>

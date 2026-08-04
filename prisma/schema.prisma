@@ -96,6 +96,10 @@ model Order {
   rustAllocations Json?
   rustInstallProfile String?
   rustPendingReinstallProfile String?
+  // When the customer accepted the Minecraft EULA at checkout. Provisioning
+  // writes eula=true only once this is set, so the agreement is always the
+  // customer's, never ours.
+  minecraftEulaAcceptedAt DateTime?
   deleteAfterAt DateTime?
   errorMessage  String?
   createdAt     DateTime    @default(now())

@@ -15,6 +15,7 @@ export function CheckoutForm({
   price,
   payload,
   rustProfileOptions,
+  requireMinecraftEula = false,
 }: {
   title: string;
   detail: string;
@@ -22,10 +23,12 @@ export function CheckoutForm({
   price: number;
   payload: Record<string, unknown>;
   rustProfileOptions?: RustCheckoutProfile[];
+  requireMinecraftEula?: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [eulaAccepted, setEulaAccepted] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -39,6 +42,7 @@ export function CheckoutForm({
         ...payload,
         serverName: form.get("serverName"),
         rustProfile: form.get("rustProfile"),
+        ...(requireMinecraftEula ? { minecraftEulaAccepted: eulaAccepted } : {}),
       }),
     });
     const data = await res.json().catch(() => null);
@@ -90,8 +94,35 @@ export function CheckoutForm({
             </Select>
           </div>
         )}
+        {requireMinecraftEula && (
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
+            <input
+              type="checkbox"
+              checked={eulaAccepted}
+              onChange={(e) => setEulaAccepted(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-hyper-500"
+            />
+            <span className="text-xs leading-relaxed text-steel-dim">
+              I agree to the{" "}
+              <a
+                href="https://aka.ms/MinecraftEULA"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-hyper-300 underline"
+              >
+                Minecraft End User License Agreement
+              </a>
+              . Mojang requires the server operator to accept it before a server can run.
+            </span>
+          </label>
+        )}
         {error && <p className="text-sm text-danger">{error}</p>}
-        <Button type="submit" size="lg" className="w-full" disabled={loading}>
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full"
+          disabled={loading || (requireMinecraftEula && !eulaAccepted)}
+        >
           {loading ? (
             "Redirecting…"
           ) : (

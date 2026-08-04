@@ -114,6 +114,7 @@ export default async function CheckoutPage({
           price={summary.price}
           payload={summary.payload}
           rustProfileOptions={summary.payload.game === "rust" ? ["vanilla", "staging", "oxide"] : undefined}
+          requireMinecraftEula={summary.payload.game === "minecraft"}
         />
       </div>
     </div>

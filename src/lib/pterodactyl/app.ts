@@ -73,6 +73,25 @@ export const updateServerBuild = (
   input: UpdateServerBuildPayload,
 ) => app<PteroItem<AppServer>>(`/servers/${id}/build`, { method: "PATCH", body: input });
 
+/**
+ * Change a server's egg, container image, startup command, and environment.
+ * Pterodactyl re-runs the new egg's install script on the next reinstall.
+ */
+export const updateServerStartup = (
+  id: number,
+  input: {
+    startup: string;
+    environment: Record<string, string>;
+    egg: number;
+    image: string;
+    skip_scripts?: boolean;
+  },
+) =>
+  app<PteroItem<AppServer>>(`/servers/${id}/startup`, {
+    method: "PATCH",
+    body: { skip_scripts: false, ...input },
+  });
+
 export const suspendServer = (id: number) =>
   app<void>(`/servers/${id}/suspend`, { method: "POST" });
 

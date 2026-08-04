@@ -7,7 +7,9 @@ import {
   isMcSoftware,
   listMcVersions,
   MC_CATALOG,
+  mcEggEnvironment,
   resolveMcDownload,
+  resolveMcEgg,
 } from "@/lib/minecraftInstaller";
 import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
 import { provisionOrder } from "@/lib/provision";
@@ -727,10 +729,25 @@ export async function GET(
           return NextResponse.json({ software, versions: await listMcVersions(software) });
         }
         const entries = await Promise.all(
-          MC_CATALOG.map(async (entry) => ({
-            ...entry,
-            versions: await listMcVersions(entry.id).catch(() => []),
-          })),
+          MC_CATALOG.map(async (entry) => {
+            const [versions, egg] = await Promise.all([
+              listMcVersions(entry.id).catch(() => []),
+              entry.install.kind === "egg" ? resolveMcEgg(entry.id).catch(() => null) : null,
+            ]);
+            return {
+              id: entry.id,
+              name: entry.name,
+              category: entry.category,
+              description: entry.description,
+              minRamMb: entry.minRamMb,
+              supportsPlugins: entry.supportsPlugins,
+              supportsMods: entry.supportsMods,
+              versions,
+              // Egg-backed installs survive a later reinstall; jar installs don't.
+              durable: entry.install.kind === "egg" && egg !== null,
+              eggName: egg?.eggName ?? null,
+            };
+          }),
         );
         return NextResponse.json({ entries });
       }
@@ -938,6 +955,36 @@ export async function POST(
           throw new HttpError(400, `Unknown ${software} version: ${version}`);
         }
 
+        // Preferred path: the panel has a dedicated egg, so switch the server
+        // onto it and reinstall. This survives future reinstalls.
+        const egg = await resolveMcEgg(software);
+        if (egg) {
+          if (!order.pteroServerId) throw new HttpError(409, "Server is not provisioned yet");
+          const server = (await pteroApp.getServer(order.pteroServerId)).attributes;
+          const currentImage = server.container?.image;
+          // Keep the customer's Java version when the new egg also offers it.
+          const image =
+            currentImage && Object.values(egg.dockerImages).includes(currentImage)
+              ? currentImage
+              : egg.dockerImage;
+
+          await pteroApp.updateServerStartup(order.pteroServerId, {
+            startup: egg.startup,
+            environment: mcEggEnvironment(software, version, egg.defaults),
+            egg: egg.eggId,
+            image,
+          });
+          await pteroApp.reinstallServer(order.pteroServerId);
+
+          return NextResponse.json({
+            ok: true,
+            strategy: "egg",
+            eggName: egg.eggName,
+            note: `Reinstalling onto the ${egg.eggName} egg — your worlds and configs are kept, and future reinstalls will stay on ${software}.`,
+          });
+        }
+
+        // Fallback: no egg for this software, download the jar alongside.
         const download = await resolveMcDownload(software, version);
         await pteroClient.pullFile(id, download.url, "/", download.fileName);
 
@@ -954,6 +1001,7 @@ export async function POST(
 
         return NextResponse.json({
           ok: true,
+          strategy: "jar",
           fileName: download.fileName,
           build: download.build ?? null,
           jarVariable,

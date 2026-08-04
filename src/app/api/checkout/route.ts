@@ -25,6 +25,7 @@ export async function POST(req: Request) {
   let plan;
   let locationId: number | null = null;
   let rustInstallProfile: string | null = null;
+  let minecraftEulaAcceptedAt: Date | null = null;
   try {
     if (body.product === "vps" || body.product === "dedicated") {
       plan = await resolveFixedPlan(
@@ -43,6 +44,15 @@ export async function POST(req: Request) {
       if (game.slug === "rust") {
         rustInstallProfile = normalizeRustCheckoutProfile(body.rustProfile);
       }
+      if (game.slug === "minecraft") {
+        // Mojang requires the server operator to accept their EULA. We record
+        // the customer's acceptance here and only then write eula=true during
+        // provisioning — we never agree on their behalf.
+        if (body.minecraftEulaAccepted !== true) {
+          throw new Error("You must accept the Minecraft EULA to deploy a Minecraft server.");
+        }
+        minecraftEulaAcceptedAt = new Date();
+      }
     }
   } catch (err) {
     return NextResponse.json(
@@ -60,6 +70,7 @@ export async function POST(req: Request) {
       locationId,
       status: "PENDING",
       rustInstallProfile,
+      minecraftEulaAcceptedAt,
     },
   });
 
