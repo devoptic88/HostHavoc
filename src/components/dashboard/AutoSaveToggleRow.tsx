@@ -50,7 +50,7 @@ export function AutoSaveToggleRow({
   }
 
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex max-w-2xl items-start justify-between gap-4">
       <div>
         <p className="flex items-center gap-2 text-sm font-semibold text-white">
           {icon}
