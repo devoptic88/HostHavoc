@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { IntercomLauncher } from "@/components/dashboard/IntercomLauncher";
 import { accountUsage, formatQuotaBytes } from "@/lib/accountUsage";
