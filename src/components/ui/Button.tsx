@@ -26,6 +26,11 @@ const sizes: Record<Size, string> = {
 const base =
   "ring-focus inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50";
 
+/** Shared class builder so non-<button>/<a> elements (e.g. a <span> standing in for a button that can't legally nest inside an ancestor link) can still look like one. */
+export function buttonClasses(variant: Variant = "primary", size: Size = "md", className?: string) {
+  return cn(base, variants[variant], sizes[size], className);
+}
+
 export function Button({
   variant = "primary",
   size = "md",
@@ -37,7 +42,7 @@ export function Button({
 }) {
   return (
     <button
-      className={cn(base, variants[variant], sizes[size], className)}
+      className={buttonClasses(variant, size, className)}
       {...props}
     />
   );
@@ -61,7 +66,7 @@ export function ButtonLink({
   return (
     <Link
       href={href}
-      className={cn(base, variants[variant], sizes[size], className)}
+      className={buttonClasses(variant, size, className)}
       {...props}
     >
       {children}

@@ -4,7 +4,7 @@ import { ArrowRight, CreditCard, LifeBuoy, Plus, Search, Server, Zap } from "luc
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
-import { ButtonLink } from "@/components/ui/Button";
+import { ButtonLink, buttonClasses } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { GAMES, gameCapsule, gameHero } from "@/content/games";
 import { normalizePterodactylMessage } from "@/lib/pterodactyl/errorMessages";
@@ -137,7 +137,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
     const card = (
       <Card glow className="overflow-hidden border-white/10 bg-night-100/95">
-        <div className="relative min-h-[360px]">
+        <div className="relative min-h-[200px]">
           {game && (
             <>
               <Image
@@ -155,45 +155,54 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               />
             </>
           )}
-          <div className="relative flex h-full min-h-[360px] flex-col justify-between p-6 sm:p-8">
-            <div className="flex items-start justify-between gap-4">
+          <div className="relative flex h-full min-h-[200px] flex-col justify-between p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="mb-3 flex flex-wrap items-center gap-2">
+                <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                   <Badge tone="blue">{game?.name ?? order.plan.name}</Badge>
                   {game?.badge ? <Badge tone="violet">{game.badge}</Badge> : null}
                 </div>
-                <h3 className="max-w-2xl font-display text-3xl font-extrabold text-white sm:text-4xl">
+                <h3 className="max-w-2xl font-display text-xl font-extrabold text-white sm:text-2xl">
                   {order.serverName}
                 </h3>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-steel">
+                <p className="mt-1.5 max-w-xl text-xs leading-5 text-steel">
                   {game?.tagline ?? order.plan.name}
                 </p>
               </div>
               <StatusBadge status={displayStatus} />
             </div>
 
-            <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Plan</p>
-                  <p className="mt-1 font-display text-xl font-bold text-white">{order.plan.name}</p>
+            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-end">
+              <div className="grid gap-2.5 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 backdrop-blur-sm">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-steel-faint">Plan</p>
+                  <p className="mt-0.5 font-display text-sm font-bold text-white">{order.plan.name}</p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Billing</p>
-                  <p className="mt-1 font-display text-xl font-bold text-white">
+                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 backdrop-blur-sm">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-steel-faint">Billing</p>
+                  <p className="mt-0.5 font-display text-sm font-bold text-white">
                     {formatMoney(Number(order.plan.priceMonthly))}/mo
                   </p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-sm">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-steel-faint">Provisioned</p>
-                  <p className="mt-1 text-sm font-semibold text-white">{formatDate(order.createdAt)}</p>
+                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 backdrop-blur-sm">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-steel-faint">Provisioned</p>
+                  <p className="mt-0.5 text-xs font-semibold text-white">{formatDate(order.createdAt)}</p>
                 </div>
               </div>
-              <div className="flex flex-col gap-3">
-                <ButtonLink href={manageable ? `/dashboard/servers/${order.id}` : "/dashboard"} size="sm">
-                  Manage server <ArrowRight className="h-4 w-4" />
-                </ButtonLink>
-                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-steel backdrop-blur-sm">
+              <div className="flex flex-col gap-2">
+                {manageable ? (
+                  // The whole card is already an <a> when manageable, so this
+                  // stays a plain span — a nested <a> here would be invalid
+                  // HTML and break hydration.
+                  <span className={buttonClasses("primary", "sm")}>
+                    Manage server <ArrowRight className="h-4 w-4" />
+                  </span>
+                ) : (
+                  <ButtonLink href="/dashboard" size="sm">
+                    Manage server <ArrowRight className="h-4 w-4" />
+                  </ButtonLink>
+                )}
+                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-steel backdrop-blur-sm">
                   {order.status === "GRACE_PERIOD" && order.deleteAfterAt
                     ? `Suspended in grace period. Scheduled for deletion ${formatDate(order.deleteAfterAt)}.`
                     : liveMessage ??
