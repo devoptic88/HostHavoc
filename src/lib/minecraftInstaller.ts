@@ -81,7 +81,15 @@ export const MC_CATALOG: McCatalogEntry[] = [
     minRamMb: 2048,
     supportsPlugins: true,
     supportsMods: false,
-    install: { kind: "jar" },
+    install: {
+      kind: "egg",
+      eggMatch: ["purpur"],
+      env: (version) => ({
+        MINECRAFT_VERSION: version,
+        BUILD_NUMBER: "latest",
+        SERVER_JARFILE: "server.jar",
+      }),
+    },
   },
   {
     id: "forge",
@@ -110,7 +118,16 @@ export const MC_CATALOG: McCatalogEntry[] = [
     minRamMb: 2048,
     supportsPlugins: false,
     supportsMods: true,
-    install: { kind: "jar" },
+    install: {
+      kind: "egg",
+      eggMatch: ["fabric"],
+      env: (version) => ({
+        MC_VERSION: version,
+        FABRIC_VERSION: "latest",
+        LOADER_VERSION: "latest",
+        SERVER_JARFILE: "server.jar",
+      }),
+    },
   },
 ];
 
