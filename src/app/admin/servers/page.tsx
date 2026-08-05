@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { formatBytes } from "@/lib/utils";
 import { PanelNotConfigured } from "@/components/admin/PanelNotConfigured";
 import { ConfirmSubmitButton } from "@/components/admin/ConfirmSubmitButton";
+import { SubmitButton } from "@/components/admin/SubmitButton";
 import {
   adminTerminate,
   retryProvision,
@@ -78,12 +79,14 @@ export default async function AdminServersPage() {
                 {(order.status === "FAILED" || order.status === "PENDING") && (
                   <form action={retryProvision}>
                     <input type="hidden" name="orderId" value={order.id} />
-                    <Button size="sm" variant="outline">Retry provision</Button>
+                    <SubmitButton variant="outline" pendingLabel="Retrying…">
+                      Retry provision
+                    </SubmitButton>
                   </form>
                 )}
                 <form action={adminTerminate}>
                   <input type="hidden" name="orderId" value={order.id} />
-                  <ConfirmSubmitButton promptLabel={`order ${order.serverName}`}>
+                  <ConfirmSubmitButton promptLabel={`order ${order.serverName}`} pendingLabel="Deleting…">
                     Delete order
                   </ConfirmSubmitButton>
                 </form>
@@ -130,21 +133,27 @@ export default async function AdminServersPage() {
                   {s.suspended ? (
                     <form action={pteroUnsuspendServer}>
                       <input type="hidden" name="serverId" value={s.id} />
-                      <Button size="sm" variant="secondary">Unsuspend</Button>
+                      <SubmitButton variant="secondary" pendingLabel="Unsuspending…">
+                        Unsuspend
+                      </SubmitButton>
                     </form>
                   ) : (
                     <form action={pteroSuspendServer}>
                       <input type="hidden" name="serverId" value={s.id} />
-                      <Button size="sm" variant="secondary">Suspend</Button>
+                      <SubmitButton variant="secondary" pendingLabel="Suspending…">
+                        Suspend
+                      </SubmitButton>
                     </form>
                   )}
                   <form action={pteroReinstallServer}>
                     <input type="hidden" name="serverId" value={s.id} />
-                    <Button size="sm" variant="ghost">Reinstall</Button>
+                    <SubmitButton variant="ghost" pendingLabel="Reinstalling…">
+                      Reinstall
+                    </SubmitButton>
                   </form>
                   <form action={pteroDeleteServer}>
                     <input type="hidden" name="serverId" value={s.id} />
-                    <ConfirmSubmitButton promptLabel={`server ${s.name}`}>
+                    <ConfirmSubmitButton promptLabel={`server ${s.name}`} pendingLabel="Deleting…">
                       Delete
                     </ConfirmSubmitButton>
                   </form>
