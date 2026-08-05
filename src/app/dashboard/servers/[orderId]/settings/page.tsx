@@ -22,7 +22,7 @@ export default async function ServerSettingsPage({
     <div>
       <SectionHeader
         icon={<Settings className="h-5 w-5" />}
-        title="Manage Instance"
+        title="Manage"
         description="Manage your instance nickname and other advanced settings."
       />
       <ServerSettings
@@ -31,6 +31,9 @@ export default async function ServerSettingsPage({
         gameSlug={order.plan.gameSlug}
         subdomain={order.subdomain}
         domain={dnsOn ? domain : null}
+        webRedirect={order.webRedirect}
+        streamerMode={order.streamerMode}
+        timezone={order.timezone}
       />
     </div>
   );

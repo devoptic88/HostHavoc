@@ -136,7 +136,16 @@ export function ServerSidebar({
     { path: "/backups", label: "Backups", icon: History },
     { path: "/schedules", label: "Automated Tasks", icon: Repeat },
     { path: "/databases", label: "Databases", icon: Database },
-    { path: "/settings", label: "Manage Instance", icon: Settings },
+    {
+      path: "/settings",
+      label: "Manage Instance",
+      icon: Settings,
+      children: [
+        { path: "/settings", label: "Manage" },
+        { path: "/settings/share", label: "Share Settings" },
+        { path: "/settings/permissions", label: "User Permissions" },
+      ],
+    },
   ];
 
   return (

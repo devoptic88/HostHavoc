@@ -65,6 +65,7 @@ export default async function ServerLayout({
         ramMb={order.plan.ramMb}
         cpuPercent={order.plan.cpuPercent}
         diskMb={order.plan.diskMb}
+        streamerMode={order.streamerMode}
       />
       {order.plan.gameSlug === "rust" && order.rustPendingReinstallProfile && (
         <ServerReinstallBanner

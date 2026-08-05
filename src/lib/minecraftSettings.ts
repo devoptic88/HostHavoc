@@ -2,9 +2,9 @@
  * Declarative schema for the Minecraft "Game Settings" forms, modeled on the
  * Nodecraft panel dissection (docs/plan-minecraft-settings-forms.md).
  *
- * Every field maps 1:1 to a server.properties key. Fields marked `optional`
- * render a "Use setting" toggle — when off, the key is removed from the file
- * entirely so the game's built-in default wins.
+ * Every field maps 1:1 to a server.properties key. `optional` fields support
+ * being unset (key removed from the file so the game's built-in default
+ * wins) via the API, though the UI always keeps them populated with a value.
  */
 
 export type McTab = "basic" | "world" | "gamemode" | "npc" | "advanced";

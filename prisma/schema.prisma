@@ -103,6 +103,15 @@ model Order {
   // DNS label under SERVER_DOMAIN, e.g. "survival" -> survival.hypernode.gg.
   // Unique so two servers can never claim the same address.
   subdomain     String?     @unique
+  // Redirects web-browser traffic hitting the server's IP/hostname to our
+  // website instead of a raw connection-refused/timeout.
+  webRedirect   Boolean     @default(false)
+  // Hides the server's public IP from the dashboard/header/overview and
+  // redacts client IPs from console output, for safe streaming.
+  streamerMode  Boolean     @default(false)
+  // IANA timezone the gameserver container runs in (e.g. "America/New_York").
+  // Null means the node's default timezone.
+  timezone      String?
   deleteAfterAt DateTime?
   errorMessage  String?
   createdAt     DateTime    @default(now())

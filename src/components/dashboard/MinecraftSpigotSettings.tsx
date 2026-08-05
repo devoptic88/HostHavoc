@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, RotateCw, Save, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Toggle } from "@/components/ui/Toggle";
 import { cn } from "@/lib/utils";
 import {
   SPIGOT_FIELDS,
@@ -184,28 +185,15 @@ export function MinecraftSpigotSettings({ orderId }: { orderId: string }) {
                       </div>
                       <div className="mt-2">
                         {field.type === "toggle" ? (
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={draft[key] === "true"}
-                            onClick={() =>
+                          <Toggle
+                            checked={draft[key] === "true"}
+                            onChange={(checked) =>
                               setDraft((prev) => ({
                                 ...prev,
-                                [key]: prev[key] === "true" ? "false" : "true",
+                                [key]: checked ? "true" : "false",
                               }))
                             }
-                            className={cn(
-                              "ring-focus relative h-5 w-9 shrink-0 rounded-full transition-colors",
-                              draft[key] === "true" ? "bg-hyper-500" : "bg-white/15",
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
-                                draft[key] === "true" ? "translate-x-[18px]" : "translate-x-0.5",
-                              )}
-                            />
-                          </button>
+                          />
                         ) : (
                           <Input
                             value={draft[key] ?? ""}

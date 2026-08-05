@@ -26,6 +26,7 @@ export default async function ServerOverviewPage({
       diskMb={order.plan.diskMb}
       priceMonthly={Number(order.plan.priceMonthly)}
       orderStatus={order.status}
+      streamerMode={order.streamerMode}
     />
   );
 }

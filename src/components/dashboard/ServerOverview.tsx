@@ -7,6 +7,7 @@ import {
   Check,
   Copy,
   CreditCard,
+  EyeOff,
   Gamepad2,
   HardDrive,
   Network,
@@ -125,6 +126,7 @@ export function ServerOverview({
   diskMb,
   priceMonthly,
   orderStatus,
+  streamerMode,
 }: {
   orderId: string;
   name: string;
@@ -135,6 +137,7 @@ export function ServerOverview({
   diskMb: number;
   priceMonthly: number;
   orderStatus: string;
+  streamerMode?: boolean;
 }) {
   const [res, setRes] = useState<Resources | null>(null);
   const [details, setDetails] = useState<ClientServer | null>(null);
@@ -304,7 +307,11 @@ export function ServerOverview({
             </div>
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              {address ? (
+              {streamerMode ? (
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-steel-faint">
+                  <EyeOff className="h-3.5 w-3.5" /> Hidden — Streamer Mode
+                </span>
+              ) : address ? (
                 <button
                   onClick={copyAddress}
                   className="ring-focus inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1.5 font-mono text-xs text-hyper-300 transition-colors hover:border-hyper-400/40"
@@ -481,7 +488,11 @@ export function ServerOverview({
 
           <OverviewPanel icon={Network} title="Connection">
             <div className="space-y-3">
-              <DetailRow label="Hostname" value={address ?? "Pending allocation"} mono />
+              <DetailRow
+                label="Hostname"
+                value={streamerMode ? "Hidden — Streamer Mode" : (address ?? "Pending allocation")}
+                mono
+              />
               <DetailRow label="Uptime" value={running && res ? formatUptime(res.resources.uptime) : "Server is offline"} />
               <DetailRow label="Network In" value={res ? formatBytes(res.resources.network_rx_bytes) : "0 B"} />
               <DetailRow label="Network Out" value={res ? formatBytes(res.resources.network_tx_bytes) : "0 B"} />

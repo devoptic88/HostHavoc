@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, Copy, Cpu, Gauge, HardDrive, Network, Users } from "lucide-react";
+import { ArrowLeft, Check, Copy, Cpu, EyeOff, Gauge, HardDrive, Network, Users } from "lucide-react";
 import { gameCapsule, getGame } from "@/content/games";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -39,6 +39,7 @@ export function ServerTopbar({
   name,
   planName,
   gameSlug,
+  streamerMode,
 }: {
   orderId: string;
   name: string;
@@ -47,6 +48,7 @@ export function ServerTopbar({
   ramMb: number;
   cpuPercent: number;
   diskMb: number;
+  streamerMode?: boolean;
 }) {
   const [res, setRes] = useState<Resources | null>(null);
   const [query, setQuery] = useState<QuerySnapshot | null>(null);
@@ -176,7 +178,11 @@ export function ServerTopbar({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {address ? (
+            {streamerMode ? (
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-3 py-1.5 text-xs text-steel-faint">
+                <EyeOff className="h-3.5 w-3.5" /> Hidden — Streamer Mode
+              </span>
+            ) : address ? (
               <button
                 onClick={copyAddress}
                 className="ring-focus inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-3 py-1.5 font-mono text-xs text-hyper-300 transition-colors hover:border-hyper-400/40"

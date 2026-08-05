@@ -741,7 +741,7 @@ export async function GET(
         error: fresh.errorMessage,
       });
     }
-    const { id } = await resolveServer(params.orderId);
+    const { id, order } = await resolveServer(params.orderId);
     const url = new URL(req.url);
     switch (params.action) {
       case "details":
@@ -793,6 +793,12 @@ export async function GET(
         return NextResponse.json(await pteroClient.listSchedules(id));
       case "startup":
         return NextResponse.json(await pteroClient.getStartup(id));
+      case "manage-settings":
+        return NextResponse.json({
+          webRedirect: order.webRedirect,
+          streamerMode: order.streamerMode,
+          timezone: order.timezone,
+        });
       case "game-settings": {
         let contents: string;
         try {
@@ -1137,6 +1143,48 @@ export async function POST(
           data: { serverName: String(body.name) },
         });
         break;
+      case "manage-settings": {
+        const data: { webRedirect?: boolean; streamerMode?: boolean; timezone?: string | null } = {};
+        if (typeof body.webRedirect === "boolean") data.webRedirect = body.webRedirect;
+        if (typeof body.streamerMode === "boolean") data.streamerMode = body.streamerMode;
+        if ("timezone" in body) {
+          const tz = body.timezone === null ? "" : String(body.timezone ?? "").trim();
+          if (tz) {
+            try {
+              Intl.DateTimeFormat(undefined, { timeZone: tz });
+            } catch {
+              throw new HttpError(400, "Unknown timezone");
+            }
+          }
+          data.timezone = tz || null;
+        }
+        if (Object.keys(data).length === 0) throw new HttpError(400, "No changes provided");
+
+        const updated = await db.order.update({ where: { id: params.orderId }, data });
+
+        if ("timezone" in data) {
+          // Best-effort: only eggs that expose an editable TZ startup
+          // variable actually apply this to the running container.
+          try {
+            const startup = await pteroClient.getStartup(id);
+            const tzVariable = startup.data
+              .map((item) => item.attributes)
+              .find((variable) => variable.is_editable && variable.env_variable === "TZ");
+            if (tzVariable) {
+              await pteroClient.updateVariable(id, "TZ", updated.timezone ?? "UTC");
+            }
+          } catch {
+            /* best-effort */
+          }
+        }
+
+        return NextResponse.json({
+          ok: true,
+          webRedirect: updated.webRedirect,
+          streamerMode: updated.streamerMode,
+          timezone: updated.timezone,
+        });
+      }
       case "reinstall":
         await pteroClient.reinstall(id);
         break;

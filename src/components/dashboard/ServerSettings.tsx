@@ -2,10 +2,41 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Copy, Globe, Rocket, Save, Settings2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Clock,
+  Compass,
+  Copy,
+  EyeOff,
+  Globe,
+  Rocket,
+  Save,
+  Settings2,
+  Waypoints,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Input, Select } from "@/components/ui/Input";
+import { Toggle } from "@/components/ui/Toggle";
 import { cn, slugify } from "@/lib/utils";
+
+const FALLBACK_TIMEZONES = [
+  "UTC",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Sao_Paulo",
+  "Europe/London",
+  "Europe/Berlin",
+  "Europe/Moscow",
+  "Africa/Johannesburg",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+  "Pacific/Auckland",
+];
 
 export function ServerSettings({
   orderId,
@@ -13,12 +44,18 @@ export function ServerSettings({
   gameSlug,
   subdomain,
   domain,
+  webRedirect: initialWebRedirect,
+  streamerMode: initialStreamerMode,
+  timezone: initialTimezone,
 }: {
   orderId: string;
   currentName: string;
   gameSlug?: string | null;
   subdomain?: string | null;
   domain?: string | null;
+  webRedirect?: boolean;
+  streamerMode?: boolean;
+  timezone?: string | null;
 }) {
   const router = useRouter();
   const [name, setName] = useState(currentName);
@@ -35,6 +72,94 @@ export function ServerSettings({
     const base = slugify(name) || "rust-server";
     return `${base}.hypernode.gg`;
   }, [name]);
+
+  const [webRedirect, setWebRedirect] = useState(initialWebRedirect ?? false);
+  const [webRedirectBusy, setWebRedirectBusy] = useState(false);
+  const [webRedirectMsg, setWebRedirectMsg] = useState<string | null>(null);
+
+  const [streamerMode, setStreamerMode] = useState(initialStreamerMode ?? false);
+  const [streamerModeBusy, setStreamerModeBusy] = useState(false);
+  const [streamerModeMsg, setStreamerModeMsg] = useState<string | null>(null);
+
+  const [timezone, setTimezone] = useState(initialTimezone ?? "");
+  const [savedTimezone, setSavedTimezone] = useState(initialTimezone ?? "");
+  const [tzBusy, setTzBusy] = useState(false);
+  const [tzMsg, setTzMsg] = useState<string | null>(null);
+
+  const timezones = useMemo(() => {
+    try {
+      return Intl.supportedValuesOf("timeZone");
+    } catch {
+      return FALLBACK_TIMEZONES;
+    }
+  }, []);
+
+  async function toggleWebRedirect(next: boolean) {
+    setWebRedirect(next);
+    setWebRedirectBusy(true);
+    setWebRedirectMsg(null);
+    try {
+      const res = await fetch(`/api/servers/${orderId}/manage-settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ webRedirect: next }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed to update");
+    } catch (err) {
+      setWebRedirect(!next);
+      setWebRedirectMsg(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setWebRedirectBusy(false);
+    }
+  }
+
+  async function toggleStreamerMode(next: boolean) {
+    setStreamerMode(next);
+    setStreamerModeBusy(true);
+    setStreamerModeMsg(null);
+    try {
+      const res = await fetch(`/api/servers/${orderId}/manage-settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ streamerMode: next }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed to update");
+      router.refresh();
+    } catch (err) {
+      setStreamerMode(!next);
+      setStreamerModeMsg(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setStreamerModeBusy(false);
+    }
+  }
+
+  function detectTimezone() {
+    try {
+      setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    } catch {
+      /* Intl unsupported in this environment */
+    }
+  }
+
+  async function saveTimezone() {
+    setTzBusy(true);
+    setTzMsg(null);
+    try {
+      const res = await fetch(`/api/servers/${orderId}/manage-settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timezone: timezone || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to save timezone");
+      setSavedTimezone(timezone);
+      setTzMsg("Timezone saved.");
+    } catch (err) {
+      setTzMsg(err instanceof Error ? err.message : "Failed to save timezone");
+    } finally {
+      setTzBusy(false);
+    }
+  }
 
   async function saveSubdomain(e: React.FormEvent) {
     e.preventDefault();
@@ -111,7 +236,7 @@ export function ServerSettings({
       <div className="glass rounded-2xl p-6">
         <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
           <Settings2 className="h-4 w-4 text-hyper-400" />
-          {isRust ? "Instance Name" : "Server Name"}
+          Instance Name
         </h2>
         <p className="mb-4 max-w-2xl text-sm text-steel-dim">
           {isRust
@@ -130,7 +255,7 @@ export function ServerSettings({
         <div className="glass rounded-2xl p-6">
           <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-white">
             <Globe className="h-4 w-4 text-hyper-400" />
-            Server Address
+            Hostname
           </h2>
           <p className="mb-4 max-w-2xl text-sm text-steel-dim">
             The address players connect with. It points at your server on whichever port it runs,
@@ -201,6 +326,84 @@ export function ServerSettings({
           <p className="mt-3 font-mono text-xs text-steel-faint">{hostname}</p>
         </div>
       )}
+
+      <div className="glass rounded-2xl p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
+              <Waypoints className="h-4 w-4 text-hyper-400" />
+              Web Redirect
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-steel-dim">
+              This redirects any traffic to your server over the web, such as via a
+              web-browser, to our website. This will be configurable to your own domain or
+              website in the future. Changes may take a few minutes to go into effect.
+            </p>
+          </div>
+          <Toggle checked={webRedirect} disabled={webRedirectBusy} onChange={toggleWebRedirect} />
+        </div>
+        {webRedirectMsg && <p className="mt-3 text-sm text-danger">{webRedirectMsg}</p>}
+      </div>
+
+      <div className="glass rounded-2xl p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
+              <EyeOff className="h-4 w-4 text-hyper-400" />
+              Streamer Mode
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-steel-dim">
+              Enabling this feature will hide the server IP from your overview, dashboard, and
+              header. It will also hide all client IPs from your console, enabling you to
+              stream or record the server control panel if you wish.
+            </p>
+          </div>
+          <Toggle
+            checked={streamerMode}
+            disabled={streamerModeBusy}
+            onChange={toggleStreamerMode}
+          />
+        </div>
+        {streamerModeMsg && <p className="mt-3 text-sm text-danger">{streamerModeMsg}</p>}
+      </div>
+
+      <div className="glass rounded-2xl p-6">
+        <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-white">
+          <Clock className="h-4 w-4 text-hyper-400" />
+          Server Timezone
+        </h2>
+        <p className="mb-4 max-w-2xl text-sm text-steel-dim">
+          This controls the timezone that your gameserver will run in. Some games require a
+          specific timezone for in-game events. Note that this will NOT affect Automated Tasks
+          or any other HyperPanel features.
+        </p>
+        <div className="flex max-w-2xl flex-wrap items-center gap-2">
+          <Select
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
+            className="min-w-[14rem] flex-1"
+          >
+            <option value="">Node default</option>
+            {timezones.map((tz) => (
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
+            ))}
+          </Select>
+          <Button type="button" variant="secondary" onClick={detectTimezone}>
+            <Compass className="h-4 w-4" /> Detect My Timezone
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={tzBusy || timezone === savedTimezone}
+            onClick={saveTimezone}
+          >
+            <Save className="h-4 w-4" /> Save
+          </Button>
+        </div>
+        {tzMsg && <p className="mt-3 text-sm text-steel">{tzMsg}</p>}
+      </div>
 
       <div className="glass rounded-2xl border-danger/20 p-6">
         <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-danger">

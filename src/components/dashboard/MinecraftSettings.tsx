@@ -5,25 +5,18 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, RotateCw, Save, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Input";
+import { Toggle } from "@/components/ui/Toggle";
 import { cn } from "@/lib/utils";
 import { MC_FIELDS, MC_TABS, type McField, type McTab } from "@/lib/minecraftSettings";
 
-/**
- * Nodecraft-style tabbed settings forms backed by server.properties.
- * Field state is `string` (the value) or `null` ("Use setting" off — the key
- * is removed from the file so the game default applies).
- */
+/** Nodecraft-style tabbed settings forms backed by server.properties. */
 
 type FieldState = Record<string, string | null>;
 
 function initialStateFrom(values: Record<string, string>): FieldState {
   const state: FieldState = {};
   for (const field of MC_FIELDS) {
-    if (field.key in values) {
-      state[field.key] = values[field.key];
-    } else {
-      state[field.key] = field.optional ? null : (field.default ?? "");
-    }
+    state[field.key] = values[field.key] ?? field.default ?? "";
   }
   return state;
 }
@@ -556,30 +549,18 @@ function SettingRow({
   value: string | null;
   onChange: (value: string | null) => void;
 }) {
-  const inUse = value !== null;
   const effective = value ?? field.default ?? "";
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-white">{field.label}</p>
-          {field.description && (
-            <p className="mt-0.5 max-w-xl text-xs text-steel-faint">{field.description}</p>
-          )}
-        </div>
-        {field.optional && !field.readOnly && (
-          <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-steel-dim">
-            Use setting
-            <Toggle
-              checked={inUse}
-              onChange={(checked) => onChange(checked ? (field.default ?? "") : null)}
-            />
-          </label>
+      <div>
+        <p className="text-sm font-semibold text-white">{field.label}</p>
+        {field.description && (
+          <p className="mt-0.5 max-w-xl text-xs text-steel-faint">{field.description}</p>
         )}
       </div>
-      <div className={cn("mt-2", !inUse && field.optional && "pointer-events-none opacity-40")}>
-        <SettingInput field={field} value={effective} onChange={onChange} disabled={!inUse} />
+      <div className="mt-2">
+        <SettingInput field={field} value={effective} onChange={onChange} disabled={false} />
       </div>
     </div>
   );
@@ -691,34 +672,3 @@ function SettingInput({
   }
 }
 
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        "ring-focus relative h-5 w-9 shrink-0 rounded-full transition-colors",
-        checked ? "bg-hyper-500" : "bg-white/15",
-        disabled && "opacity-40",
-      )}
-    >
-      <span
-        className={cn(
-          "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
-          checked ? "translate-x-[18px]" : "translate-x-0.5",
-        )}
-      />
-    </button>
-  );
-}

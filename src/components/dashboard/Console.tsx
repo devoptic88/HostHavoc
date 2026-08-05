@@ -8,7 +8,17 @@ import { SendHorizonal, TerminalSquare } from "lucide-react";
  * HyperNode proxy, then connects the browser directly to Wings.
  * (Requires the panel origin — or "*" — in the node's allowed_origins.)
  */
-export function Console({ orderId }: { orderId: string }) {
+// Matches IPv4 addresses, with or without a trailing port, so player
+// join/leave lines and RCON output don't leak client IPs while streaming.
+const IPV4_REGEX = /\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?\b/g;
+
+export function Console({
+  orderId,
+  streamerMode,
+}: {
+  orderId: string;
+  streamerMode?: boolean;
+}) {
   const [lines, setLines] = useState<string[]>([]);
   const [status, setStatus] = useState<"connecting" | "open" | "closed">("connecting");
   const [command, setCommand] = useState("");
@@ -18,10 +28,14 @@ export function Console({ orderId }: { orderId: string }) {
   const sawInstallOutput = useRef(false);
   const announcedReady = useRef(false);
 
-  const append = useCallback((line: string) => {
-    const rewritten = line.replace(/\[Pterodactyl Daemon\]:/g, "[HyperNode Server]:");
-    setLines((prev) => [...prev.slice(-800), rewritten]);
-  }, []);
+  const append = useCallback(
+    (line: string) => {
+      let rewritten = line.replace(/\[Pterodactyl Daemon\]:/g, "[HyperNode Server]:");
+      if (streamerMode) rewritten = rewritten.replace(IPV4_REGEX, "•••.•••.•••.•••");
+      setLines((prev) => [...prev.slice(-800), rewritten]);
+    },
+    [streamerMode],
+  );
 
   useEffect(() => {
     closedByUs.current = false;
