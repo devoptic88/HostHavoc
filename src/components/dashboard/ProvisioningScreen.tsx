@@ -15,7 +15,8 @@ type OrderStatus =
   | "GRACE_PERIOD"
   | "CANCELLED"
   | "FAILED"
-  | "MANUAL";
+  | "MANUAL"
+  | "HIBERNATING";
 
 /**
  * Shown on the server page while the order is still being provisioned.

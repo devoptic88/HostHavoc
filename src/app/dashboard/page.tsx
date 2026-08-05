@@ -1,11 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CreditCard, LifeBuoy, Plus, Search, Server, Zap } from "lucide-react";
+import { ArrowRight, CreditCard, LifeBuoy, Moon, Plus, Search, Server, Zap } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
-import { ButtonLink, buttonClasses } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
+import { SubmitButton } from "@/components/ui/SubmitButton";
+import { hibernateServer } from "./actions";
 import { GAMES, gameCapsule, gameHero } from "@/content/games";
 import { normalizePterodactylMessage } from "@/lib/pterodactyl/errorMessages";
 import { pteroApp, pteroClient } from "@/lib/pterodactyl";
@@ -56,7 +58,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const session = await auth();
   const [orders, openTickets] = await Promise.all([
     db.order.findMany({
-      where: { userId: session!.user.id, status: { not: "CANCELLED" } },
+      // Hibernating instances live on the Saved Servers page instead.
+      where: {
+        userId: session!.user.id,
+        status: { notIn: ["CANCELLED", "HIBERNATING"] },
+      },
       include: { plan: true },
       orderBy: { createdAt: "desc" },
     }),
@@ -135,8 +141,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       "offline";
     const liveMessage = liveStatusMessage(displayStatus);
 
-    const card = (
-      <Card glow className="overflow-hidden border-white/10 bg-night-100/95">
+    return (
+      <Card key={order.id} glow className="overflow-hidden border-white/10 bg-night-100/95">
         <div className="relative min-h-[200px]">
           {game && (
             <>
@@ -163,7 +169,16 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   {game?.badge ? <Badge tone="violet">{game.badge}</Badge> : null}
                 </div>
                 <h3 className="max-w-2xl font-display text-xl font-extrabold text-white sm:text-2xl">
-                  {order.serverName}
+                  {manageable ? (
+                    <Link
+                      href={`/dashboard/servers/${order.id}`}
+                      className="ring-focus rounded transition-colors hover:text-hyper-300"
+                    >
+                      {order.serverName}
+                    </Link>
+                  ) : (
+                    order.serverName
+                  )}
                 </h3>
                 <p className="mt-1.5 max-w-xl text-xs leading-5 text-steel">
                   {game?.tagline ?? order.plan.name}
@@ -190,18 +205,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                {manageable ? (
-                  // The whole card is already an <a> when manageable, so this
-                  // stays a plain span — a nested <a> here would be invalid
-                  // HTML and break hydration.
-                  <span className={buttonClasses("primary", "sm")}>
-                    Manage server <ArrowRight className="h-4 w-4" />
-                  </span>
-                ) : (
-                  <ButtonLink href="/dashboard" size="sm">
-                    Manage server <ArrowRight className="h-4 w-4" />
-                  </ButtonLink>
-                )}
+                <ButtonLink
+                  href={manageable ? `/dashboard/servers/${order.id}` : "/dashboard"}
+                  size="sm"
+                >
+                  Manage server <ArrowRight className="h-4 w-4" />
+                </ButtonLink>
                 <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-steel backdrop-blur-sm">
                   {order.status === "GRACE_PERIOD" && order.deleteAfterAt
                     ? `Suspended in grace period. Scheduled for deletion ${formatDate(order.deleteAfterAt)}.`
@@ -210,19 +219,19 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                         ? normalizePterodactylMessage(order.errorMessage)
                         : "Open the server dashboard for console, files, backups, and settings.")}
                 </div>
+                {order.plan.tier === "LITE" && manageable && (
+                  <form action={hibernateServer}>
+                    <input type="hidden" name="orderId" value={order.id} />
+                    <SubmitButton variant="secondary" pendingLabel="Hibernating…">
+                      <Moon className="h-3.5 w-3.5" /> Hibernate
+                    </SubmitButton>
+                  </form>
+                )}
               </div>
             </div>
           </div>
         </div>
       </Card>
-    );
-
-    return manageable ? (
-      <Link key={order.id} href={`/dashboard/servers/${order.id}`} className="block">
-        {card}
-      </Link>
-    ) : (
-      <div key={order.id}>{card}</div>
     );
   };
   const renderCompactServerRow = (order: (typeof orders)[number]) => {

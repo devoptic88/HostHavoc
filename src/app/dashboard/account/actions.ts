@@ -14,6 +14,15 @@ export async function updateName(formData: FormData) {
   revalidatePath("/dashboard/account");
 }
 
+export async function updateDateFormat(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Not logged in");
+  const value = String(formData.get("dateFormat") ?? "iso");
+  const dateFormat = ["iso", "us", "eu"].includes(value) ? value : "iso";
+  await db.user.update({ where: { id: session.user.id }, data: { dateFormat } });
+  revalidatePath("/dashboard/account");
+}
+
 export async function changePassword(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Not logged in");

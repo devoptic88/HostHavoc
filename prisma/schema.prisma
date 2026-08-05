@@ -21,6 +21,16 @@ enum OrderStatus {
   CANCELLED
   FAILED
   MANUAL // VPS/dedicated orders fulfilled by hand
+  // LITE only: the game server is deleted from the panel but its files are
+  // archived, so the order keeps its save slot without holding a deploy slot.
+  HIBERNATING
+}
+
+/// PRO = premium always-on server with a static address and automated tasks.
+/// LITE = budget "wake & play": sleeps when unused and frees its deploy slot.
+enum PlanTier {
+  PRO
+  LITE
 }
 
 enum ProductType {
@@ -50,6 +60,7 @@ model User {
   role           Role     @default(CUSTOMER)
   pteroUserId    Int?     @unique // Pterodactyl application-API user id
   stripeCustomerId String? @unique
+  dateFormat     String   @default("iso") // iso | us | eu
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -69,6 +80,12 @@ model Plan {
   diskMb      Int
   databases   Int         @default(1)
   backups     Int         @default(2)
+  tier        PlanTier    @default(PRO)
+  // How many servers of this plan a customer may run at once, and (LITE only)
+  // how many hibernated instances they may keep parked.
+  deploySlots Int         @default(1)
+  saveSlots   Int         @default(1)
+  backupStorageMb Int     @default(20480)
   priceMonthly Decimal    @db.Decimal(10, 2)
   stripePriceId String?   @unique
   eggId       Int? // pterodactyl egg to deploy
@@ -112,6 +129,13 @@ model Order {
   // IANA timezone the gameserver container runs in (e.g. "America/New_York").
   // Null means the node's default timezone.
   timezone      String?
+  // LITE hibernation: when the instance was parked, and where its archived
+  // files live so a later wake can restore them onto a fresh server.
+  hibernatedAt  DateTime?
+  hibernationArchiveUrl String?
+  // Bytes of backup storage this order is currently using, refreshed when the
+  // backups page loads so the account total doesn't need N panel calls.
+  backupBytes   BigInt      @default(0)
   deleteAfterAt DateTime?
   errorMessage  String?
   createdAt     DateTime    @default(now())

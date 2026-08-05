@@ -21,6 +21,10 @@ export interface AdminPlan {
   diskMb: number;
   databases: number;
   backups: number;
+  tier: "PRO" | "LITE";
+  deploySlots: number;
+  saveSlots: number;
+  backupStorageMb: number;
   price: string;
   nestId: number | null;
   eggId: number | null;
@@ -205,6 +209,29 @@ function PlanForm({
         <div>
           <Label>Backups</Label>
           <Input name="backups" defaultValue={plan?.backups ?? 2} inputMode="numeric" />
+        </div>
+        <div>
+          <Label>Tier</Label>
+          <Select name="tier" defaultValue={plan?.tier ?? "PRO"}>
+            <option value="PRO">PRO — 24/7 always online</option>
+            <option value="LITE">LITE — wake &amp; play, can hibernate</option>
+          </Select>
+        </div>
+        <div>
+          <Label>Deploy slots</Label>
+          <Input name="deploySlots" defaultValue={plan?.deploySlots ?? 1} inputMode="numeric" />
+        </div>
+        <div>
+          <Label>Save slots (LITE)</Label>
+          <Input name="saveSlots" defaultValue={plan?.saveSlots ?? 1} inputMode="numeric" />
+        </div>
+        <div>
+          <Label>Backup storage (MB)</Label>
+          <Input
+            name="backupStorageMb"
+            defaultValue={plan?.backupStorageMb ?? 20480}
+            inputMode="numeric"
+          />
         </div>
         <div>
           <Label>Price $/mo</Label>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { formatBytes } from "@/lib/utils";
 import { PanelNotConfigured } from "@/components/admin/PanelNotConfigured";
 import { ConfirmSubmitButton } from "@/components/admin/ConfirmSubmitButton";
-import { SubmitButton } from "@/components/admin/SubmitButton";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import {
   adminTerminate,
   retryProvision,

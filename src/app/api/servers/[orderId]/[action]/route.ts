@@ -981,6 +981,8 @@ export async function POST(
       case "delete-backup":
         await pteroClient.deleteBackup(id, String(body.uuid));
         break;
+      case "lock-backup":
+        return NextResponse.json(await pteroClient.toggleBackupLock(id, String(body.uuid)));
       case "restore-backup":
         await pteroClient.restoreBackup(id, String(body.uuid));
         break;

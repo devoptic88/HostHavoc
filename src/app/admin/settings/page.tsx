@@ -1,4 +1,4 @@
-import { CreditCard, Globe, PlugZap, ShieldCheck } from "lucide-react";
+import { CreditCard, Globe, LifeBuoy, PlugZap, ShieldCheck } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 const SECTIONS: {
   title: string;
-  icon: "panel" | "stripe" | "dns";
+  icon: "panel" | "stripe" | "dns" | "support";
   description: string;
   fields: { key: SettingKey; label: string; secret: boolean; hint?: string; placeholder?: string }[];
 }[] = [
@@ -88,6 +88,35 @@ const SECTIONS: {
       },
     ],
   },
+  {
+    title: "Support Center",
+    icon: "support",
+    description:
+      "Powers the customer Support Center. Leave the Intercom ID blank to keep live chat hidden and point customers at tickets instead.",
+    fields: [
+      {
+        key: "INTERCOM_APP_ID",
+        label: "Intercom workspace ID",
+        secret: false,
+        placeholder: "abcd1234",
+        hint: "Intercom → Settings → Installation → Web. The short app_id, not an API key.",
+      },
+      {
+        key: "SUPPORT_HOURS",
+        label: "Support hours",
+        secret: false,
+        placeholder: "11am - 8pm (America/Chicago)",
+        hint: "Shown on the Support Center page.",
+      },
+      {
+        key: "SUPPORT_PHONE",
+        label: "Support phone number",
+        secret: false,
+        placeholder: "+1-888-000-0000",
+        hint: "Optional. Hidden when blank.",
+      },
+    ],
+  },
 ];
 
 function mask(value: string): string {
@@ -119,6 +148,8 @@ export default async function AdminSettingsPage() {
                   <PlugZap className="h-5 w-5 text-hyper-400" />
                 ) : section.icon === "dns" ? (
                   <Globe className="h-5 w-5 text-hyper-400" />
+                ) : section.icon === "support" ? (
+                  <LifeBuoy className="h-5 w-5 text-hyper-400" />
                 ) : (
                   <CreditCard className="h-5 w-5 text-hyper-400" />
                 )}

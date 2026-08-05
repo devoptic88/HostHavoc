@@ -27,6 +27,7 @@ import {
   upsertServerDns,
 } from "@/lib/dns";
 import { stripe, stripeConfigured } from "@/lib/stripe";
+import { accountUsage } from "@/lib/accountUsage";
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AppAllocation, AppEggVariable, ClientEggVariable } from "@/lib/pterodactyl";
@@ -1008,6 +1009,62 @@ export async function unsuspendOrder(orderId: string, nextStatus: "ACTIVE" | "SU
   await db.order.update({
     where: { id: orderId },
     data: { status: nextStatus, deleteAfterAt: null, errorMessage: null },
+  });
+}
+
+/**
+ * Park a LITE instance: stop it, suspend it on the panel, and free the
+ * customer's deploy slot. The server and its files stay in place, so waking is
+ * instant and lossless — unlike a true archive-and-delete, which Pterodactyl
+ * can't do without external object storage because deleting a server also
+ * destroys its backups.
+ */
+export async function hibernateOrder(orderId: string): Promise<void> {
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { plan: true },
+  });
+  if (!order) throw new Error("Order not found");
+  if (order.plan.tier !== "LITE") {
+    throw new Error("Only LITE servers can hibernate — PRO servers stay online 24/7");
+  }
+  if (order.status === "HIBERNATING") return;
+
+  if (order.pteroServerIdentifier) {
+    await pteroClient.sendPower(order.pteroServerIdentifier, "stop").catch(() => {});
+  }
+  if (order.pteroServerId) {
+    await pteroApp.suspendServer(order.pteroServerId);
+  }
+
+  await db.order.update({
+    where: { id: orderId },
+    data: { status: "HIBERNATING", hibernatedAt: new Date(), deleteAfterAt: null },
+  });
+}
+
+/** Bring a hibernated LITE instance back online, if a deploy slot is free. */
+export async function wakeOrder(orderId: string): Promise<void> {
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { plan: true },
+  });
+  if (!order) throw new Error("Order not found");
+  if (order.status !== "HIBERNATING") return;
+
+  const usage = await accountUsage(order.userId);
+  if (usage.deployed >= usage.deploySlots) {
+    throw new Error(
+      "All of your deploy slots are in use. Hibernate another server or buy another slot first.",
+    );
+  }
+
+  if (order.pteroServerId) {
+    await pteroApp.unsuspendServer(order.pteroServerId);
+  }
+  await db.order.update({
+    where: { id: orderId },
+    data: { status: "ACTIVE", hibernatedAt: null, errorMessage: null },
   });
 }
 

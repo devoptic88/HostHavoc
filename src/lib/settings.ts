@@ -16,6 +16,9 @@ export const SETTING_KEYS = [
   "CLOUDFLARE_API_TOKEN",
   "CLOUDFLARE_ZONE_ID",
   "SERVER_DOMAIN",
+  "INTERCOM_APP_ID",
+  "SUPPORT_HOURS",
+  "SUPPORT_PHONE",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
@@ -55,6 +58,11 @@ export async function getSettings(): Promise<Record<SettingKey, string>> {
     out[key] = dbValues[key] ?? process.env[key] ?? "";
   }
   return out;
+}
+
+/** Intercom workspace id; empty string means live chat stays off. */
+export async function intercomAppId() {
+  return (await getSetting("INTERCOM_APP_ID")).trim();
 }
 
 /** Which keys currently have a DB override (vs env fallback / unset). */

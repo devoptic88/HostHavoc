@@ -201,6 +201,10 @@ export const restoreBackup = (id: string, backupUuid: string) =>
 export const getBackupDownload = (id: string, backupUuid: string) =>
   client<PteroItem<{ url: string }>>(`/servers/${id}/backups/${backupUuid}/download`);
 
+/** Toggles the lock; locked backups survive the auto-delete sweep. */
+export const toggleBackupLock = (id: string, backupUuid: string) =>
+  client<PteroItem<Backup>>(`/servers/${id}/backups/${backupUuid}/lock`, { method: "POST" });
+
 // ─── Databases ──────────────────────────────────────────────────────────
 
 export const listDatabases = (id: string) =>
