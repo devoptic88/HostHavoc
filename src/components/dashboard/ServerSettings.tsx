@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Input";
-import { Toggle } from "@/components/ui/Toggle";
+import { AutoSaveToggleRow } from "@/components/dashboard/AutoSaveToggleRow";
 import { cn, slugify } from "@/lib/utils";
 
 const FALLBACK_TIMEZONES = [
@@ -73,14 +73,6 @@ export function ServerSettings({
     return `${base}.hypernode.gg`;
   }, [name]);
 
-  const [webRedirect, setWebRedirect] = useState(initialWebRedirect ?? false);
-  const [webRedirectBusy, setWebRedirectBusy] = useState(false);
-  const [webRedirectMsg, setWebRedirectMsg] = useState<string | null>(null);
-
-  const [streamerMode, setStreamerMode] = useState(initialStreamerMode ?? false);
-  const [streamerModeBusy, setStreamerModeBusy] = useState(false);
-  const [streamerModeMsg, setStreamerModeMsg] = useState<string | null>(null);
-
   const [timezone, setTimezone] = useState(initialTimezone ?? "");
   const [savedTimezone, setSavedTimezone] = useState(initialTimezone ?? "");
   const [tzBusy, setTzBusy] = useState(false);
@@ -94,43 +86,27 @@ export function ServerSettings({
     }
   }, []);
 
-  async function toggleWebRedirect(next: boolean) {
-    setWebRedirect(next);
-    setWebRedirectBusy(true);
-    setWebRedirectMsg(null);
-    try {
-      const res = await fetch(`/api/servers/${orderId}/manage-settings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ webRedirect: next }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Failed to update");
-    } catch (err) {
-      setWebRedirect(!next);
-      setWebRedirectMsg(err instanceof Error ? err.message : "Failed to update");
-    } finally {
-      setWebRedirectBusy(false);
+  async function saveWebRedirect(next: boolean) {
+    const res = await fetch(`/api/servers/${orderId}/manage-settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ webRedirect: next }),
+    });
+    if (!res.ok) {
+      throw new Error((await res.json().catch(() => null))?.error ?? "Failed to update");
     }
   }
 
-  async function toggleStreamerMode(next: boolean) {
-    setStreamerMode(next);
-    setStreamerModeBusy(true);
-    setStreamerModeMsg(null);
-    try {
-      const res = await fetch(`/api/servers/${orderId}/manage-settings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ streamerMode: next }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Failed to update");
-      router.refresh();
-    } catch (err) {
-      setStreamerMode(!next);
-      setStreamerModeMsg(err instanceof Error ? err.message : "Failed to update");
-    } finally {
-      setStreamerModeBusy(false);
+  async function saveStreamerMode(next: boolean) {
+    const res = await fetch(`/api/servers/${orderId}/manage-settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ streamerMode: next }),
+    });
+    if (!res.ok) {
+      throw new Error((await res.json().catch(() => null))?.error ?? "Failed to update");
     }
+    router.refresh();
   }
 
   function detectTimezone() {
@@ -328,43 +304,23 @@ export function ServerSettings({
       )}
 
       <div className="glass rounded-2xl p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-              <Waypoints className="h-4 w-4 text-hyper-400" />
-              Web Redirect
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm text-steel-dim">
-              This redirects any traffic to your server over the web, such as via a
-              web-browser, to our website. This will be configurable to your own domain or
-              website in the future. Changes may take a few minutes to go into effect.
-            </p>
-          </div>
-          <Toggle checked={webRedirect} disabled={webRedirectBusy} onChange={toggleWebRedirect} />
-        </div>
-        {webRedirectMsg && <p className="mt-3 text-sm text-danger">{webRedirectMsg}</p>}
+        <AutoSaveToggleRow
+          icon={<Waypoints className="h-4 w-4 text-hyper-400" />}
+          label="Web Redirect"
+          description="This redirects any traffic to your server over the web, such as via a web-browser, to our website. This will be configurable to your own domain or website in the future. Changes may take a few minutes to go into effect."
+          checked={initialWebRedirect ?? false}
+          onSave={saveWebRedirect}
+        />
       </div>
 
       <div className="glass rounded-2xl p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-              <EyeOff className="h-4 w-4 text-hyper-400" />
-              Streamer Mode
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm text-steel-dim">
-              Enabling this feature will hide the server IP from your overview, dashboard, and
-              header. It will also hide all client IPs from your console, enabling you to
-              stream or record the server control panel if you wish.
-            </p>
-          </div>
-          <Toggle
-            checked={streamerMode}
-            disabled={streamerModeBusy}
-            onChange={toggleStreamerMode}
-          />
-        </div>
-        {streamerModeMsg && <p className="mt-3 text-sm text-danger">{streamerModeMsg}</p>}
+        <AutoSaveToggleRow
+          icon={<EyeOff className="h-4 w-4 text-hyper-400" />}
+          label="Streamer Mode"
+          description="Enabling this feature will hide the server IP from your overview, dashboard, and header. It will also hide all client IPs from your console, enabling you to stream or record the server control panel if you wish."
+          checked={initialStreamerMode ?? false}
+          onSave={saveStreamerMode}
+        />
       </div>
 
       <div className="glass rounded-2xl p-6">

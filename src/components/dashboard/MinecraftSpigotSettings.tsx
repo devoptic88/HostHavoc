@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, RotateCw, Save, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Toggle } from "@/components/ui/Toggle";
+import { AutoSaveToggleRow } from "@/components/dashboard/AutoSaveToggleRow";
 import { cn } from "@/lib/utils";
 import {
   SPIGOT_FIELDS,
@@ -64,6 +64,21 @@ export function MinecraftSpigotSettings({ orderId }: { orderId: string }) {
     () => available.map(keyOf).filter((key) => draft[key] !== saved[key]),
     [available, draft, saved],
   );
+
+  async function autoSaveField(field: SpigotField, next: boolean) {
+    const key = keyOf(field);
+    const value = next ? "true" : "false";
+    const res = await fetch(`/api/servers/${orderId}/mc-spigot`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updates: { [field.file]: { [field.path]: value } } }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error ?? "Failed to save setting");
+    setSaved((prev) => ({ ...prev, [key]: value }));
+    setDraft((prev) => ({ ...prev, [key]: value }));
+    setRestartNeeded(true);
+  }
 
   async function submit() {
     if (dirtyKeys.length === 0) return;
@@ -168,6 +183,25 @@ export function MinecraftSpigotSettings({ orderId }: { orderId: string }) {
                 </div>
                 {fields.map((field) => {
                   const key = keyOf(field);
+                  const fileBadge = (
+                    <span className="shrink-0 font-mono text-[10px] text-steel-faint">
+                      {field.file}.yml
+                    </span>
+                  );
+
+                  if (field.type === "toggle") {
+                    return (
+                      <AutoSaveToggleRow
+                        key={key}
+                        label={field.label}
+                        description={field.description}
+                        checked={draft[key] === "true"}
+                        onSave={(next) => autoSaveField(field, next)}
+                        trailing={fileBadge}
+                      />
+                    );
+                  }
+
                   return (
                     <div key={key}>
                       <div className="flex items-start justify-between gap-4">
@@ -179,31 +213,17 @@ export function MinecraftSpigotSettings({ orderId }: { orderId: string }) {
                             </p>
                           )}
                         </div>
-                        <span className="shrink-0 font-mono text-[10px] text-steel-faint">
-                          {field.file}.yml
-                        </span>
+                        {fileBadge}
                       </div>
                       <div className="mt-2">
-                        {field.type === "toggle" ? (
-                          <Toggle
-                            checked={draft[key] === "true"}
-                            onChange={(checked) =>
-                              setDraft((prev) => ({
-                                ...prev,
-                                [key]: checked ? "true" : "false",
-                              }))
-                            }
-                          />
-                        ) : (
-                          <Input
-                            value={draft[key] ?? ""}
-                            onChange={(e) =>
-                              setDraft((prev) => ({ ...prev, [key]: e.target.value }))
-                            }
-                            className={field.type === "text" ? "max-w-xl" : "max-w-[12rem]"}
-                            inputMode={field.type === "text" ? undefined : "decimal"}
-                          />
-                        )}
+                        <Input
+                          value={draft[key] ?? ""}
+                          onChange={(e) =>
+                            setDraft((prev) => ({ ...prev, [key]: e.target.value }))
+                          }
+                          className={field.type === "text" ? "max-w-xl" : "max-w-[12rem]"}
+                          inputMode={field.type === "text" ? undefined : "decimal"}
+                        />
                       </div>
                     </div>
                   );

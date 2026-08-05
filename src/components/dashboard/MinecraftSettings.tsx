@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, RotateCw, Save, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Input";
-import { Toggle } from "@/components/ui/Toggle";
+import { AutoSaveToggleRow } from "@/components/dashboard/AutoSaveToggleRow";
 import { cn } from "@/lib/utils";
 import { MC_FIELDS, MC_TABS, type McField, type McTab } from "@/lib/minecraftSettings";
 
@@ -113,6 +113,19 @@ export function MinecraftSettings({
     }
   }
 
+  async function autoSaveField(key: string, value: string) {
+    const res = await fetch(`/api/servers/${orderId}/game-settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updates: { [key]: value } }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error ?? "Failed to save setting");
+    setSaved((prev) => ({ ...(prev ?? {}), [key]: value }));
+    setDraft((prev) => ({ ...prev, [key]: value }));
+    setRestartNeeded(true);
+  }
+
   async function restart() {
     setBusy(true);
     try {
@@ -189,6 +202,7 @@ export function MinecraftSettings({
                   field={field}
                   value={draft[field.key] ?? null}
                   onChange={(value) => setValue(field.key, value)}
+                  onAutoSave={autoSaveField}
                 />
                 {/* Sits directly under MOTD so the pairing is obvious. */}
                 {field.key === "motd" && (
@@ -544,12 +558,25 @@ function SettingRow({
   field,
   value,
   onChange,
+  onAutoSave,
 }: {
   field: McField;
   value: string | null;
   onChange: (value: string | null) => void;
+  onAutoSave: (key: string, value: string) => Promise<void>;
 }) {
   const effective = value ?? field.default ?? "";
+
+  if (field.type === "toggle" && !field.readOnly) {
+    return (
+      <AutoSaveToggleRow
+        label={field.label}
+        description={field.description}
+        checked={effective === "true"}
+        onSave={(next) => onAutoSave(field.key, next ? "true" : "false")}
+      />
+    );
+  }
 
   return (
     <div>
@@ -582,14 +609,6 @@ function SettingInput({
   }
 
   switch (field.type) {
-    case "toggle":
-      return (
-        <Toggle
-          checked={value === "true"}
-          disabled={disabled}
-          onChange={(checked) => onChange(checked ? "true" : "false")}
-        />
-      );
     case "segmented":
       return (
         <div className="inline-flex flex-wrap gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
