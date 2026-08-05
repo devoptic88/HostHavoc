@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { gameBySlug, resolveExistingGamePlan } from "@/lib/plans";
-import { priceFor } from "@/content/games";
+import { gameBySlug, priceForTier, resolveExistingGamePlan, tierLabel } from "@/lib/plans";
+import type { PlanTier } from "@prisma/client";
 import { VPS_PLANS, DEDICATED_PLANS } from "@/content/plans";
 import { getDisplayLocations } from "@/lib/locations";
 import { CheckoutForm } from "@/components/marketing/CheckoutForm";
@@ -13,11 +13,16 @@ export const dynamic = "force-dynamic";
 type Search = {
   game?: string;
   units?: string;
+  tier?: string;
   location?: string;
   product?: string;
   plan?: string;
   cancelled?: string;
 };
+
+function normalizeTier(value: string | undefined): PlanTier {
+  return value?.toUpperCase() === "LITE" ? "LITE" : "PRO";
+}
 
 export default async function CheckoutPage({
   searchParams,
@@ -64,7 +69,7 @@ export default async function CheckoutPage({
         const plan = await resolveExistingGamePlan(game, searchParams.plan);
         summary = {
           title: `${game.name} Server`,
-          detail: `${plan.name}${plan.slots ? ` · ${plan.slots} ${game.pricingUnit === "gb" ? "GB RAM" : "player slots"}` : ""}`,
+          detail: `${plan.name}${plan.slots ? ` · ${plan.slots} ${game.pricingUnit === "gb" ? "GB RAM" : "player slots"}` : ""} · ${tierLabel(plan.tier)}`,
           price: Number(plan.priceMonthly),
           payload: {
             game: game.slug,
@@ -79,13 +84,15 @@ export default async function CheckoutPage({
     } else if (game && game.slotOptions.includes(units)) {
       const { locations } = await getDisplayLocations();
       const loc = locations.find((l) => l.id === Number(searchParams.location));
+      const tier = normalizeTier(searchParams.tier);
       summary = {
         title: `${game.name} Server`,
-        detail: `${units} ${game.pricingUnit === "gb" ? "GB RAM" : "player slots"}`,
-        price: priceFor(game, units),
+        detail: `${units} ${game.pricingUnit === "gb" ? "GB RAM" : "player slots"} · ${tierLabel(tier)}`,
+        price: priceForTier(game, units, tier),
         payload: {
           game: game.slug,
           units,
+          tier,
           location: loc?.id ?? locations[0]?.id,
         },
         locationName: loc?.long ?? locations[0]?.long,

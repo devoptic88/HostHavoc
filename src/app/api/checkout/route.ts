@@ -10,6 +10,10 @@ function normalizeRustCheckoutProfile(value: unknown) {
   return ["vanilla", "staging", "oxide"].includes(normalized) ? normalized : "vanilla";
 }
 
+function normalizeTier(value: unknown) {
+  return String(value ?? "").trim().toUpperCase() === "LITE" ? "LITE" : "PRO";
+}
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user) {
@@ -37,7 +41,7 @@ export async function POST(req: Request) {
       if (!game) throw new Error("Unknown game");
       plan = body.plan
         ? await resolveExistingGamePlan(game, String(body.plan))
-        : await resolveGamePlan(game, Number(body.units));
+        : await resolveGamePlan(game, Number(body.units), normalizeTier(body.tier));
       locationId = Number.isFinite(Number(body.location)) && Number(body.location) > 0
         ? Number(body.location)
         : null;

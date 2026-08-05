@@ -1,41 +1,38 @@
 import { db } from "@/lib/db";
-import { GAMES, priceFor, type Game } from "@/content/games";
+import { GAMES, type Game } from "@/content/games";
 import { VPS_PLANS, DEDICATED_PLANS } from "@/content/plans";
-import type { Plan, ProductType } from "@prisma/client";
+import { gamePlanName, gameResources, priceForTier } from "@/lib/gamePricing";
+import type { Plan, PlanTier, ProductType } from "@prisma/client";
+
+export { tierLabel, priceForTier, gameResources } from "@/lib/gamePricing";
 
 export type LiveGamePlanOption = {
   id: string;
   name: string;
   slots: number;
   priceMonthly: number;
+  tier: PlanTier;
+  ramMb: number;
+  databases: number;
+  backups: number;
+  diskMb: number;
 };
-
-/** Resource heuristics for game plans — editable later in Admin → Plans. */
-export function gameResources(game: Game, units: number) {
-  const ramMb =
-    game.pricingUnit === "gb"
-      ? units * 1024
-      : Math.min(16384, Math.max(3072, Math.round(units * 160)));
-  return {
-    ramMb,
-    cpuPercent: Math.min(400, Math.max(200, Math.round(ramMb / 24))),
-    diskMb: Math.min(81920, ramMb * 4),
-  };
-}
-
-function planName(game: Game, units: number) {
-  return `${game.name} — ${units} ${game.pricingUnit === "gb" ? "GB" : "slots"}`;
-}
 
 /**
  * Find or lazily create the DB Plan row for a configuration. Egg mapping is
  * inherited from any existing plan for the same game so admins only map once.
+ * Every game supports both tiers this way — LITE just applies a price
+ * discount and a save slot, no separate catalog entry is required.
  */
-export async function resolveGamePlan(game: Game, units: number): Promise<Plan> {
+export async function resolveGamePlan(
+  game: Game,
+  units: number,
+  tier: PlanTier = "PRO",
+): Promise<Plan> {
   if (!game.slotOptions.includes(units)) {
     throw new Error("Invalid configuration");
   }
-  const name = planName(game, units);
+  const name = gamePlanName(game, units, tier);
   const existing = await db.plan.findFirst({
     where: { productType: "GAME_SERVER", gameSlug: game.slug, name },
   });
@@ -54,7 +51,10 @@ export async function resolveGamePlan(game: Game, units: number): Promise<Plan> 
       ramMb: res.ramMb,
       cpuPercent: res.cpuPercent,
       diskMb: res.diskMb,
-      priceMonthly: priceFor(game, units),
+      tier,
+      deploySlots: 1,
+      saveSlots: tier === "LITE" ? 2 : 0,
+      priceMonthly: priceForTier(game, units, tier),
       eggId: sibling?.eggId ?? null,
       nestId: sibling?.nestId ?? null,
     },
@@ -90,6 +90,11 @@ export async function listGamePlanOptions(gameSlug: string): Promise<LiveGamePla
     name: plan.name,
     slots: plan.slots ?? 0,
     priceMonthly: Number(plan.priceMonthly),
+    tier: plan.tier,
+    ramMb: plan.ramMb,
+    databases: plan.databases,
+    backups: plan.backups,
+    diskMb: plan.diskMb,
   }));
 }
 
