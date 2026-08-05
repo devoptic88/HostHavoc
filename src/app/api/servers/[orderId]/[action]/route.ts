@@ -116,6 +116,34 @@ async function getJavaImages(order: { pteroServerId: number | null }) {
   };
 }
 
+/**
+ * The jar the server boots, plus the jars actually sitting in its root. Kept
+ * as a picker rather than a free-text egg variable so a typo can't produce an
+ * unbootable server with an inscrutable error.
+ */
+async function getServerJarChoices(serverId: string) {
+  const [startup, listing] = await Promise.all([
+    pteroClient.getStartup(serverId),
+    pteroClient.listFiles(serverId, "/").catch(() => null),
+  ]);
+
+  const variable = startup.data
+    .map((item) => item.attributes)
+    .find((entry) => entry.is_editable && isJarFileVariable(entry));
+
+  const jars = (listing?.data ?? [])
+    .map((item) => item.attributes)
+    .filter((file) => file.is_file && file.name.toLowerCase().endsWith(".jar"))
+    .map((file) => file.name)
+    .sort((a, b) => a.localeCompare(b));
+
+  return {
+    jarVariable: variable?.env_variable ?? null,
+    currentJar: variable?.server_value ?? null,
+    jars,
+  };
+}
+
 class HttpError extends Error {
   constructor(
     public status: number,
@@ -797,7 +825,11 @@ export async function GET(
       case "mc-java": {
         await requireMinecraft(params.orderId);
         const { order } = await resolveServer(params.orderId);
-        return NextResponse.json(await getJavaImages(order));
+        const [images, jarChoices] = await Promise.all([
+          getJavaImages(order),
+          getServerJarChoices(id),
+        ]);
+        return NextResponse.json({ ...images, ...jarChoices });
       }
       case "mc-spigot": {
         await requireMinecraft(params.orderId);
@@ -1359,12 +1391,30 @@ export async function POST(
       case "mc-java": {
         await requireMinecraft(params.orderId);
         const image = String(body.image ?? "").trim();
-        if (!image) throw new HttpError(400, "image required");
-        const { images } = await getJavaImages(order);
-        if (!images.some((entry) => entry.image === image)) {
-          throw new HttpError(400, "Image is not allowed by this server's egg");
+        const jar = String(body.jar ?? "").trim();
+        if (!image && !jar) throw new HttpError(400, "image or jar required");
+
+        if (image) {
+          const { images } = await getJavaImages(order);
+          if (!images.some((entry) => entry.image === image)) {
+            throw new HttpError(400, "Image is not allowed by this server's egg");
+          }
+          await pteroClient.setDockerImage(id, image);
         }
-        await pteroClient.setDockerImage(id, image);
+
+        if (jar) {
+          // Only jars that actually exist in the server root are selectable,
+          // so the server can never be pointed at a missing file.
+          const { jarVariable, jars } = await getServerJarChoices(id);
+          if (!jarVariable) {
+            throw new HttpError(400, "This server's egg has no configurable jar file");
+          }
+          if (!jars.includes(jar)) {
+            throw new HttpError(400, `${jar} is not present in this server's files`);
+          }
+          await pteroClient.updateVariable(id, jarVariable, jar);
+        }
+
         return NextResponse.json({ ok: true, restartRequired: true });
       }
       case "install-plugin": {

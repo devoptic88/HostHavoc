@@ -225,8 +225,12 @@ function JavaSettings({ orderId, onSaved }: { orderId: string; onSaved: () => vo
   const [data, setData] = useState<{
     current: string;
     images: { label: string; image: string }[];
+    jarVariable: string | null;
+    currentJar: string | null;
+    jars: string[];
   } | null>(null);
   const [choice, setChoice] = useState("");
+  const [jarChoice, setJarChoice] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -239,6 +243,7 @@ function JavaSettings({ orderId, onSaved }: { orderId: string; onSaved: () => vo
       if (!res.ok) throw new Error(payload?.error ?? "Failed to load Java settings");
       setData(payload);
       setChoice(payload.current);
+      setJarChoice(payload.currentJar ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load Java settings");
     }
@@ -248,22 +253,30 @@ function JavaSettings({ orderId, onSaved }: { orderId: string; onSaved: () => vo
     load();
   }, [load]);
 
-  async function save() {
+  async function save(patch: { image?: string; jar?: string }, successText: string) {
     setBusy(true);
     setMsg(null);
     try {
       const res = await fetch(`/api/servers/${orderId}/mc-java`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: choice }),
+        body: JSON.stringify(patch),
       });
       const payload = await res.json();
-      if (!res.ok) throw new Error(payload?.error ?? "Failed to update Java version");
-      setData((prev) => (prev ? { ...prev, current: choice } : prev));
-      setMsg("Java runtime updated.");
+      if (!res.ok) throw new Error(payload?.error ?? "Failed to save");
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...(patch.image ? { current: patch.image } : {}),
+              ...(patch.jar ? { currentJar: patch.jar } : {}),
+            }
+          : prev,
+      );
+      setMsg(successText);
       onSaved();
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Failed to update Java version");
+      setMsg(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setBusy(false);
     }
@@ -311,20 +324,59 @@ function JavaSettings({ orderId, onSaved }: { orderId: string; onSaved: () => vo
                 variant="secondary"
                 size="sm"
                 disabled={busy || choice === data.current}
-                onClick={save}
+                onClick={() => save({ image: choice }, "Java runtime updated.")}
               >
                 <Save className="h-3.5 w-3.5" /> Save
               </Button>
             </div>
           </div>
+          {data.jarVariable && (
+            <div>
+              <p className="text-sm font-semibold text-white">Server Jar</p>
+              <p className="mt-0.5 max-w-xl text-xs text-steel-faint">
+                The jar this server boots. Only jars present in your server files are listed —
+                upload one in the File Manager and it will appear here.
+              </p>
+              <div className="mt-2 flex max-w-xl items-center gap-2">
+                <Select
+                  value={jarChoice}
+                  onChange={(e) => setJarChoice(e.target.value)}
+                  disabled={data.jars.length === 0}
+                >
+                  {data.jars.length === 0 ? (
+                    <option value="">No jars found in the server root</option>
+                  ) : (
+                    data.jars.map((jar) => (
+                      <option key={jar} value={jar}>
+                        {jar}
+                      </option>
+                    ))
+                  )}
+                  {data.currentJar && !data.jars.includes(data.currentJar) && (
+                    <option value={data.currentJar}>{data.currentJar} (missing)</option>
+                  )}
+                </Select>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy || !jarChoice || jarChoice === data.currentJar}
+                  onClick={() => save({ jar: jarChoice }, "Server jar updated.")}
+                >
+                  <Save className="h-3.5 w-3.5" /> Save
+                </Button>
+              </div>
+              {data.currentJar && !data.jars.includes(data.currentJar) && (
+                <p className="mt-2 text-xs text-warning">
+                  The configured jar ({data.currentJar}) is not in your server files — the server
+                  will fail to start until you pick one that exists.
+                </p>
+              )}
+            </div>
+          )}
+
           <p className="text-xs text-steel-faint">
             Server memory comes from your plan and is applied as a container limit — the JVM
-            sizes its heap from that automatically, so there is no RAM setting here. Any
-            startup variables your server&apos;s egg does expose are on the{" "}
-            <a href={`/dashboard/servers/${orderId}/startup`} className="text-hyper-300 underline">
-              Startup Variables
-            </a>{" "}
-            page.
+            sizes its heap from that automatically, so there is no RAM setting here.
           </p>
           {msg && <p className="text-sm text-steel">{msg}</p>}
         </div>

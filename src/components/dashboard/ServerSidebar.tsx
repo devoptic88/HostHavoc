@@ -107,10 +107,12 @@ export function ServerSidebar({
           path: "/game-settings",
           label: "Game Settings",
           icon: Gamepad2,
+          // No raw Startup Variables entry for Minecraft: the Java tab covers
+          // the jar and runtime, and the One-Click Installer covers versions.
+          // Editing those as free-text env vars only invites unbootable servers.
           children: [
             { path: "/game-settings", label: "Minecraft Server Settings" },
             { path: "/spigot-settings", label: "Spigot Settings" },
-            { path: "/startup", label: "Startup Variables" },
           ],
         }
       : { path: "/startup", label: "Game Settings", icon: Gamepad2 };
