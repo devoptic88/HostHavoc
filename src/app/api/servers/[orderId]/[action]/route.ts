@@ -11,6 +11,20 @@ import {
   resolveMcDownload,
   resolveMcEgg,
 } from "@/lib/minecraftInstaller";
+import {
+  dashUuid,
+  isMcPlayerList,
+  lookupMojangProfile,
+  MC_PLAYER_FILES,
+  parsePlayerFile,
+  sameUuid,
+  serializePlayerFile,
+  type BanEntry,
+  type IpBanEntry,
+  type McPlayerList,
+  type OpEntry,
+  type WhitelistEntry,
+} from "@/lib/minecraftPlayers";
 import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
 import { provisionOrder } from "@/lib/provision";
 import {
@@ -59,6 +73,21 @@ async function requireMinecraft(orderId: string) {
   if (order?.plan.gameSlug !== "minecraft") {
     throw new HttpError(400, "This action is only available for Minecraft servers");
   }
+}
+
+async function readPlayerList<T>(serverId: string, list: McPlayerList): Promise<T[]> {
+  try {
+    return parsePlayerFile<T>(await pteroClient.getFileContents(serverId, MC_PLAYER_FILES[list]));
+  } catch (err) {
+    // A server that has never booted has no player files yet — that's an
+    // empty list, not an error.
+    if (err instanceof PterodactylError && err.status === 404) return [];
+    throw err;
+  }
+}
+
+async function writePlayerList(serverId: string, list: McPlayerList, entries: unknown[]) {
+  await pteroClient.writeFile(serverId, MC_PLAYER_FILES[list], serializePlayerFile(entries));
 }
 
 /** Allowed Java runtimes = the egg's docker_images map (label → image tag). */
@@ -756,6 +785,23 @@ export async function GET(
         const { order } = await resolveServer(params.orderId);
         return NextResponse.json(await getJavaImages(order));
       }
+      case "mc-players": {
+        await requireMinecraft(params.orderId);
+        const [whitelist, ops, bans, ipbans, resources] = await Promise.all([
+          readPlayerList<WhitelistEntry>(id, "whitelist"),
+          readPlayerList<OpEntry>(id, "ops"),
+          readPlayerList<BanEntry>(id, "bans"),
+          readPlayerList<IpBanEntry>(id, "ipbans"),
+          pteroClient.getResources(id).catch(() => null),
+        ]);
+        return NextResponse.json({
+          whitelist,
+          ops,
+          bans,
+          ipbans,
+          running: resources?.attributes.current_state === "running",
+        });
+      }
       case "plugin-catalog": {
         const catalog = await fetchUmodPluginCatalog();
         return NextResponse.json({
@@ -944,6 +990,168 @@ export async function POST(
           data: { rustInstallProfile: profile, rustPendingReinstallProfile: null },
         });
         break;
+      }
+      case "mc-players": {
+        await requireMinecraft(params.orderId);
+        const list = body.list;
+        const op = String(body.op ?? "");
+        if (!isMcPlayerList(list)) throw new HttpError(400, "Unknown player list");
+        if (op !== "add" && op !== "remove") throw new HttpError(400, "op must be add or remove");
+
+        const running =
+          (await pteroClient.getResources(id).catch(() => null))?.attributes.current_state ===
+          "running";
+
+        /**
+         * Minecraft holds these lists in memory while running and rewrites the
+         * JSON itself whenever the matching command runs — so the command has
+         * to go first, and our file write second, or the server clobbers the
+         * richer fields (ban reason, OP level) with its own defaults.
+         */
+        const applyLive = async (command: string) => {
+          if (!running) return;
+          await pteroClient.sendCommand(id, command).catch(() => {});
+          // Give the daemon a moment to flush its own write before ours lands.
+          await new Promise((resolve) => setTimeout(resolve, 400));
+        };
+
+        if (list === "ipbans") {
+          const ip = String(body.ip ?? "").trim();
+          if (!/^[0-9.:a-fA-F]{3,45}$/.test(ip)) throw new HttpError(400, "Enter a valid IP address");
+          const entries = await readPlayerList<IpBanEntry>(id, "ipbans");
+          if (op === "add") {
+            if (entries.some((entry) => entry.ip === ip)) {
+              throw new HttpError(409, `${ip} is already banned`);
+            }
+            entries.push({
+              ip,
+              created: new Date().toISOString(),
+              source: "HyperNode",
+              expires: "forever",
+              reason: String(body.reason ?? "").trim() || "Banned by an operator.",
+            });
+          } else {
+            const index = entries.findIndex((entry) => entry.ip === ip);
+            if (index === -1) throw new HttpError(404, `${ip} is not banned`);
+            entries.splice(index, 1);
+          }
+          const ipReason = String(body.reason ?? "").trim();
+          await applyLive(
+            op === "add"
+              ? `ban-ip ${ip}${ipReason ? ` ${ipReason}` : ""}`
+              : `pardon-ip ${ip}`,
+          );
+          await writePlayerList(id, "ipbans", entries);
+          return NextResponse.json({
+            ok: true,
+            entries,
+            note: running ? "Applied to the running server." : null,
+          });
+        }
+
+        // Player lists are keyed by UUID, so a username has to be resolved.
+        const username = String(body.username ?? "").trim();
+        const providedUuid = String(body.uuid ?? "").trim();
+        let uuid = providedUuid ? dashUuid(providedUuid) : "";
+        let name = username;
+
+        if (op === "add" || !uuid) {
+          const profile = await lookupMojangProfile(username).catch(() => {
+            throw new HttpError(502, "Could not reach Mojang to look up that username");
+          });
+          if (!profile) {
+            throw new HttpError(404, `No Minecraft account named "${username}"`);
+          }
+          uuid = profile.uuid;
+          name = profile.name;
+        }
+
+        if (list === "whitelist") {
+          const entries = await readPlayerList<WhitelistEntry>(id, "whitelist");
+          if (op === "add") {
+            if (entries.some((entry) => sameUuid(entry.uuid, uuid))) {
+              throw new HttpError(409, `${name} is already on the allowlist`);
+            }
+            entries.push({ uuid, name });
+          } else {
+            const index = entries.findIndex((entry) => sameUuid(entry.uuid, uuid));
+            if (index === -1) throw new HttpError(404, `${name} is not on the allowlist`);
+            entries.splice(index, 1);
+          }
+          await writePlayerList(id, "whitelist", entries);
+          // Unlike the others, whitelist has a reload command that re-reads our
+          // file, so writing first and reloading after is the correct order.
+          if (running) {
+            await pteroClient.sendCommand(id, "whitelist reload").catch(() => {});
+          }
+          return NextResponse.json({
+            ok: true,
+            entries,
+            note: running ? "Applied live via whitelist reload." : null,
+          });
+        }
+
+        if (list === "ops") {
+          const entries = await readPlayerList<OpEntry>(id, "ops");
+          if (op === "add") {
+            const level = Number(body.level ?? 4);
+            if (![1, 2, 3, 4].includes(level)) throw new HttpError(400, "OP level must be 1-4");
+            const existing = entries.find((entry) => sameUuid(entry.uuid, uuid));
+            if (existing) {
+              // Re-adding an existing operator updates their level.
+              existing.level = level;
+              existing.name = name;
+            } else {
+              entries.push({ uuid, name, level, bypassesPlayerLimit: false });
+            }
+          } else {
+            const index = entries.findIndex((entry) => sameUuid(entry.uuid, uuid));
+            if (index === -1) throw new HttpError(404, `${name} is not an operator`);
+            entries.splice(index, 1);
+          }
+          await applyLive(op === "add" ? `op ${name}` : `deop ${name}`);
+          await writePlayerList(id, "ops", entries);
+          return NextResponse.json({
+            ok: true,
+            entries,
+            // Vanilla has no command to set a permission level, so the live
+            // server ops at its default until it re-reads ops.json on boot.
+            note: running
+              ? op === "add"
+                ? "Operator applied live. The permission level takes effect after a restart."
+                : "Applied to the running server."
+              : null,
+          });
+        }
+
+        const entries = await readPlayerList<BanEntry>(id, "bans");
+        if (op === "add") {
+          if (entries.some((entry) => sameUuid(entry.uuid, uuid))) {
+            throw new HttpError(409, `${name} is already banned`);
+          }
+          entries.push({
+            uuid,
+            name,
+            created: new Date().toISOString(),
+            source: "HyperNode",
+            expires: "forever",
+            reason: String(body.reason ?? "").trim() || "Banned by an operator.",
+          });
+        } else {
+          const index = entries.findIndex((entry) => sameUuid(entry.uuid, uuid));
+          if (index === -1) throw new HttpError(404, `${name} is not banned`);
+          entries.splice(index, 1);
+        }
+        const banReason = String(body.reason ?? "").trim();
+        await applyLive(
+          op === "add" ? `ban ${name}${banReason ? ` ${banReason}` : ""}` : `pardon ${name}`,
+        );
+        await writePlayerList(id, "bans", entries);
+        return NextResponse.json({
+          ok: true,
+          entries,
+          note: running ? "Applied to the running server." : null,
+        });
       }
       case "mc-install": {
         await requireMinecraft(params.orderId);

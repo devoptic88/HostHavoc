@@ -19,6 +19,7 @@ import {
   TerminalSquare,
   Timer,
   Repeat,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatUptime } from "@/lib/utils";
@@ -114,6 +115,9 @@ export function ServerSidebar({
 
   const items = [
     { path: "", label: "Overview", icon: Gauge },
+    ...(gameSlug === "minecraft"
+      ? [{ path: "/players", label: "Players", icon: Users }]
+      : []),
     gameSettingsItem,
     { path: "/console", label: "Console", icon: TerminalSquare },
     {
