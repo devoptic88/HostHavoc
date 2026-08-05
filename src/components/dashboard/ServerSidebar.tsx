@@ -20,6 +20,7 @@ import {
   Timer,
   Repeat,
   Users,
+  Puzzle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatUptime } from "@/lib/utils";
@@ -119,6 +120,9 @@ export function ServerSidebar({
       ? [{ path: "/players", label: "Players", icon: Users }]
       : []),
     gameSettingsItem,
+    ...(gameSlug === "minecraft"
+      ? [{ path: "/plugins", label: "Plugins", icon: Puzzle }]
+      : []),
     { path: "/console", label: "Console", icon: TerminalSquare },
     {
       path: "/files",

@@ -25,6 +25,13 @@ import {
   type OpEntry,
   type WhitelistEntry,
 } from "@/lib/minecraftPlayers";
+import {
+  getPlugin,
+  listPopularPlugins,
+  pluginFileName,
+  resolvePluginDownloadUrl,
+  searchPlugins,
+} from "@/lib/minecraftPlugins";
 import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
 import { provisionOrder } from "@/lib/provision";
 import {
@@ -785,6 +792,37 @@ export async function GET(
         const { order } = await resolveServer(params.orderId);
         return NextResponse.json(await getJavaImages(order));
       }
+      case "mc-plugin-catalog": {
+        await requireMinecraft(params.orderId);
+        const query = url.searchParams.get("q") ?? "";
+        const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
+        const plugins = query
+          ? await searchPlugins(query, page)
+          : await listPopularPlugins(page);
+        return NextResponse.json({ plugins, page, query });
+      }
+      case "mc-plugins": {
+        await requireMinecraft(params.orderId);
+        // Probe the root rather than listing /plugins blind: Wings answers a
+        // missing directory with a 500, which we must not confuse with a real
+        // daemon failure. A server with no /plugins isn't a plugin platform.
+        const root = await pteroClient.listFiles(id, "/");
+        const hasPluginsDir = root.data
+          .map((item) => item.attributes)
+          .some((file) => !file.is_file && file.name === "plugins");
+        if (!hasPluginsDir) {
+          return NextResponse.json({ installed: [], supported: false });
+        }
+
+        const listing = await pteroClient.listFiles(id, "/plugins");
+        return NextResponse.json({
+          installed: listing.data
+            .map((item) => item.attributes)
+            .filter((file) => file.is_file && file.name.toLowerCase().endsWith(".jar"))
+            .map((file) => ({ name: file.name, size: file.size, modified: file.modified_at })),
+          supported: true,
+        });
+      }
       case "mc-players": {
         await requireMinecraft(params.orderId);
         const [whitelist, ops, bans, ipbans, resources] = await Promise.all([
@@ -990,6 +1028,51 @@ export async function POST(
           data: { rustInstallProfile: profile, rustPendingReinstallProfile: null },
         });
         break;
+      }
+      case "mc-plugin-install": {
+        await requireMinecraft(params.orderId);
+        const pluginId = Number(body.pluginId);
+        if (!Number.isInteger(pluginId) || pluginId <= 0) {
+          throw new HttpError(400, "A valid plugin id is required");
+        }
+
+        const plugin = await getPlugin(pluginId).catch(() => null);
+        if (!plugin) throw new HttpError(404, "That plugin could not be found on SpigotMC");
+        if (plugin.external) {
+          throw new HttpError(
+            400,
+            `${plugin.name} is hosted off-site and can't be installed automatically — download it from SpigotMC and upload it to /plugins.`,
+          );
+        }
+        if (plugin.premium) {
+          throw new HttpError(400, `${plugin.name} is a paid resource and can't be installed here.`);
+        }
+
+        const downloadUrl = await resolvePluginDownloadUrl(plugin.id).catch(() => null);
+        if (!downloadUrl) {
+          throw new HttpError(502, `Could not resolve a download URL for ${plugin.name}`);
+        }
+
+        // Wings needs the directory to exist before it will pull into it.
+        await pteroClient.createFolder(id, "/", "plugins").catch(() => {});
+        const fileName = pluginFileName(plugin);
+        await pteroClient.pullFile(id, downloadUrl, "/plugins", fileName);
+
+        return NextResponse.json({
+          ok: true,
+          fileName,
+          note: `${plugin.name} is downloading into /plugins. Restart the server to load it.`,
+        });
+      }
+      case "mc-plugin-remove": {
+        await requireMinecraft(params.orderId);
+        const fileName = String(body.fileName ?? "").trim();
+        // Keep deletes inside /plugins — no separators, no traversal.
+        if (!/^[A-Za-z0-9._-]+\.jar$/.test(fileName)) {
+          throw new HttpError(400, "Invalid plugin file name");
+        }
+        await pteroClient.deleteFiles(id, "/plugins", [fileName]);
+        return NextResponse.json({ ok: true, note: "Removed. Restart the server to unload it." });
       }
       case "mc-players": {
         await requireMinecraft(params.orderId);
