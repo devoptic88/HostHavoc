@@ -26,6 +26,7 @@ import {
   subdomainFromName,
   upsertServerDns,
 } from "@/lib/dns";
+import { stripe, stripeConfigured } from "@/lib/stripe";
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AppAllocation, AppEggVariable, ClientEggVariable } from "@/lib/pterodactyl";
@@ -1033,12 +1034,31 @@ export async function scheduleOrderTermination(orderId: string, now = new Date()
   });
 }
 
+/**
+ * Stop billing before anything else in terminateOrder, so a later infra
+ * failure (Pterodactyl unreachable, etc.) can never leave a customer's card
+ * being charged for a server that's already gone or about to be deleted.
+ * Best-effort: an already-cancelled subscription must not block termination.
+ */
+async function cancelStripeSubscription(subscriptionId: string) {
+  if (!(await stripeConfigured())) return;
+  try {
+    await (await stripe()).subscriptions.cancel(subscriptionId);
+  } catch (err) {
+    console.warn(`Stripe subscription cancel failed for ${subscriptionId}: ${String(err)}`);
+  }
+}
+
 export async function terminateOrder(orderId: string): Promise<void> {
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: { plan: true },
   });
   if (!order) return;
+
+  if (order.stripeSubscriptionId) {
+    await cancelStripeSubscription(order.stripeSubscriptionId);
+  }
 
   if (order.pteroServerId) {
     try {
@@ -1070,6 +1090,91 @@ export async function terminateOrder(orderId: string): Promise<void> {
       errorMessage: null,
     },
   });
+}
+
+/**
+ * One-time repair for the bug where terminateOrder() never cancelled the
+ * Stripe subscription: finds every order we've already cancelled on our side
+ * that still names a subscription, checks its live status in Stripe, and
+ * cancels any that Stripe still shows as active. Dry run by default so the
+ * exact list can be reviewed before anything is actually cancelled.
+ */
+export async function cleanupStaleSubscriptions(dryRun: boolean) {
+  if (!(await stripeConfigured())) {
+    throw new Error("Stripe is not configured");
+  }
+  const s = await stripe();
+
+  const candidates = await db.order.findMany({
+    where: { status: "CANCELLED", stripeSubscriptionId: { not: null } },
+    select: { id: true, serverName: true, stripeSubscriptionId: true, updatedAt: true },
+  });
+
+  const results: {
+    orderId: string;
+    serverName: string;
+    subscriptionId: string;
+    stripeStatus: string;
+    action: "already_canceled" | "canceled" | "would_cancel" | "not_found" | "error";
+    detail?: string;
+  }[] = [];
+
+  for (const order of candidates) {
+    const subscriptionId = order.stripeSubscriptionId!;
+    try {
+      const sub = await s.subscriptions.retrieve(subscriptionId);
+      if (sub.status === "canceled") {
+        results.push({
+          orderId: order.id,
+          serverName: order.serverName,
+          subscriptionId,
+          stripeStatus: sub.status,
+          action: "already_canceled",
+        });
+        continue;
+      }
+
+      if (dryRun) {
+        results.push({
+          orderId: order.id,
+          serverName: order.serverName,
+          subscriptionId,
+          stripeStatus: sub.status,
+          action: "would_cancel",
+        });
+      } else {
+        await s.subscriptions.cancel(subscriptionId);
+        results.push({
+          orderId: order.id,
+          serverName: order.serverName,
+          subscriptionId,
+          stripeStatus: sub.status,
+          action: "canceled",
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      results.push({
+        orderId: order.id,
+        serverName: order.serverName,
+        subscriptionId,
+        stripeStatus: "unknown",
+        action: message.toLowerCase().includes("no such subscription") ? "not_found" : "error",
+        detail: message,
+      });
+    }
+  }
+
+  return {
+    dryRun,
+    scanned: candidates.length,
+    alreadyCanceled: results.filter((r) => r.action === "already_canceled").length,
+    wouldCancel: results.filter((r) => r.action === "would_cancel").length,
+    canceled: results.filter((r) => r.action === "canceled").length,
+    notFound: results.filter((r) => r.action === "not_found").length,
+    errors: results.filter((r) => r.action === "error").length,
+    results,
+  };
 }
 
 export async function cleanupExpiredOrders(now = new Date()) {
