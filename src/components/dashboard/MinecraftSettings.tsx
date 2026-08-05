@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, RotateCw, Save, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/Input";
@@ -35,7 +36,13 @@ const UI_TABS: { id: UiTab; label: string }[] = [
   ...MC_TABS.slice(1),
 ];
 
-export function MinecraftSettings({ orderId }: { orderId: string }) {
+export function MinecraftSettings({
+  orderId,
+  serverName,
+}: {
+  orderId: string;
+  serverName: string;
+}) {
   const [tab, setTab] = useState<UiTab>("basic");
   const [saved, setSaved] = useState<FieldState | null>(null);
   const [draft, setDraft] = useState<FieldState>({});
@@ -180,13 +187,25 @@ export function MinecraftSettings({ orderId }: { orderId: string }) {
           <p className="text-sm text-steel-dim">Loading settings…</p>
         ) : (
           <div className="space-y-6">
+            {tab === "basic" && (
+              <ServerNameField orderId={orderId} initialName={serverName} />
+            )}
             {tabFields.map((field) => (
-              <SettingRow
-                key={field.key}
-                field={field}
-                value={draft[field.key] ?? null}
-                onChange={(value) => setValue(field.key, value)}
-              />
+              <div key={field.key} className="space-y-6">
+                <SettingRow
+                  field={field}
+                  value={draft[field.key] ?? null}
+                  onChange={(value) => setValue(field.key, value)}
+                />
+                {/* Sits directly under MOTD so the pairing is obvious. */}
+                {field.key === "motd" && (
+                  <MotdPreview
+                    name={serverName}
+                    motd={draft["motd"] ?? ""}
+                    maxPlayers={draft["max-players"] ?? "20"}
+                  />
+                )}
+              </div>
             ))}
 
             <div className="flex items-center gap-2 border-t border-white/[0.06] pt-5">
@@ -217,6 +236,149 @@ export function MinecraftSettings({ orderId }: { orderId: string }) {
         )}
       </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The server's own name. Minecraft has no `server-name` property — the label
+ * in a player's multiplayer list is whatever they typed when adding the server
+ * — so this is the instance name, shared with Manage Instance.
+ */
+function ServerNameField({
+  orderId,
+  initialName,
+}: {
+  orderId: string;
+  initialName: string;
+}) {
+  const router = useRouter();
+  const [name, setName] = useState(initialName);
+  const [saved, setSaved] = useState(initialName);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/servers/${orderId}/rename`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? "Rename failed");
+      setSaved(name);
+      setMsg("Server renamed.");
+      router.refresh();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Rename failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-white">Server Name</p>
+      <p className="mt-0.5 max-w-xl text-xs text-steel-faint">
+        The name of this server in your dashboard and control panel. Players see the name they
+        saved you under plus your MOTD, so put anything you want them to read in the MOTD below.
+      </p>
+      <div className="mt-2 flex max-w-xl items-center gap-2">
+        <Input
+          value={name}
+          maxLength={60}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && name.trim() && name !== saved) save();
+          }}
+        />
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={busy || !name.trim() || name === saved}
+          onClick={save}
+        >
+          <Save className="h-3.5 w-3.5" /> Save
+        </Button>
+      </div>
+      {msg && <p className="mt-2 text-xs text-steel-dim">{msg}</p>}
+    </div>
+  );
+}
+
+/** Minecraft legacy colour/format codes, as used in MOTDs. */
+const MC_COLORS: Record<string, string> = {
+  "0": "#000000", "1": "#0000AA", "2": "#00AA00", "3": "#00AAAA",
+  "4": "#AA0000", "5": "#AA00AA", "6": "#FFAA00", "7": "#AAAAAA",
+  "8": "#555555", "9": "#5555FF", a: "#55FF55", b: "#55FFFF",
+  c: "#FF5555", d: "#FF55FF", e: "#FFFF55", f: "#FFFFFF",
+};
+
+function renderMotdLine(line: string, keyPrefix: string) {
+  // Split on § codes, carrying colour and bold forward like the game does.
+  const parts = line.split(/(§[0-9a-fk-orA-FK-OR])/);
+  let color = "#AAAAAA";
+  let bold = false;
+  const nodes: React.ReactNode[] = [];
+
+  parts.forEach((part, index) => {
+    if (/^§[0-9a-fk-orA-FK-OR]$/.test(part)) {
+      const code = part[1].toLowerCase();
+      if (code in MC_COLORS) {
+        color = MC_COLORS[code];
+        bold = false;
+      } else if (code === "l") bold = true;
+      else if (code === "r") {
+        color = "#AAAAAA";
+        bold = false;
+      }
+      return;
+    }
+    if (!part) return;
+    nodes.push(
+      <span key={`${keyPrefix}-${index}`} style={{ color, fontWeight: bold ? 700 : 400 }}>
+        {part}
+      </span>,
+    );
+  });
+
+  return nodes.length > 0 ? nodes : <span style={{ color }}>&nbsp;</span>;
+}
+
+function MotdPreview({
+  name,
+  motd,
+  maxPlayers,
+}: {
+  name: string;
+  motd: string;
+  maxPlayers: string;
+}) {
+  // MOTDs may carry a literal \n for a second line.
+  const lines = motd.replace(/\\n/g, "\n").split("\n").slice(0, 2);
+
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wider text-steel-faint">
+        MOTD Preview
+      </p>
+      <div className="mt-2 flex max-w-xl items-start gap-3 rounded-xl border border-white/10 bg-[#1a1a1a] p-3">
+        <div className="h-10 w-10 shrink-0 rounded bg-[#2f2f2f]" />
+        <div className="min-w-0 flex-1 font-mono text-[13px] leading-snug">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="truncate font-semibold text-white">{name}</span>
+            <span className="shrink-0 text-[11px] text-[#AAAAAA]">0/{maxPlayers || "20"}</span>
+          </div>
+          {lines.map((line, index) => (
+            <div key={index} className="truncate">
+              {renderMotdLine(line, `motd-${index}`)}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

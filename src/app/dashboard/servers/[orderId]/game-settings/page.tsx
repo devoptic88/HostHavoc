@@ -24,7 +24,7 @@ export default async function GameSettingsPage({
         title="Minecraft Server Settings"
         description="Configure basic game, world, gamemode, NPC, and advanced settings. Changes are written to server.properties."
       />
-      <MinecraftSettings orderId={params.orderId} />
+      <MinecraftSettings orderId={params.orderId} serverName={order.serverName} />
     </div>
   );
 }
