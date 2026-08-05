@@ -13,6 +13,9 @@ export const SETTING_KEYS = [
   "PTERODACTYL_CLIENT_API_KEY",
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
+  "CLOUDFLARE_API_TOKEN",
+  "CLOUDFLARE_ZONE_ID",
+  "SERVER_DOMAIN",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];

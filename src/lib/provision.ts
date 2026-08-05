@@ -19,6 +19,13 @@ import {
   serializeRustAllocations,
   type RustTrackedAllocation,
 } from "@/lib/rustAllocations";
+import {
+  dnsConfigured,
+  isReservedSubdomain,
+  removeServerDns,
+  subdomainFromName,
+  upsertServerDns,
+} from "@/lib/dns";
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AppAllocation, AppEggVariable, ClientEggVariable } from "@/lib/pterodactyl";
@@ -654,6 +661,64 @@ async function applyMinecraftEula(order: ProvisionableOrder, serverIdentifier: s
   }
 }
 
+/**
+ * Claim a free DNS label for this order. Names collide constantly ("survival"
+ * is not an original thought), so a short suffix is appended until the label is
+ * free in our own table — the unique index is the real arbiter.
+ */
+async function reserveSubdomain(orderId: string, serverName: string) {
+  const base = subdomainFromName(serverName, orderId);
+  const suffix = orderId.slice(-4).toLowerCase();
+
+  const candidates = [
+    base,
+    `${base}-${suffix}`,
+    `${base}-${orderId.slice(-8).toLowerCase()}`,
+  ];
+
+  for (const candidate of candidates) {
+    if (isReservedSubdomain(candidate)) continue;
+    const taken = await db.order.findFirst({
+      where: { subdomain: candidate, NOT: { id: orderId } },
+      select: { id: true },
+    });
+    if (!taken) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Give the server its own address. Best-effort: a DNS failure must never fail
+ * an otherwise-working provision, it just leaves the customer on IP:port.
+ */
+async function applyServerDns(
+  order: ProvisionableOrder,
+  allocation: { ip: string; port: number } | null,
+) {
+  if (!allocation) return;
+  if (!(await dnsConfigured())) return;
+
+  const sub = order.subdomain ?? (await reserveSubdomain(order.id, order.serverName));
+  if (!sub) {
+    console.warn(`[provision] no free subdomain for order ${order.id}`);
+    return;
+  }
+
+  await upsertServerDns(sub, allocation);
+  await db.order.update({ where: { id: order.id }, data: { subdomain: sub } });
+  console.info(`[provision] dns ${sub} -> ${allocation.ip}:${allocation.port} for ${order.id}`);
+}
+
+/** The public ip/port a client should be pointed at. */
+async function defaultAllocationFor(serverIdentifier: string) {
+  const details = await pteroClient.getClientServer(serverIdentifier);
+  const allocation = details.attributes.relationships?.allocations?.data
+    .map((item) => item.attributes)
+    .find((item) => item.is_default);
+  if (!allocation) return null;
+  return { ip: allocation.ip_alias ?? allocation.ip, port: allocation.port };
+}
+
 async function applyRustProvisioningDefaults(
   order: ProvisionableOrder,
   serverIdentifier: string,
@@ -737,6 +802,9 @@ export async function provisionOrder(orderId: string): Promise<void> {
           console.warn(`Minecraft EULA write failed for recovered order ${order.id}: ${String(err)}`);
         });
       }
+      await applyServerDns(order, await defaultAllocationFor(recoverable.identifier)).catch(
+        (err) => console.warn(`DNS setup failed for recovered order ${order.id}: ${String(err)}`),
+      );
       return;
     }
 
@@ -884,6 +952,10 @@ export async function provisionOrder(orderId: string): Promise<void> {
       });
     }
 
+    await applyServerDns(order, await defaultAllocationFor(attrs.identifier)).catch((err) =>
+      console.warn(`DNS setup failed for order ${order.id}: ${String(err)}`),
+    );
+
     try {
       await pteroClient.createSubuser(
         attrs.identifier,
@@ -978,6 +1050,14 @@ export async function terminateOrder(orderId: string): Promise<void> {
 
   await releaseRustAllocations(order);
 
+  // Free the address so the label can be reused, and so we don't leave records
+  // pointing at a node that no longer runs this server.
+  if (order.subdomain) {
+    await removeServerDns(order.subdomain).catch((err) =>
+      console.warn(`DNS cleanup failed for order ${orderId}: ${String(err)}`),
+    );
+  }
+
   await db.order.update({
     where: { id: orderId },
     data: {
@@ -985,6 +1065,7 @@ export async function terminateOrder(orderId: string): Promise<void> {
       pteroServerId: null,
       pteroServerIdentifier: null,
       rustAllocations: Prisma.DbNull,
+      subdomain: null,
       deleteAfterAt: null,
       errorMessage: null,
     },

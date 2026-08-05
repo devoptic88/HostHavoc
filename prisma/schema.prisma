@@ -100,6 +100,9 @@ model Order {
   // writes eula=true only once this is set, so the agreement is always the
   // customer's, never ours.
   minecraftEulaAcceptedAt DateTime?
+  // DNS label under SERVER_DOMAIN, e.g. "survival" -> survival.hypernode.gg.
+  // Unique so two servers can never claim the same address.
+  subdomain     String?     @unique
   deleteAfterAt DateTime?
   errorMessage  String?
   createdAt     DateTime    @default(now())

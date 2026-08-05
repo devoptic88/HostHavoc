@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { ServerSettings } from "@/components/dashboard/ServerSettings";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
+import { dnsConfigured, serverDomain } from "@/lib/dns";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function ServerSettingsPage({
     include: { plan: true },
   });
   if (!order) notFound();
+  const [dnsOn, domain] = await Promise.all([dnsConfigured(), serverDomain()]);
   return (
     <div>
       <SectionHeader
@@ -27,6 +29,8 @@ export default async function ServerSettingsPage({
         orderId={order.id}
         currentName={order.serverName}
         gameSlug={order.plan.gameSlug}
+        subdomain={order.subdomain}
+        domain={dnsOn ? domain : null}
       />
     </div>
   );

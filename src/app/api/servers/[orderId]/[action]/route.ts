@@ -34,6 +34,14 @@ import {
 } from "@/lib/minecraftPlugins";
 import { applyYamlUpdates, parseYamlPaths } from "@/lib/minecraftYaml";
 import {
+  dnsConfigured,
+  isReservedSubdomain,
+  isValidSubdomain,
+  removeServerDns,
+  serverDomain,
+  upsertServerDns,
+} from "@/lib/dns";
+import {
   getSpigotField,
   SPIGOT_FILES,
   validateSpigotValue,
@@ -77,6 +85,16 @@ async function resolveServer(orderId: string) {
     throw new HttpError(409, "Server is not provisioned yet");
   }
   return { id: order.pteroServerIdentifier, order };
+}
+
+/** The public ip/port clients should connect to. */
+async function defaultAllocationFor(serverIdentifier: string) {
+  const details = await pteroClient.getClientServer(serverIdentifier);
+  const allocation = details.attributes.relationships?.allocations?.data
+    .map((item) => item.attributes)
+    .find((item) => item.is_default);
+  if (!allocation) return null;
+  return { ip: allocation.ip_alias ?? allocation.ip, port: allocation.port };
 }
 
 async function requireMinecraft(orderId: string) {
@@ -1064,6 +1082,46 @@ export async function POST(
         const contents = await pteroClient.getFileContents(id, "/server.properties");
         await pteroClient.writeFile(id, "/server.properties", applySettings(contents, normalized));
         return NextResponse.json({ ok: true, restartRequired: true });
+      }
+      case "subdomain": {
+        const requested = String(body.subdomain ?? "").trim().toLowerCase();
+        if (!(await dnsConfigured())) {
+          throw new HttpError(409, "Custom addresses are not enabled on this platform");
+        }
+        if (!isValidSubdomain(requested)) {
+          throw new HttpError(
+            400,
+            "Use 1–63 letters, numbers, or hyphens, not starting or ending with a hyphen",
+          );
+        }
+        if (isReservedSubdomain(requested)) {
+          throw new HttpError(400, `"${requested}" is reserved`);
+        }
+
+        const clash = await db.order.findFirst({
+          where: { subdomain: requested, NOT: { id: params.orderId } },
+          select: { id: true },
+        });
+        if (clash) throw new HttpError(409, `${requested} is already taken`);
+
+        const allocation = await defaultAllocationFor(id);
+        if (!allocation) throw new HttpError(409, "Server has no allocation yet");
+
+        const previous = order.subdomain;
+        await upsertServerDns(requested, allocation);
+        if (previous && previous !== requested) {
+          await removeServerDns(previous).catch(() => {});
+        }
+        await db.order.update({
+          where: { id: params.orderId },
+          data: { subdomain: requested },
+        });
+
+        return NextResponse.json({
+          ok: true,
+          subdomain: requested,
+          hostname: `${requested}.${await serverDomain()}`,
+        });
       }
       case "rename":
         await pteroClient.renameServer(id, String(body.name));

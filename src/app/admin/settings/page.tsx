@@ -1,4 +1,4 @@
-import { CreditCard, PlugZap, ShieldCheck } from "lucide-react";
+import { CreditCard, Globe, PlugZap, ShieldCheck } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 const SECTIONS: {
   title: string;
-  icon: "panel" | "stripe";
+  icon: "panel" | "stripe" | "dns";
   description: string;
   fields: { key: SettingKey; label: string; secret: boolean; hint?: string; placeholder?: string }[];
 }[] = [
@@ -61,6 +61,33 @@ const SECTIONS: {
       },
     ],
   },
+  {
+    title: "Server subdomains (Cloudflare)",
+    icon: "dns",
+    description:
+      "Gives every game server its own address, so customers share name.yourdomain instead of an IP and port. Leave blank to disable — servers then show their IP and port as before.",
+    fields: [
+      {
+        key: "SERVER_DOMAIN",
+        label: "Server domain",
+        secret: false,
+        placeholder: "hypernode.gg",
+        hint: "Subdomains are created under this zone, e.g. survival.hypernode.gg.",
+      },
+      {
+        key: "CLOUDFLARE_API_TOKEN",
+        label: "Cloudflare API token",
+        secret: true,
+        hint: "My Profile → API Tokens → Create Token, with Zone → DNS → Edit on this zone only.",
+      },
+      {
+        key: "CLOUDFLARE_ZONE_ID",
+        label: "Zone ID",
+        secret: false,
+        hint: "Cloudflare dashboard → the domain → Overview, bottom right.",
+      },
+    ],
+  },
 ];
 
 function mask(value: string): string {
@@ -90,6 +117,8 @@ export default async function AdminSettingsPage() {
               <div className="mb-1 flex items-center gap-2.5">
                 {section.icon === "panel" ? (
                   <PlugZap className="h-5 w-5 text-hyper-400" />
+                ) : section.icon === "dns" ? (
+                  <Globe className="h-5 w-5 text-hyper-400" />
                 ) : (
                   <CreditCard className="h-5 w-5 text-hyper-400" />
                 )}

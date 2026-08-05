@@ -2,19 +2,23 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Rocket, Save, Settings2 } from "lucide-react";
+import { AlertTriangle, Copy, Globe, Rocket, Save, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { slugify } from "@/lib/utils";
+import { cn, slugify } from "@/lib/utils";
 
 export function ServerSettings({
   orderId,
   currentName,
   gameSlug,
+  subdomain,
+  domain,
 }: {
   orderId: string;
   currentName: string;
   gameSlug?: string | null;
+  subdomain?: string | null;
+  domain?: string | null;
 }) {
   const router = useRouter();
   const [name, setName] = useState(currentName);
@@ -22,10 +26,44 @@ export function ServerSettings({
   const [busy, setBusy] = useState(false);
   const isRust = gameSlug === "rust";
 
+  const [sub, setSub] = useState(subdomain ?? "");
+  const [savedSub, setSavedSub] = useState(subdomain ?? "");
+  const [subMsg, setSubMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [subBusy, setSubBusy] = useState(false);
+
   const hostname = useMemo(() => {
     const base = slugify(name) || "rust-server";
     return `${base}.hypernode.gg`;
   }, [name]);
+
+  async function saveSubdomain(e: React.FormEvent) {
+    e.preventDefault();
+    setSubBusy(true);
+    setSubMsg(null);
+    try {
+      const res = await fetch(`/api/servers/${orderId}/subdomain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subdomain: sub.trim().toLowerCase() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Could not update the address");
+      setSavedSub(data.subdomain);
+      setSub(data.subdomain);
+      setSubMsg({
+        ok: true,
+        text: `Address updated to ${data.hostname}. DNS changes can take a minute to spread.`,
+      });
+      router.refresh();
+    } catch (err) {
+      setSubMsg({
+        ok: false,
+        text: err instanceof Error ? err.message : "Could not update the address",
+      });
+    } finally {
+      setSubBusy(false);
+    }
+  }
 
   async function rename(e: React.FormEvent) {
     e.preventDefault();
@@ -88,7 +126,68 @@ export function ServerSettings({
         </form>
       </div>
 
-      {isRust && (
+      {domain && (
+        <div className="glass rounded-2xl p-6">
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-white">
+            <Globe className="h-4 w-4 text-hyper-400" />
+            Server Address
+          </h2>
+          <p className="mb-4 max-w-2xl text-sm text-steel-dim">
+            The address players connect with. It points at your server on whichever port it runs,
+            so nobody has to type a port number.
+          </p>
+
+          {savedSub ? (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+              <span className="font-mono text-sm text-white">
+                {savedSub}.{domain}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(`${savedSub}.${domain}`);
+                  setSubMsg({ ok: true, text: "Address copied." });
+                }}
+                className="ring-focus rounded-lg px-2 py-1 text-xs text-steel-dim transition-colors hover:bg-white/[0.06] hover:text-white"
+              >
+                <Copy className="mr-1 inline h-3 w-3" /> Copy
+              </button>
+            </div>
+          ) : (
+            <p className="mb-4 text-sm text-steel-faint">
+              No address assigned yet — pick one below.
+            </p>
+          )}
+
+          <form onSubmit={saveSubdomain} className="flex max-w-xl flex-wrap items-center gap-2">
+            <div className="flex min-w-[14rem] flex-1 items-center gap-1.5">
+              <Input
+                value={sub}
+                onChange={(e) => setSub(e.target.value)}
+                placeholder="my-server"
+                maxLength={63}
+                pattern="[A-Za-z0-9\-]+"
+                required
+              />
+              <span className="shrink-0 font-mono text-sm text-steel-faint">.{domain}</span>
+            </div>
+            <Button
+              type="submit"
+              variant="secondary"
+              disabled={subBusy || !sub.trim() || sub.trim().toLowerCase() === savedSub}
+            >
+              <Save className="h-4 w-4" /> Save
+            </Button>
+          </form>
+          {subMsg && (
+            <p className={cn("mt-3 text-sm", subMsg.ok ? "text-steel" : "text-danger")}>
+              {subMsg.text}
+            </p>
+          )}
+        </div>
+      )}
+
+      {isRust && !domain && (
         <div className="glass rounded-2xl p-6">
           <h2 className="mb-4 text-sm font-semibold text-white">Hostname</h2>
           <p className="mb-4 max-w-2xl text-sm text-steel-dim">
