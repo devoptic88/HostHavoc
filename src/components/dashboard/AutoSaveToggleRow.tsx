@@ -50,17 +50,13 @@ export function AutoSaveToggleRow({
   }
 
   return (
-    <div className="flex max-w-2xl items-start justify-between gap-4">
-      <div>
+    <div className="max-w-2xl">
+      <div className="flex items-center gap-3">
         <p className="flex items-center gap-2 text-sm font-semibold text-white">
           {icon}
           {label}
         </p>
-        {description && <p className="mt-1.5 max-w-xl text-xs text-steel-faint">{description}</p>}
-        {error && <p className="mt-1 text-xs text-danger">{error}</p>}
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {trailing}
+        <Toggle checked={value} disabled={busy} onChange={handleChange} />
         <span
           className={cn(
             "text-xs font-medium text-success transition-opacity duration-300",
@@ -69,8 +65,10 @@ export function AutoSaveToggleRow({
         >
           Saved
         </span>
-        <Toggle checked={value} disabled={busy} onChange={handleChange} />
+        {trailing}
       </div>
+      {description && <p className="mt-1.5 max-w-xl text-xs text-steel-faint">{description}</p>}
+      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
     </div>
   );
 }
