@@ -108,7 +108,8 @@ export function ServerSidebar({
           label: "Game Settings",
           icon: Gamepad2,
           children: [
-            { path: "/game-settings", label: "Server Settings" },
+            { path: "/game-settings", label: "Minecraft Server Settings" },
+            { path: "/spigot-settings", label: "Spigot Settings" },
             { path: "/startup", label: "Startup Variables" },
           ],
         }

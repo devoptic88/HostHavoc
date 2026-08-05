@@ -32,6 +32,13 @@ import {
   resolvePluginDownloadUrl,
   searchPlugins,
 } from "@/lib/minecraftPlugins";
+import { applyYamlUpdates, parseYamlPaths } from "@/lib/minecraftYaml";
+import {
+  getSpigotField,
+  SPIGOT_FILES,
+  validateSpigotValue,
+  type SpigotFile,
+} from "@/lib/minecraftSpigot";
 import { formatPterodactylError } from "@/lib/pterodactyl/errorMessages";
 import { provisionOrder } from "@/lib/provision";
 import {
@@ -792,6 +799,25 @@ export async function GET(
         const { order } = await resolveServer(params.orderId);
         return NextResponse.json(await getJavaImages(order));
       }
+      case "mc-spigot": {
+        await requireMinecraft(params.orderId);
+        const files = await Promise.all(
+          (Object.keys(SPIGOT_FILES) as SpigotFile[]).map(async (file) => {
+            try {
+              const text = await pteroClient.getFileContents(id, SPIGOT_FILES[file]);
+              return [file, Object.fromEntries(parseYamlPaths(text))] as const;
+            } catch {
+              // Absent on vanilla/Fabric servers — reported as unsupported.
+              return [file, null] as const;
+            }
+          }),
+        );
+        const values = Object.fromEntries(files);
+        return NextResponse.json({
+          values,
+          supported: Boolean(values.spigot || values.bukkit),
+        });
+      }
       case "mc-plugin-catalog": {
         await requireMinecraft(params.orderId);
         const query = url.searchParams.get("q") ?? "";
@@ -1028,6 +1054,37 @@ export async function POST(
           data: { rustInstallProfile: profile, rustPendingReinstallProfile: null },
         });
         break;
+      }
+      case "mc-spigot": {
+        await requireMinecraft(params.orderId);
+        const updates =
+          body && typeof body.updates === "object" && body.updates !== null
+            ? (body.updates as Record<string, Record<string, unknown>>)
+            : null;
+        if (!updates) throw new HttpError(400, "updates payload required");
+
+        const written: string[] = [];
+        for (const file of Object.keys(updates) as SpigotFile[]) {
+          if (!(file in SPIGOT_FILES)) throw new HttpError(400, `Unknown config file: ${file}`);
+          const entries = updates[file];
+          if (!entries || Object.keys(entries).length === 0) continue;
+
+          const normalized: Record<string, string> = {};
+          for (const [path, rawValue] of Object.entries(entries)) {
+            const field = getSpigotField(file, path);
+            if (!field) throw new HttpError(400, `Unknown setting: ${file}/${path}`);
+            const value = String(rawValue ?? "").trim();
+            const error = validateSpigotValue(field, value);
+            if (error) throw new HttpError(400, error);
+            normalized[path] = value;
+          }
+
+          const text = await pteroClient.getFileContents(id, SPIGOT_FILES[file]);
+          await pteroClient.writeFile(id, SPIGOT_FILES[file], applyYamlUpdates(text, normalized));
+          written.push(SPIGOT_FILES[file]);
+        }
+
+        return NextResponse.json({ ok: true, written, restartRequired: true });
       }
       case "mc-plugin-install": {
         await requireMinecraft(params.orderId);
