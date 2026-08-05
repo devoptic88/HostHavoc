@@ -114,8 +114,18 @@ export type DnsTarget = { ip: string; port: number };
 /**
  * Point `<sub>.<domain>` at a server. Existing records for the label are
  * replaced, so this is safe to call again after a port or node change.
+ *
+ * The SRV record is Minecraft-specific — it's what lets the Minecraft client
+ * resolve a non-default port with no port typed by the player. No other game
+ * this platform hosts has an equivalent client-side mechanism, so creating it
+ * for anything else would just be inert clutter in the DNS zone. Callers pass
+ * `minecraftSrv: true` only when the server is actually a Minecraft server.
  */
-export async function upsertServerDns(sub: string, target: DnsTarget) {
+export async function upsertServerDns(
+  sub: string,
+  target: DnsTarget,
+  opts: { minecraftSrv: boolean },
+) {
   const domain = await serverDomain();
   if (!domain) throw new Error("SERVER_DOMAIN is not configured");
 
@@ -137,6 +147,8 @@ export async function upsertServerDns(sub: string, target: DnsTarget) {
       comment: "HyperNode game server",
     }),
   });
+
+  if (!opts.minecraftSrv) return { fqdn, srvName: null };
 
   await cf(`/dns_records`, {
     method: "POST",

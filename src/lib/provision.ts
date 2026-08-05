@@ -705,7 +705,7 @@ async function applyServerDns(
     return;
   }
 
-  await upsertServerDns(sub, allocation);
+  await upsertServerDns(sub, allocation, { minecraftSrv: order.plan.gameSlug === "minecraft" });
   await db.order.update({ where: { id: order.id }, data: { subdomain: sub } });
   console.info(`[provision] dns ${sub} -> ${allocation.ip}:${allocation.port} for ${order.id}`);
 }

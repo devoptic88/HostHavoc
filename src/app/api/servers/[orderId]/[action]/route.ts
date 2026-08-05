@@ -1107,8 +1107,15 @@ export async function POST(
         const allocation = await defaultAllocationFor(id);
         if (!allocation) throw new HttpError(409, "Server has no allocation yet");
 
+        const plan = await db.plan.findUnique({
+          where: { id: order.planId },
+          select: { gameSlug: true },
+        });
+
         const previous = order.subdomain;
-        await upsertServerDns(requested, allocation);
+        await upsertServerDns(requested, allocation, {
+          minecraftSrv: plan?.gameSlug === "minecraft",
+        });
         if (previous && previous !== requested) {
           await removeServerDns(previous).catch(() => {});
         }
