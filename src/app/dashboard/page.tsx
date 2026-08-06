@@ -1,12 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CreditCard, LifeBuoy, Moon, Plus, Search, Server, Zap } from "lucide-react";
+import { ArrowRight, CreditCard, LifeBuoy, Loader2, Moon, Plus, Search, Server, Zap } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { SubmitButton } from "@/components/ui/SubmitButton";
+import { AutoRefresh } from "@/components/dashboard/AutoRefresh";
 import { hibernateServer } from "./actions";
 import { GAMES, gameCapsule, gameHero } from "@/content/games";
 import { normalizePterodactylMessage } from "@/lib/pterodactyl/errorMessages";
@@ -105,6 +106,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   );
 
   const activeGameServers = orders.filter((order) => order.productType === "GAME_SERVER");
+  const hasBackgroundJob = orders.some(
+    (order) => order.hibernationPending || order.status === "PROVISIONING",
+  );
   const activeSpend = orders
     .filter((order) => ["ACTIVE", "PROVISIONING", "PENDING", "GRACE_PERIOD"].includes(order.status))
     .reduce((sum, order) => sum + Number(order.plan.priceMonthly), 0);
@@ -220,12 +224,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                         : "Open the server dashboard for console, files, backups, and settings.")}
                 </div>
                 {order.plan.tier === "LITE" && manageable && (
-                  <form action={hibernateServer}>
-                    <input type="hidden" name="orderId" value={order.id} />
-                    <SubmitButton variant="secondary" pendingLabel="Hibernating…">
-                      <Moon className="h-3.5 w-3.5" /> Hibernate
-                    </SubmitButton>
-                  </form>
+                  order.hibernationPending ? (
+                    <div className="ring-focus inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-steel-dim">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Hibernating…
+                    </div>
+                  ) : (
+                    <form action={hibernateServer}>
+                      <input type="hidden" name="orderId" value={order.id} />
+                      <SubmitButton variant="secondary" pendingLabel="Hibernating…">
+                        <Moon className="h-3.5 w-3.5" /> Hibernate
+                      </SubmitButton>
+                    </form>
+                  )
                 )}
               </div>
             </div>
@@ -299,6 +309,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   };
   return (
     <div className="mx-auto max-w-7xl">
+      {hasBackgroundJob && <AutoRefresh />}
       <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
         <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,18,32,0.96),rgba(9,13,24,0.9))] px-4 py-3 shadow-card">
           <div className="rounded-xl bg-hyper-500/10 p-2 text-hyper-300">

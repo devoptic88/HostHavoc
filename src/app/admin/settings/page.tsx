@@ -1,4 +1,4 @@
-import { CreditCard, Globe, LifeBuoy, PlugZap, ShieldCheck } from "lucide-react";
+import { CreditCard, Database, Globe, LifeBuoy, PlugZap, ShieldCheck } from "lucide-react";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 const SECTIONS: {
   title: string;
-  icon: "panel" | "stripe" | "dns" | "support";
+  icon: "panel" | "stripe" | "dns" | "support" | "storage";
   description: string;
   fields: { key: SettingKey; label: string; secret: boolean; hint?: string; placeholder?: string }[];
 }[] = [
@@ -117,6 +117,44 @@ const SECTIONS: {
       },
     ],
   },
+  {
+    title: "Object storage (LITE hibernation)",
+    icon: "storage",
+    description:
+      "Any S3-compatible bucket — AWS S3, Cloudflare R2, Backblaze B2, MinIO. Without this, hibernating a LITE server only suspends it on the panel (still uses a deploy slot). With it configured, hibernate archives the server to this bucket and fully deletes it from the panel, and waking re-provisions a fresh server and restores the archive onto it.",
+    fields: [
+      {
+        key: "S3_BUCKET",
+        label: "Bucket name",
+        secret: false,
+        hint: "Must already exist — HyperNode does not create it for you.",
+      },
+      {
+        key: "S3_REGION",
+        label: "Region",
+        secret: false,
+        placeholder: "auto",
+        hint: "\"auto\" works for R2. AWS S3 needs a real region, e.g. us-east-1.",
+      },
+      {
+        key: "S3_ENDPOINT",
+        label: "Custom endpoint",
+        secret: false,
+        placeholder: "https://<account>.r2.cloudflarestorage.com",
+        hint: "Leave blank for AWS S3. Required for R2, B2, MinIO, and other non-AWS providers.",
+      },
+      {
+        key: "S3_ACCESS_KEY_ID",
+        label: "Access key ID",
+        secret: false,
+      },
+      {
+        key: "S3_SECRET_ACCESS_KEY",
+        label: "Secret access key",
+        secret: true,
+      },
+    ],
+  },
 ];
 
 function mask(value: string): string {
@@ -150,6 +188,8 @@ export default async function AdminSettingsPage() {
                   <Globe className="h-5 w-5 text-hyper-400" />
                 ) : section.icon === "support" ? (
                   <LifeBuoy className="h-5 w-5 text-hyper-400" />
+                ) : section.icon === "storage" ? (
+                  <Database className="h-5 w-5 text-hyper-400" />
                 ) : (
                   <CreditCard className="h-5 w-5 text-hyper-400" />
                 )}

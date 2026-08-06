@@ -19,6 +19,11 @@ export const SETTING_KEYS = [
   "INTERCOM_APP_ID",
   "SUPPORT_HOURS",
   "SUPPORT_PHONE",
+  "S3_ENDPOINT",
+  "S3_REGION",
+  "S3_BUCKET",
+  "S3_ACCESS_KEY_ID",
+  "S3_SECRET_ACCESS_KEY",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];

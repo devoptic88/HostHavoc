@@ -28,6 +28,13 @@ import {
 } from "@/lib/dns";
 import { stripe, stripeConfigured } from "@/lib/stripe";
 import { accountUsage } from "@/lib/accountUsage";
+import {
+  deleteArchive,
+  hibernationArchiveKey,
+  presignArchiveDownload,
+  storageConfigured,
+  uploadArchive,
+} from "@/lib/storage";
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AppAllocation, AppEggVariable, ClientEggVariable } from "@/lib/pterodactyl";
@@ -1012,12 +1019,37 @@ export async function unsuspendOrder(orderId: string, nextStatus: "ACTIVE" | "SU
   });
 }
 
+const BACKUP_POLL_INTERVAL_MS = 5_000;
+const BACKUP_POLL_TIMEOUT_MS = 10 * 60_000;
+const INSTALL_POLL_INTERVAL_MS = 5_000;
+const INSTALL_POLL_TIMEOUT_MS = 5 * 60_000;
+const FILE_PULL_POLL_INTERVAL_MS = 3_000;
+const FILE_PULL_POLL_TIMEOUT_MS = 3 * 60_000;
+const HIBERNATION_ARCHIVE_NAME = "hypernode-hibernation-archive.tar.gz";
+
+/** Waits for a just-created backup to finish, polling since Wings builds it async. */
+async function waitForBackup(serverId: string, backupUuid: string) {
+  const deadline = Date.now() + BACKUP_POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const listing = await pteroClient.listBackups(serverId);
+    const match = listing.data.map((item) => item.attributes).find((b) => b.uuid === backupUuid);
+    if (match?.is_successful) return match;
+    await sleep(BACKUP_POLL_INTERVAL_MS);
+  }
+  throw new Error("Timed out waiting for the backup to finish before hibernating");
+}
+
 /**
- * Park a LITE instance: stop it, suspend it on the panel, and free the
- * customer's deploy slot. The server and its files stay in place, so waking is
- * instant and lossless — unlike a true archive-and-delete, which Pterodactyl
- * can't do without external object storage because deleting a server also
- * destroys its backups.
+ * Park a LITE instance. When object storage is configured, this is a real
+ * archive-and-delete: back up the server, stream that backup into the
+ * bucket, then delete the server entirely so it holds no deploy slot and
+ * costs the node nothing while parked. Waking re-provisions a fresh server
+ * and restores the archive onto it.
+ *
+ * Without object storage configured, this falls back to suspending the
+ * server in place — it keeps its slot reserved on the node but at least
+ * stops billing-relevant activity, and waking is instant since nothing was
+ * torn down.
  */
 export async function hibernateOrder(orderId: string): Promise<void> {
   const order = await db.order.findUnique({
@@ -1028,19 +1060,111 @@ export async function hibernateOrder(orderId: string): Promise<void> {
   if (order.plan.tier !== "LITE") {
     throw new Error("Only LITE servers can hibernate — PRO servers stay online 24/7");
   }
-  if (order.status === "HIBERNATING") return;
-
-  if (order.pteroServerIdentifier) {
-    await pteroClient.sendPower(order.pteroServerIdentifier, "stop").catch(() => {});
+  if (order.status === "HIBERNATING" || order.hibernationPending) return;
+  if (!order.pteroServerIdentifier || !order.pteroServerId) {
+    throw new Error("Server is not provisioned yet");
   }
-  if (order.pteroServerId) {
+
+  if (!(await storageConfigured())) {
+    await pteroClient.sendPower(order.pteroServerIdentifier, "stop").catch(() => {});
     await pteroApp.suspendServer(order.pteroServerId);
+    await db.order.update({
+      where: { id: orderId },
+      data: { status: "HIBERNATING", hibernatedAt: new Date(), deleteAfterAt: null },
+    });
+    return;
   }
 
   await db.order.update({
     where: { id: orderId },
-    data: { status: "HIBERNATING", hibernatedAt: new Date(), deleteAfterAt: null },
+    data: { hibernationPending: true, errorMessage: null },
   });
+
+  archiveAndHibernate(orderId).catch(async (err) => {
+    const message = err instanceof Error ? err.message : "Hibernation failed";
+    console.error(`Hibernation failed for order ${orderId}: ${message}`);
+    await db.order
+      .update({ where: { id: orderId }, data: { hibernationPending: false, errorMessage: message } })
+      .catch(() => {});
+  });
+}
+
+/** The actual archive-and-delete work, run detached from the request that triggered it. */
+async function archiveAndHibernate(orderId: string): Promise<void> {
+  const order = await db.order.findUniqueOrThrow({
+    where: { id: orderId },
+    include: { plan: true },
+  });
+  const serverId = order.pteroServerIdentifier!;
+
+  await pteroClient.sendPower(serverId, "stop").catch(() => {});
+
+  const existing = await pteroClient.listBackups(serverId);
+  let backup = existing.data.map((item) => item.attributes).find((b) => b.is_successful);
+  if (!backup) {
+    const created = await pteroClient.createBackup(serverId, `hibernate-${Date.now()}`);
+    backup = await waitForBackup(serverId, created.attributes.uuid);
+  }
+
+  const download = await pteroClient.getBackupDownload(serverId, backup.uuid);
+  const response = await fetch(download.attributes.url);
+  if (!response.ok || !response.body) {
+    throw new Error(`Could not download backup for archiving (${response.status})`);
+  }
+
+  const key = hibernationArchiveKey(orderId, backup.uuid);
+  await uploadArchive(key, response.body);
+
+  await pteroApp.deleteServer(order.pteroServerId!);
+  await releaseRustAllocations(order);
+  if (order.subdomain) {
+    await removeServerDns(order.subdomain).catch((err) =>
+      console.warn(`DNS cleanup failed for order ${orderId}: ${String(err)}`),
+    );
+  }
+
+  await db.order.update({
+    where: { id: orderId },
+    data: {
+      status: "HIBERNATING",
+      hibernatedAt: new Date(),
+      hibernationArchiveUrl: key,
+      hibernationPending: false,
+      backupBytes: BigInt(backup.bytes),
+      pteroServerId: null,
+      pteroServerIdentifier: null,
+      rustAllocations: Prisma.DbNull,
+      subdomain: null,
+      deleteAfterAt: null,
+      errorMessage: null,
+    },
+  });
+}
+
+/** Waits for a newly (re-)created server to leave the "installing" state. */
+async function waitForInstall(pteroServerId: number) {
+  const deadline = Date.now() + INSTALL_POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const server = (await pteroApp.getServer(pteroServerId)).attributes;
+    if (server.status !== "installing") return;
+    await sleep(INSTALL_POLL_INTERVAL_MS);
+  }
+  // Not fatal — the pull/decompress below will just run alongside a slower install.
+  console.warn(`Server ${pteroServerId} still installing after the wait — continuing anyway`);
+}
+
+/** Waits for Wings to finish pulling the archive, since files/pull is async on the node. */
+async function waitForPulledFile(serverId: string, filename: string) {
+  const deadline = Date.now() + FILE_PULL_POLL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const listing = await pteroClient.listFiles(serverId, "/").catch(() => null);
+    const file = listing?.data
+      .map((item) => item.attributes)
+      .find((entry) => entry.name === filename);
+    if (file && file.size > 0) return;
+    await sleep(FILE_PULL_POLL_INTERVAL_MS);
+  }
+  throw new Error("Timed out waiting for the archive to download onto the new server");
 }
 
 /** Bring a hibernated LITE instance back online, if a deploy slot is free. */
@@ -1050,7 +1174,7 @@ export async function wakeOrder(orderId: string): Promise<void> {
     include: { plan: true },
   });
   if (!order) throw new Error("Order not found");
-  if (order.status !== "HIBERNATING") return;
+  if (order.status !== "HIBERNATING" || order.hibernationPending) return;
 
   const usage = await accountUsage(order.userId);
   if (usage.deployed >= usage.deploySlots) {
@@ -1059,12 +1183,60 @@ export async function wakeOrder(orderId: string): Promise<void> {
     );
   }
 
-  if (order.pteroServerId) {
-    await pteroApp.unsuspendServer(order.pteroServerId);
+  // Old-style hibernation (suspended, never archived) — the server still
+  // exists on the panel, so waking is just an unsuspend.
+  if (!order.hibernationArchiveUrl) {
+    if (order.pteroServerId) {
+      await pteroApp.unsuspendServer(order.pteroServerId);
+    }
+    await db.order.update({
+      where: { id: orderId },
+      data: { status: "ACTIVE", hibernatedAt: null, errorMessage: null },
+    });
+    return;
   }
+
   await db.order.update({
     where: { id: orderId },
-    data: { status: "ACTIVE", hibernatedAt: null, errorMessage: null },
+    data: { status: "PROVISIONING", hibernationPending: true, errorMessage: null },
+  });
+
+  restoreAndWake(orderId).catch(async (err) => {
+    const message = err instanceof Error ? err.message : "Wake failed";
+    console.error(`Wake failed for order ${orderId}: ${message}`);
+    await db.order
+      .update({ where: { id: orderId }, data: { hibernationPending: false, errorMessage: message } })
+      .catch(() => {});
+  });
+}
+
+/** Re-provisions a fresh server and restores the hibernation archive onto it. */
+async function restoreAndWake(orderId: string): Promise<void> {
+  const before = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  const archiveKey = before.hibernationArchiveUrl!;
+
+  await provisionOrder(orderId);
+
+  const after = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (!after.pteroServerId || !after.pteroServerIdentifier) {
+    throw new Error("Re-provisioning did not produce a server to restore onto");
+  }
+
+  await waitForInstall(after.pteroServerId);
+
+  const downloadUrl = await presignArchiveDownload(archiveKey);
+  await pteroClient.pullFile(after.pteroServerIdentifier, downloadUrl, "/", HIBERNATION_ARCHIVE_NAME);
+  await waitForPulledFile(after.pteroServerIdentifier, HIBERNATION_ARCHIVE_NAME);
+  await pteroClient.decompressFile(after.pteroServerIdentifier, "/", HIBERNATION_ARCHIVE_NAME);
+  await pteroClient.deleteFiles(after.pteroServerIdentifier, "/", [HIBERNATION_ARCHIVE_NAME]);
+
+  await deleteArchive(archiveKey).catch((err) =>
+    console.warn(`Archive cleanup failed for order ${orderId}: ${String(err)}`),
+  );
+
+  await db.order.update({
+    where: { id: orderId },
+    data: { hibernationArchiveUrl: null, hibernationPending: false, errorMessage: null },
   });
 }
 

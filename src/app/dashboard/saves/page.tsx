@@ -41,7 +41,8 @@ export default async function SavedServersPage() {
               </span>
             </h1>
             <p className="mt-1 text-sm text-steel-dim">
-              Instantly load an instance back onto a slot to resume playing at any time.
+              Wake an instance to resume playing — it re-deploys onto a slot with your world and
+              configs restored, which takes a few minutes.
             </p>
           </div>
         </div>
