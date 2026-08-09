@@ -20,19 +20,23 @@ export function IntercomLauncher({
   user,
 }: {
   appId: string;
-  user: { id: string; name: string; email: string };
+  user?: { id: string; name: string; email: string };
 }) {
   useEffect(() => {
     if (!appId) return;
     window.intercomSettings = {
       api_base: "https://api-iam.intercom.io",
       app_id: appId,
-      user_id: user.id,
-      name: user.name,
-      email: user.email,
+      ...(user
+        ? {
+            user_id: user.id,
+            name: user.name,
+            email: user.email,
+          }
+        : {}),
     };
     window.Intercom?.("update", window.intercomSettings);
-  }, [appId, user.id, user.name, user.email]);
+  }, [appId, user]);
 
   if (!appId) return null;
 

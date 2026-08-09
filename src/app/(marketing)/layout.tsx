@@ -1,17 +1,22 @@
-import { Navbar } from "@/components/marketing/Navbar";
-import { Footer } from "@/components/marketing/Footer";
 import Link from "next/link";
+import { IntercomLauncher } from "@/components/dashboard/IntercomLauncher";
+import { Footer } from "@/components/marketing/Footer";
+import { Navbar } from "@/components/marketing/Navbar";
+import { intercomAppId } from "@/lib/settings";
 
-export default function MarketingLayout({
+export default async function MarketingLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const appId = await intercomAppId();
+
   return (
     <div className="flex min-h-screen flex-col">
       <div className="relative overflow-hidden bg-hyper-gradient px-4 py-1.5 text-center text-xs font-semibold text-white">
         <div className="pointer-events-none absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent motion-reduce:hidden" />
-        ⚡ Launch offer — save 15% for life on new services with code{" "}
+        <span aria-hidden="true">⚡ </span>
+        Launch offer - save 15% for life on new services with code{" "}
         <span className="rounded bg-white/20 px-1.5 py-0.5 font-mono">HYPER15</span>{" "}
         <Link href="/games" className="relative underline underline-offset-2">
           Deploy now →
@@ -20,6 +25,7 @@ export default function MarketingLayout({
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />
+      <IntercomLauncher appId={appId} />
     </div>
   );
 }
