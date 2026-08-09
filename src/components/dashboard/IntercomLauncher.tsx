@@ -18,15 +18,36 @@ declare global {
 export function IntercomLauncher({
   appId,
   user,
+  settings,
 }: {
   appId: string;
   user?: { id: string; name: string; email: string };
+  settings?: {
+    alignment?: "left" | "right";
+    horizontalPadding?: number;
+    verticalPadding?: number;
+    hideDefaultLauncher?: boolean;
+    customLauncherSelector?: string;
+    themeMode?: "light" | "dark" | "system";
+    actionColor?: string;
+    backgroundColor?: string;
+    zIndex?: number;
+  };
 }) {
   useEffect(() => {
     if (!appId) return;
     window.intercomSettings = {
       api_base: "https://api-iam.intercom.io",
       app_id: appId,
+      alignment: settings?.alignment,
+      horizontal_padding: settings?.horizontalPadding,
+      vertical_padding: settings?.verticalPadding,
+      hide_default_launcher: settings?.hideDefaultLauncher,
+      custom_launcher_selector: settings?.customLauncherSelector,
+      theme_mode: settings?.themeMode,
+      action_color: settings?.actionColor,
+      background_color: settings?.backgroundColor,
+      z_index: settings?.zIndex,
       ...(user
         ? {
             user_id: user.id,
@@ -36,7 +57,7 @@ export function IntercomLauncher({
         : {}),
     };
     window.Intercom?.("update", window.intercomSettings);
-  }, [appId, user]);
+  }, [appId, settings, user]);
 
   if (!appId) return null;
 

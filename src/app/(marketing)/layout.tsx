@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { IntercomLauncher } from "@/components/dashboard/IntercomLauncher";
 import { Footer } from "@/components/marketing/Footer";
+import { MarketingChatLauncher } from "@/components/marketing/MarketingChatLauncher";
 import { Navbar } from "@/components/marketing/Navbar";
 import { intercomAppId } from "@/lib/settings";
 
@@ -25,7 +26,25 @@ export default async function MarketingLayout({
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />
-      <IntercomLauncher appId={appId} />
+      {appId ? (
+        <>
+          <MarketingChatLauncher />
+          <IntercomLauncher
+            appId={appId}
+            settings={{
+              hideDefaultLauncher: true,
+              customLauncherSelector: "#hypernode-chat-launcher",
+              alignment: "right",
+              horizontalPadding: 20,
+              verticalPadding: 20,
+              themeMode: "dark",
+              actionColor: "#2F6BFF",
+              backgroundColor: "#111827",
+              zIndex: 60,
+            }}
+          />
+        </>
+      ) : null}
     </div>
   );
 }
