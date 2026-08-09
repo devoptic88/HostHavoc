@@ -1149,8 +1149,7 @@ async function waitForInstall(pteroServerId: number) {
     if (server.status !== "installing") return;
     await sleep(INSTALL_POLL_INTERVAL_MS);
   }
-  // Not fatal — the pull/decompress below will just run alongside a slower install.
-  console.warn(`Server ${pteroServerId} still installing after the wait — continuing anyway`);
+  throw new Error("Timed out waiting for the new server to finish installing before restore");
 }
 
 /** Waits for Wings to finish pulling the archive, since files/pull is async on the node. */
@@ -1204,9 +1203,7 @@ export async function wakeOrder(orderId: string): Promise<void> {
   restoreAndWake(orderId).catch(async (err) => {
     const message = err instanceof Error ? err.message : "Wake failed";
     console.error(`Wake failed for order ${orderId}: ${message}`);
-    await db.order
-      .update({ where: { id: orderId }, data: { hibernationPending: false, errorMessage: message } })
-      .catch(() => {});
+    await revertFailedWake(orderId, message).catch(() => {});
   });
 }
 
@@ -1236,7 +1233,47 @@ async function restoreAndWake(orderId: string): Promise<void> {
 
   await db.order.update({
     where: { id: orderId },
-    data: { hibernationArchiveUrl: null, hibernationPending: false, errorMessage: null },
+    data: {
+      hibernationArchiveUrl: null,
+      hibernatedAt: null,
+      hibernationPending: false,
+      errorMessage: null,
+    },
+  });
+}
+
+async function revertFailedWake(orderId: string, message: string) {
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { plan: true },
+  });
+  if (!order) return;
+
+  if (order.pteroServerId) {
+    try {
+      await pteroApp.deleteServer(order.pteroServerId);
+    } catch (err) {
+      if (!(err instanceof PterodactylError && err.status === 404)) throw err;
+    }
+  }
+
+  await releaseRustAllocations(order).catch(() => {});
+  if (order.subdomain) {
+    await removeServerDns(order.subdomain).catch(() => {});
+  }
+
+  await db.order.update({
+    where: { id: orderId },
+    data: {
+      status: "HIBERNATING",
+      hibernationPending: false,
+      errorMessage: message,
+      pteroServerId: null,
+      pteroServerIdentifier: null,
+      rustAllocations: Prisma.DbNull,
+      subdomain: null,
+      deleteAfterAt: null,
+    },
   });
 }
 
