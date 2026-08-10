@@ -1027,6 +1027,22 @@ const FILE_PULL_POLL_INTERVAL_MS = 3_000;
 const FILE_PULL_POLL_TIMEOUT_MS = 3 * 60_000;
 const HIBERNATION_ARCHIVE_NAME = "hypernode-hibernation-archive.tar.gz";
 
+/**
+ * Rust's install directory is dominated by the dedicated-server binary, Unity
+ * engine data, and Steam's own cache — several GB that a wake's re-provision
+ * re-downloads from Steam fresh anyway. Backing those up just makes the
+ * archive (and every upload/download of it) needlessly huge and slow, so
+ * they're excluded; only the world save, player data, and plugin
+ * configs/data need to survive the round trip.
+ */
+const RUST_BACKUP_IGNORE = [
+  "RustDedicated_Data/*",
+  "steamapps/*",
+  "steamcmd/*",
+  "*.log",
+  "logs/*",
+].join("\n");
+
 /** Waits for a just-created backup to finish, polling since Wings builds it async. */
 async function waitForBackup(serverId: string, backupUuid: string) {
   const deadline = Date.now() + BACKUP_POLL_TIMEOUT_MS;
@@ -1123,10 +1139,20 @@ async function archiveAndHibernate(orderId: string): Promise<void> {
   await pteroClient.sendPower(serverId, "stop").catch(() => {});
 
   await setHibernationProgress(orderId, 10, "Preparing backup");
+  // Only reuse a backup this same job already made (e.g. a retry after the
+  // upload step failed) — never an old or manually-made one, which could be
+  // stale (not the world state right before this hibernate) or missing the
+  // size-reducing ignore rules below.
   const existing = await pteroClient.listBackups(serverId);
-  let backup = existing.data.map((item) => item.attributes).find((b) => b.is_successful);
+  let backup = existing.data
+    .map((item) => item.attributes)
+    .find((b) => b.is_successful && b.name.startsWith("hibernate-"));
   if (!backup) {
-    const created = await pteroClient.createBackup(serverId, `hibernate-${Date.now()}`);
+    const created = await pteroClient.createBackup(
+      serverId,
+      `hibernate-${Date.now()}`,
+      order.plan.gameSlug === "rust" ? RUST_BACKUP_IGNORE : undefined,
+    );
     backup = await waitForBackup(serverId, created.attributes.uuid);
   }
 

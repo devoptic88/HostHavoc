@@ -183,10 +183,11 @@ export const getUploadLink = (id: string, directory = "/") =>
 export const listBackups = (id: string) =>
   client<PteroList<Backup>>(`/servers/${id}/backups`);
 
-export const createBackup = (id: string, name?: string) =>
+/** `ignored` is a newline-separated list of gitignore-style globs Wings should skip when zipping. */
+export const createBackup = (id: string, name?: string, ignored?: string) =>
   client<PteroItem<Backup>>(`/servers/${id}/backups`, {
     method: "POST",
-    body: name ? { name } : {},
+    body: { ...(name ? { name } : {}), ...(ignored ? { ignored } : {}) },
   });
 
 export const deleteBackup = (id: string, backupUuid: string) =>
