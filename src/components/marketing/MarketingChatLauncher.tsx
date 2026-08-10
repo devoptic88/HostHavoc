@@ -105,15 +105,17 @@ export function MarketingChatLauncher() {
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        aria-label={expanded ? "Close chat" : "Open chat"}
-        aria-expanded={expanded}
-        className="ring-focus group flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-[linear-gradient(145deg,rgba(16,24,40,0.95),rgba(25,58,125,0.95)_42%,rgba(117,70,173,0.95)_100%)] text-white shadow-[0_16px_40px_rgba(4,8,20,0.5)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_54px_rgba(47,107,255,0.4)]"
-      >
-        <MessageCircleMore className="h-6 w-6 transition group-hover:scale-110" />
-      </button>
+      {!expanded && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          aria-label="Open chat"
+          aria-expanded={false}
+          className="ring-focus group flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-[linear-gradient(145deg,rgba(16,24,40,0.95),rgba(25,58,125,0.95)_42%,rgba(117,70,173,0.95)_100%)] text-white shadow-[0_16px_40px_rgba(4,8,20,0.5)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_54px_rgba(47,107,255,0.4)]"
+        >
+          <MessageCircleMore className="h-6 w-6 transition group-hover:scale-110" />
+        </button>
+      )}
     </div>
   );
 }
