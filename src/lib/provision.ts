@@ -1141,6 +1141,28 @@ async function archiveAndHibernate(orderId: string): Promise<void> {
   });
 }
 
+/**
+ * Wings can take a few seconds to finish wiring up a brand-new container's
+ * own file API even after the Application API stops reporting "installing",
+ * so a Wings-proxied call (files/pull, decompress, delete) made right away
+ * can fail with a transient "There was an error while communicating with
+ * the machine running this server." Retry a handful of times before giving up.
+ */
+async function withWingsRetry<T>(fn: () => Promise<T>, attempts = 5, delayMs = 4000): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const retryable = err instanceof PterodactylError && err.status >= 500;
+      if (!retryable || attempt === attempts) throw err;
+      await sleep(delayMs);
+    }
+  }
+  throw lastErr;
+}
+
 /** Waits for a newly (re-)created server to leave the "installing" state. */
 async function waitForInstall(pteroServerId: number) {
   const deadline = Date.now() + INSTALL_POLL_TIMEOUT_MS;
@@ -1225,12 +1247,22 @@ async function restoreAndWake(orderId: string): Promise<void> {
   }
 
   await waitForInstall(after.pteroServerId);
+  // Give Wings a moment to finish wiring up the new container's own file API
+  // — the Application API can report "not installing" a few seconds before
+  // Wings-proxied calls for this specific server actually succeed.
+  await sleep(5000);
 
   const downloadUrl = await presignArchiveDownload(archiveKey);
-  await pteroClient.pullFile(after.pteroServerIdentifier, downloadUrl, "/", HIBERNATION_ARCHIVE_NAME);
+  await withWingsRetry(() =>
+    pteroClient.pullFile(after.pteroServerIdentifier!, downloadUrl, "/", HIBERNATION_ARCHIVE_NAME),
+  );
   await waitForPulledFile(after.pteroServerIdentifier, HIBERNATION_ARCHIVE_NAME);
-  await pteroClient.decompressFile(after.pteroServerIdentifier, "/", HIBERNATION_ARCHIVE_NAME);
-  await pteroClient.deleteFiles(after.pteroServerIdentifier, "/", [HIBERNATION_ARCHIVE_NAME]);
+  await withWingsRetry(() =>
+    pteroClient.decompressFile(after.pteroServerIdentifier!, "/", HIBERNATION_ARCHIVE_NAME),
+  );
+  await withWingsRetry(() =>
+    pteroClient.deleteFiles(after.pteroServerIdentifier!, "/", [HIBERNATION_ARCHIVE_NAME]),
+  );
 
   await deleteArchive(archiveKey).catch((err) =>
     console.warn(`Archive cleanup failed for order ${orderId}: ${String(err)}`),
