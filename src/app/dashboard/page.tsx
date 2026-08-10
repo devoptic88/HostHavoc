@@ -237,6 +237,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                     </form>
                   )
                 )}
+                {order.status !== "FAILED" && !order.hibernationPending && order.errorMessage && (
+                  <p className="text-xs text-danger">{order.errorMessage}</p>
+                )}
               </div>
             </div>
           </div>

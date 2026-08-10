@@ -1195,9 +1195,14 @@ export async function wakeOrder(orderId: string): Promise<void> {
     return;
   }
 
+  // Deliberately leave status as HIBERNATING here — provisionOrder (called
+  // from restoreAndWake) has its own guard that no-ops if status is already
+  // PROVISIONING, since that's normally a sign another call is mid-flight.
+  // Pre-empting that status ourselves would trip the same guard on
+  // ourselves. hibernationPending is the signal the UI uses instead.
   await db.order.update({
     where: { id: orderId },
-    data: { status: "PROVISIONING", hibernationPending: true, errorMessage: null },
+    data: { hibernationPending: true, errorMessage: null },
   });
 
   restoreAndWake(orderId).catch(async (err) => {

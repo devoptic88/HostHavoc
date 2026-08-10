@@ -1,11 +1,12 @@
 import Image from "next/image";
-import { Moon, Sparkles } from "lucide-react";
+import { Loader2, Moon, Sparkles } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { SubmitButton } from "@/components/ui/SubmitButton";
+import { AutoRefresh } from "@/components/dashboard/AutoRefresh";
 import { GAMES, gameHero } from "@/content/games";
 import { accountUsage } from "@/lib/accountUsage";
 import { formatDate } from "@/lib/utils";
@@ -25,9 +26,11 @@ export default async function SavedServersPage() {
   ]);
 
   const slotsFull = usage.deployed >= usage.deploySlots;
+  const hasWaking = saved.some((order) => order.hibernationPending);
 
   return (
     <div className="mx-auto max-w-7xl">
+      {hasWaking && <AutoRefresh />}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <span className="mt-0.5 text-steel-dim">
@@ -115,24 +118,34 @@ export default async function SavedServersPage() {
                       </div>
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-steel-dim">
                         <span className="h-1.5 w-1.5 rounded-full bg-steel-faint" />
-                        Hibernating
+                        {order.hibernationPending ? "Waking" : "Hibernating"}
                       </span>
                     </div>
 
                     <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <form action={wakeServer}>
-                        <input type="hidden" name="orderId" value={order.id} />
-                        <SubmitButton
-                          variant="primary"
-                          pendingLabel="Waking…"
-                        >
-                          Wake &amp; play
-                        </SubmitButton>
-                      </form>
-                      <p className="text-xs text-steel-faint">
-                        Waking uses one deploy slot ({usage.deployed}/{usage.deploySlots} in use).
-                      </p>
+                      {order.hibernationPending ? (
+                        <div className="ring-focus inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-steel-dim">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Waking — this can take a
+                          few minutes
+                        </div>
+                      ) : (
+                        <>
+                          <form action={wakeServer}>
+                            <input type="hidden" name="orderId" value={order.id} />
+                            <SubmitButton variant="primary" pendingLabel="Waking…">
+                              Wake &amp; play
+                            </SubmitButton>
+                          </form>
+                          <p className="text-xs text-steel-faint">
+                            Waking uses one deploy slot ({usage.deployed}/{usage.deploySlots} in
+                            use).
+                          </p>
+                        </>
+                      )}
                     </div>
+                    {order.errorMessage && !order.hibernationPending && (
+                      <p className="mt-2 text-xs text-danger">{order.errorMessage}</p>
+                    )}
                   </div>
                 </div>
               </Card>
