@@ -136,6 +136,10 @@ model Order {
   // True while the archive-and-delete (or restore-and-wake) background job
   // is running, so the UI can show progress instead of a stale ACTIVE state.
   hibernationPending Boolean @default(false)
+  // 0-100 while hibernationPending is true, plus a short human label for
+  // whichever step is running (e.g. "Uploading to storage", "Restoring files").
+  hibernationProgress Int?
+  hibernationStage    String?
   // Bytes of backup storage this order is currently using, refreshed when the
   // backups page loads so the account total doesn't need N panel calls.
   backupBytes   BigInt      @default(0)

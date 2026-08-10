@@ -47,13 +47,23 @@ export function hibernationArchiveKey(orderId: string, backupUuid: string) {
 }
 
 /** Streams a fetch() response body straight into the bucket — never buffers the whole archive in memory. */
-export async function uploadArchive(key: string, body: ReadableStream | null, contentType = "application/gzip") {
+export async function uploadArchive(
+  key: string,
+  body: ReadableStream | null,
+  contentType = "application/gzip",
+  onProgress?: (loadedBytes: number, totalBytes?: number) => void,
+) {
   if (!body) throw new Error("Archive download had no body to upload");
   const { client, bucket } = await s3Client();
   const upload = new Upload({
     client,
     params: { Bucket: bucket, Key: key, Body: body, ContentType: contentType },
   });
+  if (onProgress) {
+    upload.on("httpUploadProgress", (progress) => {
+      onProgress(progress.loaded ?? 0, progress.total);
+    });
+  }
   await upload.done();
   return key;
 }

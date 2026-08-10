@@ -1077,16 +1077,39 @@ export async function hibernateOrder(orderId: string): Promise<void> {
 
   await db.order.update({
     where: { id: orderId },
-    data: { hibernationPending: true, errorMessage: null },
+    data: {
+      hibernationPending: true,
+      hibernationProgress: 0,
+      hibernationStage: "Stopping server",
+      errorMessage: null,
+    },
   });
 
   archiveAndHibernate(orderId).catch(async (err) => {
     const message = err instanceof Error ? err.message : "Hibernation failed";
     console.error(`Hibernation failed for order ${orderId}: ${message}`);
     await db.order
-      .update({ where: { id: orderId }, data: { hibernationPending: false, errorMessage: message } })
+      .update({
+        where: { id: orderId },
+        data: {
+          hibernationPending: false,
+          hibernationProgress: null,
+          hibernationStage: null,
+          errorMessage: message,
+        },
+      })
       .catch(() => {});
   });
+}
+
+/** Best-effort progress write — never worth failing the whole job over. */
+async function setHibernationProgress(orderId: string, progress: number, stage: string) {
+  await db.order
+    .update({
+      where: { id: orderId },
+      data: { hibernationProgress: Math.max(0, Math.min(100, Math.round(progress))), hibernationStage: stage },
+    })
+    .catch(() => {});
 }
 
 /** The actual archive-and-delete work, run detached from the request that triggered it. */
@@ -1099,6 +1122,7 @@ async function archiveAndHibernate(orderId: string): Promise<void> {
 
   await pteroClient.sendPower(serverId, "stop").catch(() => {});
 
+  await setHibernationProgress(orderId, 10, "Preparing backup");
   const existing = await pteroClient.listBackups(serverId);
   let backup = existing.data.map((item) => item.attributes).find((b) => b.is_successful);
   if (!backup) {
@@ -1106,6 +1130,7 @@ async function archiveAndHibernate(orderId: string): Promise<void> {
     backup = await waitForBackup(serverId, created.attributes.uuid);
   }
 
+  await setHibernationProgress(orderId, 20, "Starting upload");
   const download = await pteroClient.getBackupDownload(serverId, backup.uuid);
   const response = await fetch(download.attributes.url);
   if (!response.ok || !response.body) {
@@ -1113,8 +1138,23 @@ async function archiveAndHibernate(orderId: string): Promise<void> {
   }
 
   const key = hibernationArchiveKey(orderId, backup.uuid);
-  await uploadArchive(key, response.body);
+  let lastWriteAt = 0;
+  let lastPct = -1;
+  await uploadArchive(key, response.body, "application/gzip", (loaded, total) => {
+    const uploadPct = total ? (loaded / total) * 100 : 0;
+    const overall = 20 + uploadPct * 0.7; // upload spans 20%-90% of the overall bar
+    const now = Date.now();
+    if (Math.round(overall) === lastPct) return;
+    if (now - lastWriteAt < 1500 && uploadPct < 100) return;
+    lastWriteAt = now;
+    lastPct = Math.round(overall);
+    const label = total
+      ? `Uploading to storage (${Math.round(uploadPct)}%)`
+      : "Uploading to storage";
+    setHibernationProgress(orderId, overall, label).catch(() => {});
+  });
 
+  await setHibernationProgress(orderId, 92, "Cleaning up");
   await pteroApp.deleteServer(order.pteroServerId!);
   await releaseRustAllocations(order);
   if (order.subdomain) {
@@ -1130,6 +1170,8 @@ async function archiveAndHibernate(orderId: string): Promise<void> {
       hibernatedAt: new Date(),
       hibernationArchiveUrl: key,
       hibernationPending: false,
+      hibernationProgress: null,
+      hibernationStage: null,
       backupBytes: BigInt(backup.bytes),
       pteroServerId: null,
       pteroServerIdentifier: null,
@@ -1224,7 +1266,12 @@ export async function wakeOrder(orderId: string): Promise<void> {
   // ourselves. hibernationPending is the signal the UI uses instead.
   await db.order.update({
     where: { id: orderId },
-    data: { hibernationPending: true, errorMessage: null },
+    data: {
+      hibernationPending: true,
+      hibernationProgress: 5,
+      hibernationStage: "Provisioning a fresh server",
+      errorMessage: null,
+    },
   });
 
   restoreAndWake(orderId).catch(async (err) => {
@@ -1246,17 +1293,21 @@ async function restoreAndWake(orderId: string): Promise<void> {
     throw new Error("Re-provisioning did not produce a server to restore onto");
   }
 
+  await setHibernationProgress(orderId, 35, "Waiting for the server to finish installing");
   await waitForInstall(after.pteroServerId);
   // Give Wings a moment to finish wiring up the new container's own file API
   // — the Application API can report "not installing" a few seconds before
   // Wings-proxied calls for this specific server actually succeed.
   await sleep(5000);
 
+  await setHibernationProgress(orderId, 55, "Downloading your world");
   const downloadUrl = await presignArchiveDownload(archiveKey);
   await withWingsRetry(() =>
     pteroClient.pullFile(after.pteroServerIdentifier!, downloadUrl, "/", HIBERNATION_ARCHIVE_NAME),
   );
   await waitForPulledFile(after.pteroServerIdentifier, HIBERNATION_ARCHIVE_NAME);
+
+  await setHibernationProgress(orderId, 85, "Restoring files");
   await withWingsRetry(() =>
     pteroClient.decompressFile(after.pteroServerIdentifier!, "/", HIBERNATION_ARCHIVE_NAME),
   );
@@ -1264,6 +1315,7 @@ async function restoreAndWake(orderId: string): Promise<void> {
     pteroClient.deleteFiles(after.pteroServerIdentifier!, "/", [HIBERNATION_ARCHIVE_NAME]),
   );
 
+  await setHibernationProgress(orderId, 97, "Finishing up");
   await deleteArchive(archiveKey).catch((err) =>
     console.warn(`Archive cleanup failed for order ${orderId}: ${String(err)}`),
   );
@@ -1273,6 +1325,8 @@ async function restoreAndWake(orderId: string): Promise<void> {
     data: {
       hibernationArchiveUrl: null,
       hibernatedAt: null,
+      hibernationProgress: null,
+      hibernationStage: null,
       hibernationPending: false,
       errorMessage: null,
     },
@@ -1304,6 +1358,8 @@ async function revertFailedWake(orderId: string, message: string) {
     data: {
       status: "HIBERNATING",
       hibernationPending: false,
+      hibernationProgress: null,
+      hibernationStage: null,
       errorMessage: message,
       pteroServerId: null,
       pteroServerIdentifier: null,
