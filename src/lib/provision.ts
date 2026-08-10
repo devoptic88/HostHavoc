@@ -1028,19 +1028,27 @@ const FILE_PULL_POLL_TIMEOUT_MS = 3 * 60_000;
 const HIBERNATION_ARCHIVE_NAME = "hypernode-hibernation-archive.tar.gz";
 
 /**
- * Rust's install directory is dominated by the dedicated-server binary, Unity
- * engine data, and Steam's own cache — several GB that a wake's re-provision
- * re-downloads from Steam fresh anyway. Backing those up just makes the
- * archive (and every upload/download of it) needlessly huge and slow, so
- * they're excluded; only the world save, player data, and plugin
- * configs/data need to survive the round trip.
+ * Rust's install directory is mostly the dedicated-server binary, Unity
+ * engine data (Bundles/RustDedicated_Data), and Steam's own client/cache
+ * (Steam/.steam/steamapps/steamcmd) — several GB that a wake's re-provision
+ * re-downloads from Steam fresh anyway. Rather than enumerate every such
+ * directory (and risk missing one on a different egg variant), this is an
+ * allow-list: exclude everything, then explicitly keep only what actually
+ * needs to survive the round trip — the world save, server config, and
+ * Oxide/Carbon plugin code/data/config if either is installed.
  */
 const RUST_BACKUP_IGNORE = [
-  "RustDedicated_Data/*",
-  "steamapps/*",
-  "steamcmd/*",
-  "*.log",
-  "logs/*",
+  "*",
+  "!server",
+  "!server/**",
+  "!cfg",
+  "!cfg/**",
+  "!oxide",
+  "!oxide/**",
+  "!carbon",
+  "!carbon/**",
+  "!HarmonyMods",
+  "!HarmonyMods/**",
 ].join("\n");
 
 /** Waits for a just-created backup to finish, polling since Wings builds it async. */
