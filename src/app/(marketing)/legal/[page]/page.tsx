@@ -31,7 +31,7 @@ Services are provided "as is". HyperNode's total liability is limited to the fee
     body: `
 ## What we collect
 
-Account details (name, email), billing metadata processed by Stripe (we never see or store full card numbers), and operational data about your services (server names, resource usage, support tickets).
+Account details (name, email), billing metadata processed by Paymenter (we never see or store full card numbers), and operational data about your services (server names, resource usage, support tickets).
 
 ## What we don't do
 
@@ -39,7 +39,7 @@ We do not sell your data, run third-party ad trackers, or read the contents of y
 
 ## Payment processing
 
-All payments are processed by Stripe. Card details go directly from your browser to Stripe and never touch HyperNode infrastructure.
+All payments are processed by Paymenter. Card details go directly from your browser to Paymenter and never touch HyperNode infrastructure.
 
 ## Data retention
 

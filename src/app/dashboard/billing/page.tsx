@@ -86,7 +86,7 @@ export default async function BillingPage() {
       </Card>
       <p className="mt-4 text-xs text-steel-faint">
         Manage payment methods, invoices, and cancellations through the secure
-        Stripe billing portal.
+        Paymenter billing portal.
       </p>
     </div>
   );

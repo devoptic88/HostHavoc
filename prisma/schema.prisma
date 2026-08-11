@@ -59,7 +59,7 @@ model User {
   passwordHash   String
   role           Role     @default(CUSTOMER)
   pteroUserId    Int?     @unique // Pterodactyl application-API user id
-  stripeCustomerId String? @unique
+  paymenterUserId Int?    @unique // Paymenter admin-API user id
   dateFormat     String   @default("iso") // iso | us | eu
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -87,7 +87,7 @@ model Plan {
   saveSlots   Int         @default(1)
   backupStorageMb Int     @default(20480)
   priceMonthly Decimal    @db.Decimal(10, 2)
-  stripePriceId String?   @unique
+  paymenterProductId Int? @unique
   eggId       Int? // pterodactyl egg to deploy
   nestId      Int?
   nodeId      Int? // pin deployment to one pterodactyl node (null = customer's location)
@@ -109,7 +109,7 @@ model Order {
   locationId    Int? // pterodactyl location id chosen at checkout
   pteroServerId Int? // application-API server id once provisioned
   pteroServerIdentifier String? // client-API short uuid
-  stripeSubscriptionId String? @unique
+  paymenterOrderId Int?    @unique // Paymenter order id whose lifecycle drives provisioning
   rustAllocations Json?
   rustInstallProfile String?
   rustPendingReinstallProfile String?

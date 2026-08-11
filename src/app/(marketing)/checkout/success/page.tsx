@@ -26,7 +26,7 @@ export default async function CheckoutSuccessPage({
     order?.productType === "GAME_SERVER" &&
     !order.pteroServerIdentifier &&
     order.status === "PENDING" &&
-    Boolean(order.stripeSubscriptionId)
+    Boolean(order.paymenterOrderId)
   ) {
     await provisionOrder(order.id).catch(() => {});
   }

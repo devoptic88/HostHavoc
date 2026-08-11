@@ -182,7 +182,7 @@ We're starting with 16 games — Minecraft, Rust, Palworld, ARK, Valheim, Projec
     ],
     [
       "How billing works",
-      `## Billing basics\n\nAll plans bill monthly through Stripe. Upgrade, downgrade, or cancel anytime from **Dashboard → Billing → Manage billing**.\n\n- **72-hour money-back guarantee** on every new service.\n- Failed payments suspend (never delete) your server — data is kept for 7 days after cancellation.`,
+      `## Billing basics\n\nAll plans bill monthly through Paymenter. Upgrade, downgrade, or cancel anytime from **Dashboard → Billing → Manage billing**.\n\n- **72-hour money-back guarantee** on every new service.\n- Failed payments suspend (never delete) your server — data is kept for 7 days after cancellation.`,
     ],
   ]) {
     const slug = slugify(title);

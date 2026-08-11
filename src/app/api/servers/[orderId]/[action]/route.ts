@@ -730,7 +730,7 @@ export async function GET(
         order.productType === "GAME_SERVER" &&
         !order.pteroServerIdentifier &&
         order.status === "PENDING" &&
-        Boolean(order.stripeSubscriptionId)
+        Boolean(order.paymenterOrderId)
       ) {
         await provisionOrder(order.id).catch(() => {});
       }

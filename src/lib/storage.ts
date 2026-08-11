@@ -7,7 +7,7 @@ import { getSettings } from "@/lib/settings";
  * S3-compatible object storage for LITE hibernation archives. Works with
  * AWS S3, Cloudflare R2, Backblaze B2, MinIO, etc. — anything that speaks the
  * S3 API — via a configurable endpoint. Config lives in Admin -> Settings,
- * same DB-backed-override-with-env-fallback pattern as Stripe/Pterodactyl.
+ * same DB-backed-override-with-env-fallback pattern as Paymenter/Pterodactyl.
  */
 
 async function storageSettings() {

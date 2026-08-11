@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 const SECTIONS: {
   title: string;
-  icon: "panel" | "stripe" | "dns" | "support" | "storage";
+  icon: "panel" | "billing" | "dns" | "support" | "storage";
   description: string;
   fields: { key: SettingKey; label: string; secret: boolean; hint?: string; placeholder?: string }[];
 }[] = [
@@ -42,22 +42,29 @@ const SECTIONS: {
     ],
   },
   {
-    title: "Stripe billing",
-    icon: "stripe",
+    title: "Paymenter billing",
+    icon: "billing",
     description:
       "Without these, checkout runs in dev mode and provisions orders without payment.",
     fields: [
       {
-        key: "STRIPE_SECRET_KEY",
-        label: "Secret key",
-        secret: true,
-        hint: "Dashboard → Developers → API keys (sk_live_… or sk_test_…).",
+        key: "PAYMENTER_URL",
+        label: "Paymenter URL",
+        secret: false,
+        placeholder: "https://billing.example.com",
+        hint: "Base URL of your Paymenter instance, no trailing slash.",
       },
       {
-        key: "STRIPE_WEBHOOK_SECRET",
-        label: "Webhook signing secret",
+        key: "PAYMENTER_API_KEY",
+        label: "Admin API key",
         secret: true,
-        hint: "From the webhook endpoint you create for /api/stripe/webhook (whsec_…).",
+        hint: "Paymenter Admin → API. Needs read/write on users, products, and orders.",
+      },
+      {
+        key: "PAYMENTER_EXTENSION_SECRET",
+        label: "Extension shared secret",
+        secret: true,
+        hint: "Any random string — enter the same value in the HyperNode server extension's config on the Paymenter side.",
       },
     ],
   },

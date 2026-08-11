@@ -132,7 +132,7 @@ export function CheckoutForm({
           )}
         </Button>
         <p className="flex items-center justify-center gap-1.5 text-xs text-steel-faint">
-          <Lock className="h-3 w-3" /> Secure checkout powered by Stripe ·
+          <Lock className="h-3 w-3" /> Secure checkout powered by Paymenter ·
           Cancel anytime
         </p>
       </form>

@@ -1,29 +1,27 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { stripe, stripeConfigured } from "@/lib/stripe";
+import { getSetting } from "@/lib/settings";
+import { paymenterConfigured } from "@/lib/paymenter";
 
 export async function POST() {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
   }
-  if (!(await stripeConfigured())) {
+  if (!(await paymenterConfigured())) {
     return NextResponse.json(
-      { error: "Billing portal is unavailable until Stripe is configured." },
+      { error: "Billing portal is unavailable until Paymenter is configured." },
       { status: 501 },
     );
   }
   const user = await db.user.findUniqueOrThrow({ where: { id: session.user.id } });
-  if (!user.stripeCustomerId) {
+  if (!user.paymenterUserId) {
     return NextResponse.json(
       { error: "No billing profile yet — it's created on your first purchase." },
       { status: 404 },
     );
   }
-  const portal = await (await stripe()).billingPortal.sessions.create({
-    customer: user.stripeCustomerId,
-    return_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/dashboard/billing`,
-  });
-  return NextResponse.json({ redirect: portal.url });
+  const baseUrl = (await getSetting("PAYMENTER_URL")).replace(/\/+$/, "");
+  return NextResponse.json({ redirect: `${baseUrl}/account` });
 }

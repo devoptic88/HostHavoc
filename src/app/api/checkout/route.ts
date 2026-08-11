@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { stripe, stripeConfigured } from "@/lib/stripe";
+import {
+  createPaymenterOrder,
+  findOrCreatePaymenterProduct,
+  findOrCreatePaymenterUser,
+  paymenterConfigured,
+} from "@/lib/paymenter";
 import { gameBySlug, resolveExistingGamePlan, resolveFixedPlan, resolveGamePlan } from "@/lib/plans";
 import { provisionOrder } from "@/lib/provision";
 
@@ -78,55 +83,23 @@ export async function POST(req: Request) {
     },
   });
 
-  // Dev fallback: without Stripe keys, provision immediately so the full
-  // pipeline can be exercised locally. Replace by configuring STRIPE_*.
-  if (!(await stripeConfigured())) {
+  // Dev fallback: without Paymenter configured, provision immediately so the
+  // full pipeline can be exercised locally. Replace by configuring PAYMENTER_*.
+  if (!(await paymenterConfigured())) {
     provisionOrder(order.id).catch(() => {});
     return NextResponse.json({ redirect: `/checkout/success?order=${order.id}` });
   }
 
-  const s = await stripe();
-
-  // Reuse or create the Stripe customer.
   const user = await db.user.findUniqueOrThrow({ where: { id: session.user.id } });
-  let customerId = user.stripeCustomerId;
-  if (!customerId) {
-    const customer = await s.customers.create({
-      email: user.email,
-      name: user.name,
-      metadata: { hypernodeUserId: user.id },
-    });
-    customerId = customer.id;
-    await db.user.update({
-      where: { id: user.id },
-      data: { stripeCustomerId: customerId },
-    });
-  }
+  const paymenterUserId = await findOrCreatePaymenterUser(user);
+  const paymenterProductId = await findOrCreatePaymenterProduct(plan);
+  const { paymenterOrderId, paymentUrl } = await createPaymenterOrder(
+    paymenterUserId,
+    paymenterProductId,
+    order.id,
+  );
 
-  // Reuse or create the recurring price for this plan.
-  let priceId = plan.stripePriceId;
-  if (!priceId) {
-    const price = await s.prices.create({
-      currency: "usd",
-      unit_amount: Math.round(Number(plan.priceMonthly) * 100),
-      recurring: { interval: "month" },
-      product_data: { name: `HyperNode — ${plan.name}` },
-    });
-    priceId = price.id;
-    await db.plan.update({ where: { id: plan.id }, data: { stripePriceId: priceId } });
-  }
+  await db.order.update({ where: { id: order.id }, data: { paymenterOrderId } });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const checkout = await s.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    line_items: [{ price: priceId, quantity: 1 }],
-    allow_promotion_codes: true,
-    success_url: `${appUrl}/checkout/success?order=${order.id}`,
-    cancel_url: `${appUrl}/checkout?cancelled=1`,
-    metadata: { orderId: order.id },
-    subscription_data: { metadata: { orderId: order.id } },
-  });
-
-  return NextResponse.json({ redirect: checkout.url });
+  return NextResponse.json({ redirect: paymentUrl });
 }
